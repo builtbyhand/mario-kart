@@ -1,9 +1,10 @@
-name: Auto Release APK
+name: Build & Release Android APK
 
 on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -23,8 +24,11 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Accept Android SDK Licenses
+        run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
@@ -32,14 +36,15 @@ jobs:
       - name: Build Release APK
         run: ./gradlew assembleRelease --stacktrace
 
-      - name: Rename APK for Release
+      - name: Stage Release Artifacts
         run: |
           mkdir -p release-artifacts
           cp app/build/outputs/apk/release/app-release.apk release-artifacts/MarioKart-${{ github.ref_name }}.apk
           cp app/build/outputs/apk/release/app-release.apk release-artifacts/MarioKart.apk
 
-      - name: Create GitHub Release
+      - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
         with:
           name: Mario Kart Android ${{ github.ref_name }}
           draft: false
