@@ -414,26 +414,55 @@ function showMenu() {
   constructRace();
 }
 
+function addTapListener(el, handler) {
+  if (!el) return;
+  let lastTrigger = 0;
+  const trigger = (e) => {
+    const now = Date.now();
+    if (now - lastTrigger < 280) return;
+    lastTrigger = now;
+    if (e && e.cancelable) e.preventDefault();
+    handler(e);
+  };
+  el.addEventListener("pointerdown", trigger);
+  el.addEventListener("click", trigger);
+}
+
 function setupTouchControls() {
   const bindTouch = (id, onDown, onUp) => {
     const el = $(id);
     if (!el) return;
-    const start = (e) => {
-      e.preventDefault();
-      el.classList.add("active");
-      onDown();
+    let isPressed = false;
+    const press = (e) => {
+      if (e) {
+        if (e.cancelable) e.preventDefault();
+        try {
+          if (e.pointerId !== undefined && el.setPointerCapture) el.setPointerCapture(e.pointerId);
+        } catch (err) {}
+      }
+      if (!isPressed) {
+        isPressed = true;
+        el.classList.add("active");
+        onDown();
+      }
     };
-    const end = (e) => {
-      e.preventDefault();
-      el.classList.remove("active");
-      onUp();
+    const release = (e) => {
+      if (e && e.cancelable) e.preventDefault();
+      if (isPressed) {
+        isPressed = false;
+        el.classList.remove("active");
+        onUp();
+      }
     };
-    el.addEventListener("touchstart", start, { passive: false });
-    el.addEventListener("touchend", end, { passive: false });
-    el.addEventListener("touchcancel", end, { passive: false });
-    el.addEventListener("mousedown", start);
-    el.addEventListener("mouseup", end);
-    el.addEventListener("mouseleave", end);
+    el.addEventListener("pointerdown", press);
+    el.addEventListener("pointerup", release);
+    el.addEventListener("pointercancel", release);
+    el.addEventListener("touchstart", press, { passive: false });
+    el.addEventListener("touchend", release, { passive: false });
+    el.addEventListener("touchcancel", release, { passive: false });
+    el.addEventListener("mousedown", press);
+    el.addEventListener("mouseup", release);
+    el.addEventListener("mouseleave", release);
   };
 
   bindTouch("touch-steer-left", () => wheel.setTouchSteer(-1), () => wheel.setTouchSteer(0));
@@ -448,7 +477,7 @@ function setupTouchControls() {
 
   const tiltToggle = $("touch-tilt-toggle");
   if (tiltToggle) {
-    tiltToggle.addEventListener("click", () => {
+    addTapListener(tiltToggle, () => {
       wheel.tiltEnabled = !wheel.tiltEnabled;
       tiltToggle.textContent = wheel.tiltEnabled ? "TILT: ON" : "TILT: OFF";
       tiltToggle.classList.toggle("active", wheel.tiltEnabled);
@@ -457,7 +486,7 @@ function setupTouchControls() {
 
   const pauseBtn = $("pause-btn");
   if (pauseBtn) {
-    pauseBtn.addEventListener("click", () => {
+    addTapListener(pauseBtn, () => {
       if (paused) resume();
       else pause();
     });
@@ -465,7 +494,7 @@ function setupTouchControls() {
 
   const restartBtn = $("restart");
   if (restartBtn) {
-    restartBtn.addEventListener("click", () => {
+    addTapListener(restartBtn, () => {
       $("pause").hidden = true;
       paused = false;
       constructRace();
@@ -475,7 +504,7 @@ function setupTouchControls() {
 
   const menuReturnBtn = $("menu-return");
   if (menuReturnBtn) {
-    menuReturnBtn.addEventListener("click", () => {
+    addTapListener(menuReturnBtn, () => {
       $("pause").hidden = true;
       paused = false;
       showMenu();
@@ -484,7 +513,7 @@ function setupTouchControls() {
 
   const resultsMenuBtn = $("results-menu");
   if (resultsMenuBtn) {
-    resultsMenuBtn.addEventListener("click", () => {
+    addTapListener(resultsMenuBtn, () => {
       $("results").hidden = true;
       showMenu();
     });
@@ -543,45 +572,53 @@ function onEvent(e) {
   }
   if (e.type === "coin") burst(race.player, 10, "#ffdf46");
 }
-let starting = false, driverConfirmed = false;
+let driverConfirmed = false;
 function setDriverConfirmed(value) {
   driverConfirmed = value;
   $('intro').classList.toggle('driver-confirmed', value);
-  document.querySelector('.intro-copy').textContent = value ? 'Choose race length · Tap Start Race' : 'Choose your driver';
+  const copy = document.querySelector('.intro-copy');
+  if (copy) copy.textContent = value ? 'LAPS & START:' : 'DRIVER:';
   $('start').innerHTML = 'START RACE <span>🏁 GO!</span>';
-  $('menu-hint').textContent = 'Tap character to choose · D-Pad or Touch to Start';
+  $('menu-hint').textContent = 'Tap character to select · Tap START RACE';
 }
 function cancelDriver() {
-  if(driverConfirmed){setDriverConfirmed(false);audio.ui('cancel');}
+  if (driverConfirmed) {
+    setDriverConfirmed(false);
+    try { audio.ui('cancel'); } catch (e) {}
+  }
 }
 function chooseDriver(index) {
-  if (race.state !== 'ready' || starting) return;
-  const c=CHARACTERS[(index+CHARACTERS.length)%CHARACTERS.length];
-  selected=c.id;setDriverConfirmed(false);
-  document.querySelectorAll('.character').forEach((el,i)=>{
-    el.classList.toggle('selected',CHARACTERS[i].id===selected);
-    el.setAttribute('aria-pressed',String(CHARACTERS[i].id===selected));
+  if (race.state !== 'ready') return;
+  const c = CHARACTERS[(index + CHARACTERS.length) % CHARACTERS.length];
+  selected = c.id;
+  setDriverConfirmed(false);
+  document.querySelectorAll('.character').forEach((el, i) => {
+    el.classList.toggle('selected', CHARACTERS[i].id === selected);
+    el.setAttribute('aria-pressed', String(CHARACTERS[i].id === selected));
   });
-  $('chosen').textContent=c.name;
+  $('chosen').textContent = c.name;
   constructRace();
-  audio.ui('cursor');
+  try { audio.ui('cursor'); } catch (e) {}
 }
 function selectLaps(laps) {
-  if (race.state !== 'ready' || starting) return;
+  if (race.state !== 'ready') return;
   selectedLaps = laps === 1 ? 1 : 3;
   race.laps = selectedLaps;
   localStorage.setItem('mariokart.laps', String(selectedLaps));
   syncLapOptions();
-  audio.ui('cursor');
+  try { audio.ui('cursor'); } catch (e) {}
 }
 function syncLapOptions() {
   document.querySelectorAll('[data-laps]').forEach(button => {
     button.setAttribute('aria-pressed', String(Number(button.dataset.laps) === selectedLaps));
   });
-  document.querySelector('#track-label small').textContent = `${selectedLaps} ${selectedLaps === 1 ? 'LAP' : 'LAPS'} · 8 RACERS · MARIO KART STADIUM`;
+  const trackLabelSmall = document.querySelector('#track-label small');
+  if (trackLabelSmall) {
+    trackLabelSmall.textContent = `${selectedLaps} ${selectedLaps === 1 ? 'LAP' : 'LAPS'} · 8 RACERS · MARIO KART STADIUM`;
+  }
 }
 for (const button of document.querySelectorAll('[data-laps]')) {
-  button.onclick = () => selectLaps(Number(button.dataset.laps));
+  addTapListener(button, () => selectLaps(Number(button.dataset.laps)));
 }
 syncLapOptions();
 function navigateDriver(direction) {
@@ -589,20 +626,13 @@ function navigateDriver(direction) {
     if (direction === 'left' || direction === 'right') selectLaps(selectedLaps === 1 ? 3 : 1);
     return;
   }
-  const index=CHARACTERS.findIndex(c=>c.id===selected);
-  const step={left:-1,right:1,up:-4,down:4}[direction];
-  chooseDriver(index+step);
+  const index = CHARACTERS.findIndex(c => c.id === selected);
+  const step = { left: -1, right: 1, up: -4, down: 4 }[direction];
+  chooseDriver(index + step);
 }
-async function begin() {
-  if (starting) return;
-  starting = true;
-  const button = $("start"), label = button.innerHTML;
-  button.disabled = true;
-  button.textContent = "STARTING…";
-  await audio.ui('start');
-  starting = false;
-  button.disabled = false;
-  button.innerHTML = label;
+function begin() {
+  if (race.state !== 'ready' && race.state !== 'results') return;
+  try { audio.ui('start'); } catch (e) {}
   wheel.reset();
   captureUntil = performance.now() + 3000;
   document.body.classList.remove("in-menu");
@@ -626,31 +656,31 @@ function confirm() {
   }
   if (race.state === 'ready') {
     begin();
-  }
-  else if (race.state === "results") {
+  } else if (race.state === "results") {
     constructRace();
     begin();
   }
 }
-$("start").onclick = confirm;
-$("again").onclick = confirm;
-$("resume").onclick = resume;
+addTapListener($("start"), confirm);
+addTapListener($("again"), confirm);
+addTapListener($("resume"), resume);
 window.onAndroidConfirm = confirm;
-$("mute").onclick = () => {
+addTapListener($("mute"), () => {
   audio.engine.enabled = !audio.engine.enabled;
   audio.engine.master?.gain.setValueAtTime(
     audio.engine.enabled ? 0.55 : 0,
     audio.engine.ctx.currentTime,
   );
   $("mute").textContent = audio.engine.enabled ? "♪ SOUND ON" : "♪ SOUND OFF";
-};
+});
 for (const c of CHARACTERS) {
   const b = document.createElement("button");
+  b.type = "button";
   b.className = "character" + (c.id === selected ? " selected" : "");
   b.setAttribute("aria-label", c.name);
   b.innerHTML = `<img src="${portrait(c)}" alt="${c.name}">`;
-  b.setAttribute('aria-pressed',String(c.id===selected));
-  b.onclick = () => chooseDriver(CHARACTERS.indexOf(c));
+  b.setAttribute('aria-pressed', String(c.id === selected));
+  addTapListener(b, () => chooseDriver(CHARACTERS.indexOf(c)));
   $("characters").append(b);
 }
 function pause(reason = "Take a breath. The race will wait.") {

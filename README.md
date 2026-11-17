@@ -19,11 +19,11 @@ A high-performance 3D Mario Kart racing game engineered specifically for Android
 
 Download the latest signed APK directly from the [GitHub Releases](https://github.com/mizan989/mario-kart/releases):
 
-- **[Download Mario Kart APK (v0.1)](https://github.com/mizan989/mario-kart/releases/download/v0.1/MarioKart-v0.1.apk)**
+- **[Download Mario Kart APK (v0.2)](https://github.com/mizan989/mario-kart/releases/download/v0.2/MarioKart-v0.2.apk)**
 
 Or install via ADB:
 ```bash
-adb install -r MarioKart-v0.1.apk
+adb install -r MarioKart-v0.2.apk
 ```
 
 ---
@@ -119,8 +119,8 @@ Outputs:
 This repository includes a GitHub Actions workflow (`.github/workflows/release.yml`) configured to automatically build and release the APK whenever a version tag is pushed:
 
 ```bash
-git tag v0.1
-git push origin v0.1
+git tag v0.2
+git push origin v0.2
 ```
 The workflow will compile the release APK, sign it, create a new GitHub Release with changelog notes, and attach the APK file.
 

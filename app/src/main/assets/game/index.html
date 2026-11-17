@@ -83,22 +83,28 @@
 
     <div id="intro">
       <div class="intro-card">
-        <div class="eyebrow">MUSHROOM CUP · 150cc</div>
-        <h1><img src="menu-logo.svg" alt="Mario Kart"></h1>
-        <div class="stadium-name">MARIO KART STADIUM <span>★</span></div>
-        <p class="intro-copy">Choose your driver</p>
-        <div id="characters" role="group" aria-label="Choose character"></div>
-        <div id="chosen">MARIO</div>
-        <div id="lap-options" role="group" aria-label="Race length">
-          <span>RACE LENGTH</span>
-          <button type="button" data-laps="1" aria-pressed="false">1 LAP</button>
-          <button type="button" data-laps="3" aria-pressed="true">3 LAPS</button>
+        <div class="intro-col intro-col-left">
+          <div class="eyebrow">MUSHROOM CUP · 150cc</div>
+          <h1><img src="menu-logo.svg" alt="Mario Kart"></h1>
+          <div class="stadium-name">MARIO KART STADIUM <span>★</span></div>
+          <div id="lap-options" role="group" aria-label="Race length">
+            <span>LAPS:</span>
+            <button type="button" data-laps="1" aria-pressed="false">1 LAP</button>
+            <button type="button" data-laps="3" aria-pressed="true">3 LAPS</button>
+          </div>
+          <button id="start" type="button">START RACE <span>🏁 GO!</span></button>
         </div>
-        <button id="start" type="button">START RACE <span>🏁 GO!</span></button>
-        <p id="menu-hint">Tap character to choose · D-Pad or Touch to Start</p>
-        <p class="controls">
-          <b>CONTROLS:</b> Touch Pedals · Tilt Steering · Gamepad &amp; TV Remote Supported
-        </p>
+        <div class="intro-col intro-col-right">
+          <div class="driver-title-row">
+            <span class="intro-copy">DRIVER:</span>
+            <span id="chosen">MARIO</span>
+          </div>
+          <div id="characters" role="group" aria-label="Choose character"></div>
+          <p id="menu-hint">Tap character to select · Tap START RACE</p>
+          <p class="controls">
+            <b>CONTROLS:</b> Touch Pedals · Tilt · Gamepad &amp; TV Remote
+          </p>
+        </div>
       </div>
     </div>
 

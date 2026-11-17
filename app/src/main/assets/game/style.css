@@ -32,6 +32,15 @@ html, body {
   display: none !important;
 }
 
+button,
+input,
+[role="button"] {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
 /* ─────────────────────────────────────────────────────────────────────────────
    3D Canvas & Full-screen Overlays
    ───────────────────────────────────────────────────────────────────────────── */
@@ -123,7 +132,7 @@ body.in-menu #pause-btn {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   Intro / Main Menu Overlay
+   Intro / Main Menu Overlay (Optimized for Landscape Mobile & TV)
    ───────────────────────────────────────────────────────────────────────────── */
 #intro {
   position: fixed;
@@ -132,31 +141,57 @@ body.in-menu #pause-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: hidden;
-  background: radial-gradient(ellipse at center, rgba(6, 12, 22, 0.4) 0%, rgba(3, 7, 14, 0.82) 100%);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  background: radial-gradient(ellipse at center, rgba(6, 12, 22, 0.4) 0%, rgba(3, 7, 14, 0.85) 100%);
   pointer-events: auto;
-  padding: 10px;
+  padding: 10px 16px;
+  touch-action: manipulation;
 }
 
 .intro-card {
-  background: rgba(12, 22, 38, 0.78);
+  background: rgba(12, 22, 38, 0.88);
   border: 1.5px solid rgba(255, 255, 255, 0.22);
-  border-radius: 22px;
+  border-radius: 20px;
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.7), inset 0 1px 2px rgba(255, 255, 255, 0.2);
-  padding: 14px 26px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.75), inset 0 1px 2px rgba(255, 255, 255, 0.2);
+  padding: 12px 20px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  max-height: 94vh;
+  width: min(92vw, 760px);
+  box-sizing: border-box;
+}
+
+.intro-col {
   display: flex;
   flex-direction: column;
+}
+
+.intro-col-left {
+  flex: 0 0 auto;
   align-items: center;
-  max-height: 96vh;
-  width: min(84vw, 720px);
+  justify-content: center;
+  text-align: center;
+  min-width: 200px;
+  max-width: 260px;
+}
+
+.intro-col-right {
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
 }
 
 .eyebrow {
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 800;
-  letter-spacing: 3px;
+  letter-spacing: 2px;
   color: #ffe600;
   text-transform: uppercase;
   margin-bottom: 2px;
@@ -171,19 +206,19 @@ body.in-menu #pause-btn {
 }
 
 #intro h1 img {
-  width: min(32vw, 260px);
+  width: min(26vw, 190px);
   height: auto;
-  max-height: 12vh;
+  max-height: 10vh;
   object-fit: contain;
-  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.8));
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.8));
 }
 
 .stadium-name {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 900;
-  letter-spacing: 2px;
+  letter-spacing: 1.5px;
   color: #e2f1ff;
-  margin-bottom: 4px;
+  margin-bottom: 8px;
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
 }
 
@@ -191,37 +226,54 @@ body.in-menu #pause-btn {
   color: #ffe600;
 }
 
+.driver-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
 .intro-copy {
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 800;
   letter-spacing: 1px;
-  color: rgba(255, 255, 255, 0.85);
-  margin-bottom: 8px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+#chosen {
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: 2px;
+  color: #ffd700;
+  text-transform: uppercase;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.9);
 }
 
 #characters {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
   gap: 8px;
   justify-content: center;
   align-items: center;
-  flex-wrap: wrap;
   margin-bottom: 6px;
-  max-width: 540px;
+  max-width: 320px;
 }
 
 .character {
-  width: 48px;
-  height: 48px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
-  background: rgba(25, 42, 68, 0.75);
-  border: 2px solid rgba(255, 255, 255, 0.3);
+  background: rgba(25, 42, 68, 0.85);
+  border: 2px solid rgba(255, 255, 255, 0.35);
   padding: 2px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
   touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .character img {
@@ -232,32 +284,22 @@ body.in-menu #pause-btn {
   pointer-events: none;
 }
 
-.character:hover {
-  transform: scale(1.08);
+.character:hover, .character:focus-visible {
+  transform: scale(1.1);
   border-color: #ffd700;
 }
 
 .character.selected {
-  transform: scale(1.18);
+  transform: scale(1.15);
   border-color: #ffd700;
-  box-shadow: 0 0 16px rgba(255, 215, 0, 0.8), inset 0 0 8px rgba(255, 215, 0, 0.6);
-  background: rgba(255, 215, 0, 0.25);
-}
-
-#chosen {
-  font-size: 14px;
-  font-weight: 900;
-  letter-spacing: 3px;
-  color: #ffd700;
-  text-transform: uppercase;
-  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.9);
-  margin-bottom: 8px;
+  box-shadow: 0 0 16px rgba(255, 215, 0, 0.85), inset 0 0 6px rgba(255, 215, 0, 0.6);
+  background: rgba(255, 215, 0, 0.3);
 }
 
 #lap-options {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   margin-bottom: 10px;
   font-size: 10px;
   font-weight: 800;
@@ -266,15 +308,17 @@ body.in-menu #pause-btn {
 }
 
 #lap-options button {
-  padding: 5px 14px;
-  border-radius: 14px;
-  background: rgba(25, 40, 65, 0.7);
+  padding: 5px 12px;
+  border-radius: 12px;
+  background: rgba(25, 40, 65, 0.75);
   border: 1.5px solid rgba(255, 255, 255, 0.3);
   color: #fff;
   font-size: 10px;
   font-weight: 800;
   letter-spacing: 1px;
   cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
   transition: all 0.12s ease;
 }
 
@@ -285,40 +329,48 @@ body.in-menu #pause-btn {
 }
 
 #start {
-  padding: 9px 30px;
+  padding: 10px 24px;
   border-radius: 28px;
   background: linear-gradient(135deg, #2ecc71, #27ae60);
   border: 2.5px solid #abebc6;
   color: #ffffff;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 900;
-  letter-spacing: 2px;
+  letter-spacing: 1.5px;
   cursor: pointer;
-  box-shadow: 0 6px 20px rgba(39, 174, 96, 0.55), inset 0 2px 4px rgba(255, 255, 255, 0.4);
+  box-shadow: 0 6px 20px rgba(39, 174, 96, 0.6), inset 0 2px 4px rgba(255, 255, 255, 0.4);
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
   display: flex;
   align-items: center;
   gap: 8px;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
   transition: transform 0.1s, filter 0.1s;
 }
 
+#start:hover, #start:focus-visible {
+  filter: brightness(1.15);
+  transform: scale(1.04);
+}
+
 #start:active {
-  transform: scale(0.95);
-  filter: brightness(1.2);
+  transform: scale(0.96);
+  filter: brightness(1.25);
 }
 
 #menu-hint {
   font-size: 9px;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.55);
-  margin: 6px 0 2px 0;
+  color: rgba(255, 255, 255, 0.6);
+  margin: 4px 0 2px 0;
 }
 
 .controls {
-  font-size: 9px;
+  font-size: 8.5px;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.65);
+  color: rgba(255, 255, 255, 0.55);
   text-align: center;
+  margin: 0;
 }
 
 .controls b {
@@ -614,6 +666,7 @@ body.in-menu #pause-btn {
 }
 
 #touch-controls[hidden],
+body:not(.racing) #touch-controls,
 body.in-menu #touch-controls,
 body.paused #touch-controls,
 body.results-screen #touch-controls,

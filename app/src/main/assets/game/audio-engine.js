@@ -31,7 +31,10 @@ export class AudioEngine {
     this.ensureCtx();
     if (this.ctx && this.ctx.state === "suspended") {
       try {
-        await this.ctx.resume();
+        await Promise.race([
+          this.ctx.resume(),
+          new Promise((r) => setTimeout(r, 120))
+        ]);
       } catch (e) {}
     }
   }
