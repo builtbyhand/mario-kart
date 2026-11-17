@@ -1,0 +1,349 @@
+package com.mizan.mariokart
+
+import android.annotation.SuppressLint
+import android.app.UiModeManager
+import android.content.Context
+import android.content.res.Configuration
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
+import android.os.Build
+import android.os.Bundle
+import android.os.CombinedVibration
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
+import android.util.Log
+import android.view.InputDevice
+import android.view.KeyEvent
+import android.view.MotionEvent
+import android.view.View
+import android.view.WindowManager
+import android.webkit.ConsoleMessage
+import android.webkit.JavascriptInterface
+import android.webkit.WebChromeClient
+import android.webkit.WebResourceError
+import android.webkit.WebResourceRequest
+import android.webkit.WebSettings
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
+import org.json.JSONArray
+
+class MainActivity : AppCompatActivity(), SensorEventListener {
+
+    private lateinit var webView: WebView
+    private var vibrator: Vibrator? = null
+    private var vibratorManager: VibratorManager? = null
+
+    private var sensorManager: SensorManager? = null
+    private var accelerometer: Sensor? = null
+
+    private var isTvDevice = false
+
+    // Gamepad state tracking
+    private var lastSteer = 0f
+    private var gasPressed = false
+    private var brakePressed = false
+    private var driftPressed = false
+    private var itemPressed = false
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        // Keep screen on while playing
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+
+        // Enable layout in cutout area for modern borderless displays
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            window.attributes.layoutInDisplayCutoutMode =
+                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+        }
+
+        // Detect if running on Android TV
+        val uiModeManager = getSystemService(Context.UI_MODE_SERVICE) as? UiModeManager
+        isTvDevice = uiModeManager?.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION
+
+        // Initialize vibration service
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            vibratorManager = getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
+            vibrator = vibratorManager?.defaultVibrator
+        } else {
+            @Suppress("DEPRECATION")
+            vibrator = getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+        }
+
+        // Initialize tilt sensor
+        sensorManager = getSystemService(Context.SENSOR_SERVICE) as? SensorManager
+        accelerometer = sensorManager?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+
+        // Setup WebView
+        setupWebView()
+        setContentView(webView)
+
+        hideSystemUI()
+    }
+
+    @SuppressLint("SetJavaScriptEnabled")
+    private fun setupWebView() {
+        webView = WebView(this).apply {
+            setLayerType(View.LAYER_TYPE_HARDWARE, null)
+            setBackgroundColor(0xFF081325.toInt())
+            isFocusable = true
+            isFocusableInTouchMode = true
+            requestFocus()
+
+            settings.apply {
+                javaScriptEnabled = true
+                domStorageEnabled = true
+                databaseEnabled = true
+                mediaPlaybackRequiresUserGesture = false
+                allowFileAccess = true
+                allowContentAccess = true
+                useWideViewPort = true
+                loadWithOverviewMode = true
+                cacheMode = WebSettings.LOAD_DEFAULT
+                mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+            }
+
+            addJavascriptInterface(AndroidGameBridge(), "AndroidBridge")
+
+            webChromeClient = object : WebChromeClient() {
+                override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
+                    consoleMessage?.let {
+                        Log.d("MarioKartJS", "${it.message()} -- From line ${it.lineNumber()} of ${it.sourceId()}")
+                    }
+                    return true
+                }
+            }
+
+            webViewClient = object : WebViewClient() {
+                override fun onPageFinished(view: WebView?, url: String?) {
+                    super.onPageFinished(view, url)
+                    hideSystemUI()
+                }
+
+                override fun onReceivedError(
+                    view: WebView?,
+                    request: WebResourceRequest?,
+                    error: WebResourceError?
+                ) {
+                    super.onReceivedError(view, request, error)
+                    Log.e("MarioKart", "WebView error: ${error?.description}")
+                }
+            }
+
+            loadUrl("file:///android_asset/game/index.html")
+        }
+    }
+
+    private fun hideSystemUI() {
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        val controller = WindowInsetsControllerCompat(window, window.decorView)
+        controller.hide(WindowInsetsCompat.Type.systemBars())
+        controller.systemBarsBehavior =
+            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+    }
+
+    override fun onResume() {
+        super.onResume()
+        hideSystemUI()
+        webView.onResume()
+        accelerometer?.let {
+            sensorManager?.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME)
+        }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        webView.onPause()
+        sensorManager?.unregisterListener(this)
+    }
+
+    override fun onDestroy() {
+        webView.destroy()
+        super.onDestroy()
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) {
+            hideSystemUI()
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // Sensor Handling (Tilt Steering)
+    // ─────────────────────────────────────────────────────────────────────────────
+    override fun onSensorChanged(event: SensorEvent?) {
+        if (event == null || event.sensor.type != Sensor.TYPE_ACCELEROMETER) return
+        // In landscape, event.values[1] represents sideways tilt roll
+        val roll = event.values[1] * 9.0f // convert to degrees approximately
+        val pitch = event.values[0] * 9.0f
+        webView.post {
+            webView.evaluateJavascript("window.onNativeSensorOrientation?.($roll, $pitch);", null)
+        }
+    }
+
+    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // Gamepad & TV Remote Input Dispatch
+    // ─────────────────────────────────────────────────────────────────────────────
+    override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
+        if (event.source and InputDevice.SOURCE_CLASS_JOYSTICK != 0 ||
+            event.source and InputDevice.SOURCE_GAMEPAD != 0
+        ) {
+            if (event.action == MotionEvent.ACTION_MOVE) {
+                // Left stick X
+                var steer = event.getAxisValue(MotionEvent.AXIS_X)
+                // D-Pad Hat X
+                val hatX = event.getAxisValue(MotionEvent.AXIS_HAT_X)
+                if (Math.abs(hatX) > 0.1f) {
+                    steer = hatX
+                }
+
+                // Triggers
+                val rTrigger = event.getAxisValue(MotionEvent.AXIS_RTRIGGER)
+                val gasAxis = event.getAxisValue(MotionEvent.AXIS_GAS)
+                val isGasTrigger = (rTrigger > 0.2f || gasAxis > 0.2f)
+
+                val lTrigger = event.getAxisValue(MotionEvent.AXIS_LTRIGGER)
+                val brakeAxis = event.getAxisValue(MotionEvent.AXIS_BRAKE)
+                val isBrakeTrigger = (lTrigger > 0.2f || brakeAxis > 0.2f)
+
+                if (Math.abs(steer - lastSteer) > 0.03f || isGasTrigger != gasPressed || isBrakeTrigger != brakePressed) {
+                    lastSteer = steer
+                    if (isGasTrigger) gasPressed = true
+                    if (isBrakeTrigger) brakePressed = true
+                    dispatchGamepadState()
+                }
+                return true
+            }
+        }
+        return super.dispatchGenericMotionEvent(event)
+    }
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        val isDown = event.action == KeyEvent.ACTION_DOWN
+
+        when (event.keyCode) {
+            KeyEvent.KEYCODE_DPAD_LEFT -> {
+                lastSteer = if (isDown) -1.0f else 0.0f
+                dispatchGamepadState()
+                return true
+            }
+            KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                lastSteer = if (isDown) 1.0f else 0.0f
+                dispatchGamepadState()
+                return true
+            }
+            KeyEvent.KEYCODE_BUTTON_A, KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
+                gasPressed = isDown
+                dispatchGamepadState()
+                if (isDown) {
+                    webView.evaluateJavascript("window.onAndroidConfirm?.();", null)
+                }
+                return true
+            }
+            KeyEvent.KEYCODE_BUTTON_B -> {
+                brakePressed = isDown
+                dispatchGamepadState()
+                return true
+            }
+            KeyEvent.KEYCODE_BUTTON_X, KeyEvent.KEYCODE_BUTTON_R1 -> {
+                driftPressed = isDown
+                dispatchGamepadState()
+                return true
+            }
+            KeyEvent.KEYCODE_BUTTON_Y, KeyEvent.KEYCODE_BUTTON_L1 -> {
+                itemPressed = isDown
+                dispatchGamepadState()
+                return true
+            }
+            KeyEvent.KEYCODE_BUTTON_START, KeyEvent.KEYCODE_MENU -> {
+                if (isDown) {
+                    webView.evaluateJavascript("document.getElementById('pause-btn')?.click();", null)
+                }
+                return true
+            }
+            KeyEvent.KEYCODE_BACK -> {
+                if (isDown) {
+                    webView.evaluateJavascript("document.getElementById('pause-btn')?.click();", null)
+                }
+                return true
+            }
+        }
+
+        return super.dispatchKeyEvent(event)
+    }
+
+    private fun dispatchGamepadState() {
+        val json = """
+            {
+                "steer": $lastSteer,
+                "gas": $gasPressed,
+                "brake": $brakePressed,
+                "drift": $driftPressed,
+                "item": $itemPressed
+            }
+        """.trimIndent()
+        webView.post {
+            webView.evaluateJavascript("window.onNativeGamepadInput?.($json);", null)
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // JavaScript Bridge API
+    // ─────────────────────────────────────────────────────────────────────────────
+    inner class AndroidGameBridge {
+
+        @JavascriptInterface
+        fun isTv(): Boolean = isTvDevice
+
+        @JavascriptInterface
+        fun vibrate(durationMs: Long) {
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    vibrator?.vibrate(
+                        VibrationEffect.createOneShot(durationMs, VibrationEffect.DEFAULT_AMPLITUDE)
+                    )
+                } else {
+                    @Suppress("DEPRECATION")
+                    vibrator?.vibrate(durationMs)
+                }
+            } catch (e: Exception) {
+                Log.w("MarioKart", "Vibration failed: ${e.message}")
+            }
+        }
+
+        @JavascriptInterface
+        fun vibratePattern(patternJson: String) {
+            try {
+                val array = JSONArray(patternJson)
+                val timings = LongArray(array.length()) { i -> array.getLong(i) }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    vibrator?.vibrate(
+                        VibrationEffect.createWaveform(timings, -1)
+                    )
+                } else {
+                    @Suppress("DEPRECATION")
+                    vibrator?.vibrate(timings, -1)
+                }
+            } catch (e: Exception) {
+                Log.w("MarioKart", "Pattern vibration failed: ${e.message}")
+            }
+        }
+
+        @JavascriptInterface
+        fun exitGame() {
+            runOnUiThread {
+                finish()
+            }
+        }
+    }
+}

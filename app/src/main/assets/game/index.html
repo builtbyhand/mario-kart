@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
+    <title>Mario Kart</title>
+    <link rel="stylesheet" href="style.css" />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "./vendor/three/three.module.js",
+          "/vendor/three-examples/": "./vendor/three-examples/",
+          "./vendor/three-examples/": "./vendor/three-examples/"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <canvas id="game" aria-label="Mario Kart Stadium race"></canvas>
+    <div id="speed-lines"></div>
+    <div id="hit-flash"></div>
+    <div id="hud" hidden>
+      <div id="item-frame">
+        <div id="item-icon"></div>
+        <span id="item-caption">ITEM</span>
+      </div>
+      <div id="race-brand"><b>MARIOKART</b><span>STADIUM</span></div>
+      <div id="lap-panel">
+        <span id="coin-icon" aria-label="Coins">🪙</span><b id="coins">00</b><i></i>
+        <span class="flag" aria-label="Lap">
+          <svg viewBox="0 0 28 32" aria-hidden="true">
+            <path d="M3 30V3h22v18H4" fill="none" stroke="white" stroke-width="2.8" />
+            <path d="M5 4h6v5H5m12-5h6v5h-6M11 9h6v5h-6M5 14h6v5H5m12-5h6v5h-6" fill="white" />
+          </svg>
+        </span>
+        <b id="lap">1 <small>/ 3</small></b>
+      </div>
+      <div id="position">8<sup>th</sup></div>
+      <canvas id="minimap" width="250" height="220"></canvas>
+      <div id="speed">
+        <b id="speed-number">0</b><span>km/h</span>
+        <div id="speed-bar"></div>
+      </div>
+      <div id="drift-meter">
+        <span id="drift-label">MINI-TURBO</span>
+        <div id="drift-fill"></div>
+      </div>
+      <div id="notice"></div>
+      <div id="countdown">
+        <div id="lamps"><i></i><i></i><i></i></div>
+        <b id="count-number"></b>
+      </div>
+    </div>
+
+    <!-- On-screen Touch Controls for Android Mobile (Landscape) - Only displayed while racing! -->
+    <div id="touch-controls" hidden>
+      <div id="touch-steer-cluster">
+        <div class="steer-row">
+          <button id="touch-steer-left" class="touch-btn steer-btn" aria-label="Steer Left">◀</button>
+          <button id="touch-steer-right" class="touch-btn steer-btn" aria-label="Steer Right">▶</button>
+        </div>
+        <button id="touch-tilt-toggle" class="touch-sub-btn" type="button">TILT: OFF</button>
+      </div>
+      <div id="touch-action-cluster">
+        <div class="touch-row-top">
+          <button id="touch-item" class="touch-btn item-btn" aria-label="Use Item" type="button">ITEM</button>
+          <button id="touch-drift" class="touch-btn drift-btn" aria-label="Drift" type="button">DRIFT</button>
+        </div>
+        <div class="touch-row-bottom">
+          <button id="touch-brake" class="touch-btn brake-btn" aria-label="Brake" type="button">BRAKE</button>
+          <button id="touch-gas" class="touch-btn gas-btn" aria-label="Accelerate" type="button">GAS</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="topline">
+      <div id="brand-tag">MARIO KART</div>
+      <div id="topline-actions">
+        <button id="pause-btn" aria-label="Pause game" type="button" hidden>⏸ PAUSE</button>
+        <button id="mute" aria-label="Toggle audio" type="button">♪ SOUND ON</button>
+      </div>
+    </div>
+
+    <div id="intro">
+      <div class="intro-card">
+        <div class="eyebrow">MUSHROOM CUP · 150cc</div>
+        <h1><img src="menu-logo.svg" alt="Mario Kart"></h1>
+        <div class="stadium-name">MARIO KART STADIUM <span>★</span></div>
+        <p class="intro-copy">Choose your driver</p>
+        <div id="characters" role="group" aria-label="Choose character"></div>
+        <div id="chosen">MARIO</div>
+        <div id="lap-options" role="group" aria-label="Race length">
+          <span>RACE LENGTH</span>
+          <button type="button" data-laps="1" aria-pressed="false">1 LAP</button>
+          <button type="button" data-laps="3" aria-pressed="true">3 LAPS</button>
+        </div>
+        <button id="start" type="button">START RACE <span>🏁 GO!</span></button>
+        <p id="menu-hint">Tap character to choose · D-Pad or Touch to Start</p>
+        <p class="controls">
+          <b>CONTROLS:</b> Touch Pedals · Tilt Steering · Gamepad &amp; TV Remote Supported
+        </p>
+      </div>
+    </div>
+
+    <div id="track-label" hidden>
+      <span>MUSHROOM CUP</span><b>Mario Kart Stadium</b>
+      <small>3 LAPS · 8 RACERS · MARIO KART STADIUM</small>
+    </div>
+
+    <div id="bottomline">
+      <span id="wheel-status">Touch pedals or Gamepad to race</span>
+      <span>Tap ⏸ to pause</span>
+    </div>
+
+    <div id="pause" class="scrim" hidden>
+      <div class="pause-panel">
+        <h2>PAUSED</h2>
+        <p id="pause-reason">Take a breath. The race will wait.</p>
+        <button id="resume" type="button">BACK TO THE RACE</button>
+        <button id="restart" type="button">RESTART RACE</button>
+        <button id="menu-return" type="button">MAIN MENU</button>
+      </div>
+    </div>
+
+    <div id="results" class="scrim" hidden>
+      <div class="results-panel">
+        <div class="eyebrow">MUSHROOM CUP · MARIO KART STADIUM</div>
+        <h2>Race Results</h2>
+        <p id="result-summary"></p>
+        <div id="standings"></div>
+        <button id="again" type="button">RACE AGAIN <span>🏁</span></button>
+        <button id="results-menu" type="button">MAIN MENU</button>
+      </div>
+    </div>
+
+    <div id="wheel-ready" hidden></div>
+    <button id="fullscreen" hidden type="button"></button>
+    <div id="error" hidden></div>
+    <script type="module" src="game.js"></script>
+  </body>
+</html>
