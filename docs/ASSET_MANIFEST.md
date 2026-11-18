@@ -54,14 +54,18 @@ All 3D models integrated in Phase 3 are 100% original, legally distributable, an
    - Sourced GLB assets lack dedicated separate `steering-wheel` and `seat` submesh nodes in their hierarchies (the 5 standard karts feature an integrated static driver reference mesh, while the 3 car models feature solid chassis bodies).
    - The engine establishes documented geometric cockpit seat references ($Y \approx 0.60\text{m}$ for open-cockpit karts, $0.44\text{m} - 0.55\text{m}$ for race cars) and steering wheel reference locations.
    - The driver character is attached directly to the root kart group in an unscaled attachment hierarchy, rather than as a child of the scaled kart scene.
-   - Skinned animated driver geometry is evaluated in the `'drive'` pose: the pelvis contact surface rests on the cockpit seat plane ($|Y_{\text{pelvis}} - Y_{\text{seat\_ref}}| < 0.12\text{m}$), clears the underbody floor ($Y_{\text{pelvis}} > Y_{\text{underbody}} + 0.15\text{m}$), and hands extend forward into the cockpit steering area with anatomically realistic reach and grip width ($0.38\text{m} - 0.79\text{m}$). Head top sits between $1.35\text{m} - 1.70\text{m}$ with natural upward sightlines.
-4. **Wheel Articulation & Mathematical Axle Centering:**
+   - Skinned animated driver geometry is evaluated using Three.js's complete bind-matrix skinning transformation:
+     $$\mathbf{v}_{\text{mesh}} = \mathbf{M}_{\text{bind}}^{-1} \left( \sum_{j=0}^3 w_j \mathbf{M}_{\text{bone}, b_j} \mathbf{M}_{\text{boneInverse}, b_j} \left( \mathbf{M}_{\text{bind}} \mathbf{v}_{\text{raw}} \right) \right), \quad \mathbf{v}_{\text{world}} = \mathbf{M}_{\text{mesh}}^{\text{world}} \cdot \mathbf{v}_{\text{mesh}}$$
+   - Anatomical hand endpoints are established from the distal extremity of arm vertices in bind space ($|X| \ge 0.85 \cdot X_{\max}$ of arm geometry) rather than assuming whichever vertex is furthest forward in animated space is the hand.
+   - In the animated `'drive'` pose, the pelvis contact surface rests on the cockpit seat plane ($|Y_{\text{pelvis}} - Y_{\text{seat\_ref}}| < 0.12\text{m}$), clears the underbody floor ($Y_{\text{pelvis}} > Y_{\text{underbody}} + 0.15\text{m}$), and hands extend forward into the cockpit steering area with anatomically realistic reach and grip width ($0.50\text{m} - 0.86\text{m}$). Head top sits between $1.35\text{m} - 1.70\text{m}$ with natural upward sightlines.
+4. **Wheel Articulation, Axle Alignment & Shear Preservation:**
    - Sourced GLB files contain four separate wheel meshes (`wheel-front-left`, `wheel-front-right`, `wheel-back-left`, `wheel-back-right`).
    - The engine automatically calculates each wheel's geometric axle center and axle direction from the complete source GLTF hierarchy and its updated `matrixWorld`.
-   - Wheel reparenting uses exact coordinate transformation mathematics without mutating geometry vertices:
+   - Wheel reparenting preserves the exact $4 \times 4$ affine transform including any shear components introduced by ancestor non-uniform scaling combined with non-cardinal rotations:
      $$\mathbf{M}_{\text{local}} = (\mathbf{M}_{\text{rolling}}^{\text{world}})^{-1} \cdot \mathbf{M}_{\text{orig}}^{\text{world}}$$
-   - The unscaled `wheelPivot` is placed at the exact geometric axle center in world space, and the child `rolling` group is oriented so that its local rolling axis ($+X$) corresponds to the actual transformed axle line.
-   - Pitch rotation around local $X$ produces symmetrical rolling around the true geometric axle with zero wobble, validated across multiple rotation angles against independent Rodrigues vector rotations ($< 10^{-4}\text{ m}$ error).
+     `mesh.matrix.copy(localMatrix); mesh.matrixAutoUpdate = false;`
+   - The unscaled `wheelPivot` is placed at the exact geometric axle center in world space and oriented so that its local rolling axis ($+X$) aligns with the actual transformed axle line (`wheelPivot.quaternion.copy(pivotQ)`).
+   - Pitch rotation around local $X$ produces symmetrical rolling around the true geometric axle with zero wobble, validated across multiple rotation angles against independent Rodrigues vector rotations ($< 10^{-4}\text{ m}$ error across all 32 wheels and synthetic nested non-uniform hierarchies).
    - Steer rotation is applied to front pivots around vertical $Y$ in world coordinates (`w.rotation.y = -r.steer * 0.32`).
    - Tire rolling is applied to the rolling child on $X$ (`rolling.rotation.x -= (r.speed * dt) / radius`).
    - Anti-gravity cyan glow rings and hub caps are dynamically generated and parented to each wheel pivot, toggled during hover sections (`w.userData.glow.visible = r.anti`).
@@ -78,4 +82,6 @@ All 3D models integrated in Phase 3 are 100% original, legally distributable, an
 7. **Visual Validation & Verification Gallery:**
    - 32 high-definition visual validation screenshots ($1280 \times 720$) are recorded under `docs/screenshots/verification/` capturing all eight racer combinations from four calibrated perspectives: `three_quarter`, `side`, `rear`, and `cockpit`.
    - Verified driver pelvis contact at seat cushion, steering wheel grip clearance, head clearance, and wheel axle alignment under full studio lighting and shadow mapping.
+   - The screenshot validator (`scripts/capture-verification-screenshots.js`) performs full PNG scanline de-filtering (RFC 2083 filter types 0=None, 1=Sub, 2=Up, 3=Average, 4=Paeth) to reconstruct true RGB pixel buffers.
+   - Visual verification validates sky clear background corners, tests model region occupancy ($x \in [180, 1100], y \in [100, 660]$ for exterior; $[100, 1180], y \in [100, 680]$ for cockpit), verifies clean sky margins without render clipping, and verifies color complexity ($> 400$ distinct colors).
    - *Benchmark & Tooling Note:* SwiftShader headless screenshots are software-rendered visual and geometric validation checks executed in CI, not Android GPU benchmarks. Quality presets configure dynamic engine parameters rather than guaranteeing unmeasured 60 FPS hardware performance.

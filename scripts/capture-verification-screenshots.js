@@ -24,8 +24,48 @@ if (!fs.existsSync(OUT_DIR)) {
   fs.mkdirSync(OUT_DIR, { recursive: true });
 }
 
-// Helper to validate PNG binary and rendered visual content
-function validatePNGImage(buffer, expectedWidth = 1280, expectedHeight = 720) {
+// Helper functions to reconstruct PNG scanlines and validate rendered visual content
+function paethPredictor(a, b, c) {
+  const p = a + b - c;
+  const pa = Math.abs(p - a);
+  const pb = Math.abs(p - b);
+  const pc = Math.abs(p - c);
+  if (pa <= pb && pa <= pc) return a;
+  if (pb <= pc) return b;
+  return c;
+}
+
+function reconstructPNGScanlines(rawBuffer, width, height, bytesPerPixel) {
+  const stride = 1 + width * bytesPerPixel;
+  const reconstructed = Buffer.alloc(width * height * bytesPerPixel);
+
+  for (let y = 0; y < height; y++) {
+    const filter = rawBuffer[y * stride];
+    const prevRowOffset = (y - 1) * width * bytesPerPixel;
+    const currRowOffset = y * width * bytesPerPixel;
+    const rawLineOffset = y * stride + 1;
+
+    for (let i = 0; i < width * bytesPerPixel; i++) {
+      const rawVal = rawBuffer[rawLineOffset + i];
+      const a = i >= bytesPerPixel ? reconstructed[currRowOffset + i - bytesPerPixel] : 0;
+      const b = y > 0 ? reconstructed[prevRowOffset + i] : 0;
+      const c = (y > 0 && i >= bytesPerPixel) ? reconstructed[prevRowOffset + i - bytesPerPixel] : 0;
+
+      let val;
+      if (filter === 0) val = rawVal;
+      else if (filter === 1) val = (rawVal + a) & 0xff;
+      else if (filter === 2) val = (rawVal + b) & 0xff;
+      else if (filter === 3) val = (rawVal + Math.floor((a + b) / 2)) & 0xff;
+      else if (filter === 4) val = (rawVal + paethPredictor(a, b, c)) & 0xff;
+      else throw new Error("Unsupported PNG filter type: " + filter);
+
+      reconstructed[currRowOffset + i] = val;
+    }
+  }
+  return reconstructed;
+}
+
+function validatePNGImage(buffer, expectedWidth = 1280, expectedHeight = 720, viewType = "three_quarter") {
   if (!buffer || buffer.length < 50000) {
     return { valid: false, reason: `File size too small (${buffer?.length || 0} bytes)` };
   }
@@ -69,7 +109,7 @@ function validatePNGImage(buffer, expectedWidth = 1280, expectedHeight = 720) {
     };
   }
 
-  // 3. Decompress IDAT chunks to validate actual pixel content (non-blank check)
+  // 3. Decompress IDAT chunks and de-filter scanlines to reconstruct true RGB pixel buffer
   try {
     const uncompressed = zlib.inflateSync(Buffer.concat(idatChunks));
     const bytesPerPixel = colorType === 6 ? 4 : colorType === 2 ? 3 : 4;
@@ -83,41 +123,72 @@ function validatePNGImage(buffer, expectedWidth = 1280, expectedHeight = 720) {
       };
     }
 
-    // Sample pixels across a 10x10 grid to verify color variance and foreground 3D geometry
+    const pixels = reconstructPNGScanlines(uncompressed, width, height, bytesPerPixel);
+    const isCockpit = viewType === "cockpit";
+
+    // 4. Background clear color verification in sky margins
+    // For exterior views, top corners must match scene clear background (#141e2e -> ~20, ~30, ~46)
+    if (!isCockpit) {
+      const tlDiff = Math.hypot(pixels[0] - 20, pixels[1] - 30, pixels[2] - 46);
+      const trIdx = (width - 1) * bytesPerPixel;
+      const trDiff = Math.hypot(pixels[trIdx] - 20, pixels[trIdx + 1] - 30, pixels[trIdx + 2] - 46);
+      if (tlDiff > 10 || trDiff > 10) {
+        return {
+          valid: false,
+          reason: `Exterior background corners do not match scene clear color (#141e2e)`,
+        };
+      }
+
+      // Upper sky margins (x < 150 or x > 1130, y < 150) must remain clear background
+      let marginArtifacts = 0;
+      for (let y = 0; y < 150; y += 4) {
+        for (const x of [10, 50, 100, 1180, 1230, 1270]) {
+          const idx = (y * width + x) * bytesPerPixel;
+          if (Math.hypot(pixels[idx] - 20, pixels[idx + 1] - 30, pixels[idx + 2] - 46) > 10) {
+            marginArtifacts++;
+          }
+        }
+      }
+      if (marginArtifacts > 0) {
+        return { valid: false, reason: `Sky margins contain unexpected render artifacts` };
+      }
+    }
+
+    // 5. Model region occupancy and color complexity verification
+    // Center-focused target bounds where the 3D vehicle and character geometry are expected
+    const modelRegion = isCockpit
+      ? { minX: 100, maxX: 1180, minY: 100, maxY: 680 }
+      : { minX: 180, maxX: 1100, minY: 100, maxY: 660 };
+
     const colorSet = new Set();
-    let nonBgPixels = 0;
+    let inRegionModelPixels = 0;
 
-    // Corner pixel as background reference
-    const bgR = uncompressed[1];
-    const bgG = uncompressed[2];
-    const bgB = uncompressed[3];
-
-    for (let y = 0; y < height; y += 10) {
-      const rowOffset = y * stride + 1;
-      for (let x = 0; x < width; x += 10) {
-        const p = rowOffset + x * bytesPerPixel;
-        const r = uncompressed[p];
-        const g = uncompressed[p + 1];
-        const b = uncompressed[p + 2];
+    for (let y = modelRegion.minY; y <= modelRegion.maxY; y += 4) {
+      for (let x = modelRegion.minX; x <= modelRegion.maxX; x += 4) {
+        const idx = (y * width + x) * bytesPerPixel;
+        const r = pixels[idx];
+        const g = pixels[idx + 1];
+        const b = pixels[idx + 2];
         colorSet.add((r << 16) | (g << 8) | b);
-        if (Math.abs(r - bgR) > 15 || Math.abs(g - bgG) > 15 || Math.abs(b - bgB) > 15) {
-          nonBgPixels++;
+
+        const diffSky = Math.hypot(r - 20, g - 30, b - 46);
+        if (diffSky > 25) {
+          inRegionModelPixels++;
         }
       }
     }
 
-    // A real 3D render with shading, lighting and textures has hundreds of colors and prominent foreground geometry
-    if (colorSet.size < 100) {
+    if (colorSet.size < 400) {
       return {
         valid: false,
-        reason: `Render content lacks visual complexity (only ${colorSet.size} distinct colors sampled; appears blank/flat)`,
+        reason: `Render content lacks visual depth (only ${colorSet.size} distinct colors; expected >= 400)`,
       };
     }
 
-    if (nonBgPixels < 500) {
+    if (inRegionModelPixels < 10000) {
       return {
         valid: false,
-        reason: `Render content appears mostly empty (only ${nonBgPixels} foreground pixels detected)`,
+        reason: `Expected model region is too sparse (${inRegionModelPixels} model pixels detected; expected >= 10000)`,
       };
     }
   } catch (err) {
@@ -301,7 +372,7 @@ server.listen(8888, "127.0.0.1", async () => {
       const imgBuf = Buffer.from(ss.data, "base64");
 
       // Verify dimensions and image content
-      const validation = validatePNGImage(imgBuf, 1280, 720);
+      const validation = validatePNGImage(imgBuf, 1280, 720, view);
       if (!validation.valid) {
         console.error(`[FAIL] ${racer.id} ${view}: Invalid screenshot content (${validation.reason})`);
         failedCount++;

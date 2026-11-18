@@ -410,22 +410,18 @@ export function buildGLBKart(id, kartGltf, charGltf) {
 
     const radius = Math.max(localExtent.y * worldScale.y, localExtent.z * worldScale.z) * 0.5;
 
-    // 2. Create wheelPivot placed at the exact geometric axle center in world space
+    // 2. Create wheelPivot placed at the exact geometric axle center in world space,
+    // oriented so its local rolling axis (+X) corresponds to the actual transformed axle
     const wheelPivot = new THREE.Group();
     wheelPivot.name = "wheel-" + i;
     wheelPivot.position.copy(worldAxle);
+    const pivotQ = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(1, 0, 0), worldAxleDir);
+    wheelPivot.quaternion.copy(pivotQ);
     root.add(wheelPivot);
     root.updateMatrixWorld(true);
 
-    // 3. Create rolling group under wheelPivot:
-    // Orient rolling group so its local rolling axis (+X) corresponds to the actual transformed axle
-    const pivotInv = wheelPivot.matrixWorld.clone().invert();
-    const axleInPivot = worldAxleDir.clone().transformDirection(pivotInv).normalize();
-
+    // 3. Create rolling group under wheelPivot
     const rolling = new THREE.Group();
-    const rotQ = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(1, 0, 0), axleInPivot);
-    rolling.quaternion.copy(rotQ);
-
     wheelPivot.add(rolling);
     wheelPivot.userData.rolling = rolling;
     wheelPivot.userData.hubCenter = [0, 0, 0];
@@ -440,6 +436,8 @@ export function buildGLBKart(id, kartGltf, charGltf) {
 
     mesh.removeFromParent();
     localMatrix.decompose(mesh.position, mesh.quaternion, mesh.scale);
+    mesh.matrix.copy(localMatrix);
+    mesh.matrixAutoUpdate = false;
     rolling.add(mesh);
     root.updateMatrixWorld(true);
 

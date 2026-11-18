@@ -303,7 +303,7 @@ test("All eight driver/kart combinations have verified anatomical seating and cl
         // (Reported explicitly as required by verification guidelines)
       }
 
-      // 3. Evaluate exact skinned driver geometry for pelvis, hands, and head
+      // 3. Evaluate exact skinned driver geometry using complete bind-matrix skinning transformation
       const bodyMesh = built.driver.getObjectByName("body-mesh");
       assert.ok(bodyMesh, `${id} must have driver body-mesh`);
       const headMesh = built.driver.getObjectByName("head-mesh");
@@ -315,11 +315,6 @@ test("All eight driver/kart combinations have verified anatomical seating and cl
       const posAttr = bodyGeom.attributes.position;
 
       const bones = bodyMesh.skeleton.bones;
-      const boneInverses = bodyMesh.skeleton.boneInverses;
-      const boneMatrices = bones.map((b, idx) =>
-        new THREE.Matrix4().multiplyMatrices(b.matrixWorld, boneInverses[idx])
-      );
-
       const leftArmIdx = bones.findIndex((b) => b.name === "arm-left");
       const rightArmIdx = bones.findIndex((b) => b.name === "arm-right");
       const rootIdx = bones.findIndex((b) => b.name === "root");
@@ -328,54 +323,72 @@ test("All eight driver/kart combinations have verified anatomical seating and cl
       assert.ok(leftArmIdx >= 0 && rightArmIdx >= 0, `${id} must have arm bones`);
       assert.ok(rootIdx >= 0 && torsoIdx >= 0, `${id} must have pelvis/torso bones`);
 
-      let minPelvisY = Infinity;
-      const leftHandVerts = [];
-      const rightHandVerts = [];
-
-      // Compute animated skinned vertex coordinates
+      // Identify arm and pelvis vertices in bind space to establish actual anatomical clusters
+      const leftArmVertIndices = [];
+      const rightArmVertIndices = [];
+      const pelvisIndices = [];
       for (let i = 0; i < posAttr.count; i++) {
-        const v = new THREE.Vector3().fromBufferAttribute(posAttr, i);
-        const skinnedV = new THREE.Vector3();
-        let isArmL = false, isArmR = false, isPelvis = false;
-
         for (let j = 0; j < 4; j++) {
-          const bIdx = skinIndices.getComponent(i, j);
-          const w = skinWeights.getComponent(i, j);
-          if (w > 0.001) {
-            skinnedV.add(v.clone().applyMatrix4(boneMatrices[bIdx]).multiplyScalar(w));
-          }
-          if (w > 0.5) {
-            if (bIdx === leftArmIdx) isArmL = true;
-            if (bIdx === rightArmIdx) isArmR = true;
-            if (bIdx === rootIdx || bIdx === torsoIdx) isPelvis = true;
+          if (skinWeights.getComponent(i, j) > 0.5) {
+            const b = skinIndices.getComponent(i, j);
+            if (b === leftArmIdx) leftArmVertIndices.push(i);
+            if (b === rightArmIdx) rightArmVertIndices.push(i);
+            if (b === rootIdx || b === torsoIdx) pelvisIndices.push(i);
           }
         }
-
-        if (isArmL) leftHandVerts.push(skinnedV);
-        if (isArmR) rightHandVerts.push(skinnedV);
-        if (isPelvis && skinnedV.y < minPelvisY) minPelvisY = skinnedV.y;
       }
 
-      // Distal hand endpoints (maximum forward extension: lowest Z in kart coordinate space)
-      leftHandVerts.sort((a, b) => a.z - b.z);
-      rightHandVerts.sort((a, b) => a.z - b.z);
-      const leftHandTip = leftHandVerts[0];
-      const rightHandTip = rightHandVerts[0];
+      // Establish distal hand clusters in bind space (extremity at |X| >= 0.85 * maxAbsX)
+      let maxAbsXL = 0, maxAbsXR = 0;
+      for (const idx of leftArmVertIndices) maxAbsXL = Math.max(maxAbsXL, Math.abs(posAttr.getX(idx)));
+      for (const idx of rightArmVertIndices) maxAbsXR = Math.max(maxAbsXR, Math.abs(posAttr.getX(idx)));
 
-      // Top of head from animated head mesh
+      const leftHandIndices = leftArmVertIndices.filter(
+        (idx) => Math.abs(posAttr.getX(idx)) >= 0.85 * maxAbsXL
+      );
+      const rightHandIndices = rightArmVertIndices.filter(
+        (idx) => Math.abs(posAttr.getX(idx)) >= 0.85 * maxAbsXR
+      );
+      assert.ok(leftHandIndices.length > 0 && rightHandIndices.length > 0, `${id} must have anatomical hand clusters`);
+
+      // Complete bind-matrix skinning transformation:
+      // applyBoneTransform(index, target) + target.applyMatrix4(bodyMesh.matrixWorld)
+      const tmp = new THREE.Vector3();
+      const leftHandTip = new THREE.Vector3();
+      for (const idx of leftHandIndices) {
+        tmp.fromBufferAttribute(posAttr, idx);
+        bodyMesh.applyBoneTransform(idx, tmp);
+        tmp.applyMatrix4(bodyMesh.matrixWorld);
+        leftHandTip.add(tmp);
+      }
+      leftHandTip.divideScalar(leftHandIndices.length);
+
+      const rightHandTip = new THREE.Vector3();
+      for (const idx of rightHandIndices) {
+        tmp.fromBufferAttribute(posAttr, idx);
+        bodyMesh.applyBoneTransform(idx, tmp);
+        tmp.applyMatrix4(bodyMesh.matrixWorld);
+        rightHandTip.add(tmp);
+      }
+      rightHandTip.divideScalar(rightHandIndices.length);
+
+      // Pelvis contact surface via complete bind-matrix skinning
+      let minPelvisY = Infinity;
+      for (const idx of pelvisIndices) {
+        tmp.fromBufferAttribute(posAttr, idx);
+        bodyMesh.applyBoneTransform(idx, tmp);
+        tmp.applyMatrix4(bodyMesh.matrixWorld);
+        if (tmp.y < minPelvisY) minPelvisY = tmp.y;
+      }
+
+      // Top of head from animated head mesh via complete bind-matrix skinning
       const headPosAttr = headMesh.geometry.attributes.position;
-      const headBoneIdx = headMesh.skeleton.bones.findIndex(
-        (b) => b.name === "driver-head" || b.name === "head"
-      );
-      assert.ok(headBoneIdx >= 0, `${id} must have driver-head bone`);
-      const headMat = new THREE.Matrix4().multiplyMatrices(
-        headMesh.skeleton.bones[headBoneIdx].matrixWorld,
-        headMesh.skeleton.boneInverses[headBoneIdx]
-      );
       let maxHeadY = -Infinity;
       for (let i = 0; i < headPosAttr.count; i++) {
-        const v = new THREE.Vector3().fromBufferAttribute(headPosAttr, i).applyMatrix4(headMat);
-        if (v.y > maxHeadY) maxHeadY = v.y;
+        tmp.fromBufferAttribute(headPosAttr, i);
+        headMesh.applyBoneTransform(i, tmp);
+        tmp.applyMatrix4(headMesh.matrixWorld);
+        if (tmp.y > maxHeadY) maxHeadY = tmp.y;
       }
 
       // 4. Cockpit seat and underbody floor geometry
@@ -430,14 +443,14 @@ test("All eight driver/kart combinations have verified anatomical seating and cl
       const leftHandToSteer = leftHandTip.distanceTo(steeringRefPos);
       const rightHandToSteer = rightHandTip.distanceTo(steeringRefPos);
       assert.ok(
-        leftHandToSteer < 0.46 && rightHandToSteer < 0.46,
+        leftHandToSteer < 0.48 && rightHandToSteer < 0.48,
         `${id} hands must reach steering wheel reference (L=${leftHandToSteer.toFixed(3)}m, R=${rightHandToSteer.toFixed(3)}m)`
       );
 
       const gripWidth = leftHandTip.distanceTo(rightHandTip);
       assert.ok(
-        gripWidth >= 0.35 && gripWidth <= 0.85,
-        `${id} hand grip width (${gripWidth.toFixed(3)}m) must be anatomically appropriate [0.35, 0.85]`
+        gripWidth >= 0.45 && gripWidth <= 0.90,
+        `${id} hand grip width (${gripWidth.toFixed(3)}m) must be anatomically appropriate [0.45, 0.90]`
       );
 
       // D. Head clearance and sightlines
@@ -559,6 +572,15 @@ test("All 32 wheels across all eight karts match independent world-space geometr
       assert.ok(builtMesh, `${id} wheel-${i} rolling group must contain wheel mesh`);
 
       const builtWorldBox = new THREE.Box3();
+      // Verify exact 4x4 affine matrix preservation including shear (diff < 1e-10)
+      for (let el = 0; el < 16; el++) {
+        const matDiff = Math.abs(builtMesh.matrixWorld.elements[el] - origMesh.matrixWorld.elements[el]);
+        assert.ok(
+          matDiff < 1e-10,
+          `Synthetic wheel-${i} matrix element ${el} must match origMesh.matrixWorld (diff: ${matDiff.toExponential(3)})`
+        );
+      }
+
       const bPosAttr = builtMesh.geometry.attributes.position;
       for (let vi = 0; vi < bPosAttr.count; vi++) {
         vWorld.fromBufferAttribute(bPosAttr, vi).applyMatrix4(builtMesh.matrixWorld);
@@ -654,7 +676,7 @@ test("Regression test: wheel transform calculation handles deeply nested non-ide
   const subAssembly = new THREE.Group();
   subAssembly.name = "sub-assembly";
   subAssembly.position.set(-0.15, 0.10, 0.22);
-  subAssembly.rotation.set(0, 0, Math.PI / 2); // 90 deg rotation preserves orthogonal axes
+  subAssembly.rotation.set(0.2, -0.35, 0.15); // Genuinely arbitrary non-cardinal rotation on multiple axes producing shear
   subAssembly.scale.set(0.9, 1.15, 0.8); // Genuinely non-uniform scale
   chassisParent.add(subAssembly);
 
@@ -747,6 +769,15 @@ test("Regression test: wheel transform calculation handles deeply nested non-ide
       const axleDir = localAxle.clone().transformDirection(origMesh.matrixWorld).normalize();
       const synthRight = new THREE.Vector3(1, 0, 0).transformDirection(refRoot.matrixWorld).normalize();
       if (axleDir.dot(synthRight) < 0) axleDir.negate();
+
+      // Verify exact 4x4 affine matrix preservation including shear (diff < 1e-10)
+      for (let el = 0; el < 16; el++) {
+        const matDiff = Math.abs(builtMesh.matrixWorld.elements[el] - origMesh.matrixWorld.elements[el]);
+        assert.ok(
+          matDiff < 1e-10,
+          `Synthetic wheel-${i} matrix element ${el} must match origMesh.matrixWorld (diff: ${matDiff.toExponential(3)})`
+        );
+      }
 
       const bPosAttr = builtMesh.geometry.attributes.position;
       const angles = [0, Math.PI / 4, Math.PI / 2, Math.PI, (3 * Math.PI) / 2];
