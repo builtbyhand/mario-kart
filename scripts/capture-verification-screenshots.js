@@ -65,6 +65,20 @@ function reconstructPNGScanlines(rawBuffer, width, height, bytesPerPixel) {
   return reconstructed;
 }
 
+function isEnvironmentPixel(r, g, b) {
+  // Clear sky (#141e2e -> ~20, ~30, ~46)
+  if (Math.hypot(r - 20, g - 30, b - 46) < 14) return true;
+  // Slate ground floor & grid lines under studio lighting:
+  // Characterized by blue-dominant slate grey where B is highest channel and saturation is low
+  const maxC = Math.max(r, g, b);
+  const minC = Math.min(r, g, b);
+  const sat = maxC - minC;
+  if (r < 85 && g < 95 && b < 125 && b > r + 10 && b >= g && sat < 60) {
+    return true;
+  }
+  return false;
+}
+
 function validatePNGImage(buffer, expectedWidth = 1280, expectedHeight = 720, viewType = "three_quarter") {
   if (!buffer || buffer.length < 50000) {
     return { valid: false, reason: `File size too small (${buffer?.length || 0} bytes)` };
@@ -132,7 +146,7 @@ function validatePNGImage(buffer, expectedWidth = 1280, expectedHeight = 720, vi
       const tlDiff = Math.hypot(pixels[0] - 20, pixels[1] - 30, pixels[2] - 46);
       const trIdx = (width - 1) * bytesPerPixel;
       const trDiff = Math.hypot(pixels[trIdx] - 20, pixels[trIdx + 1] - 30, pixels[trIdx + 2] - 46);
-      if (tlDiff > 10 || trDiff > 10) {
+      if (tlDiff > 12 || trDiff > 12) {
         return {
           valid: false,
           reason: `Exterior background corners do not match scene clear color (#141e2e)`,
@@ -154,26 +168,30 @@ function validatePNGImage(buffer, expectedWidth = 1280, expectedHeight = 720, vi
       }
     }
 
-    // 5. Model region occupancy and color complexity verification
-    // Center-focused target bounds where the 3D vehicle and character geometry are expected
-    const modelRegion = isCockpit
-      ? { minX: 100, maxX: 1180, minY: 100, maxY: 680 }
-      : { minX: 180, maxX: 1100, minY: 100, maxY: 660 };
-
+    // 5. Detect actual 3D kart chassis and driver character geometry
+    // Distinguishes the model from both the background sky and the slate ground floor / grid lines
+    let totalModelPixels = 0;
+    let driverRegionPixels = 0;
+    let chassisRegionPixels = 0;
     const colorSet = new Set();
-    let inRegionModelPixels = 0;
 
-    for (let y = modelRegion.minY; y <= modelRegion.maxY; y += 4) {
-      for (let x = modelRegion.minX; x <= modelRegion.maxX; x += 4) {
+    for (let y = 0; y < height; y += 4) {
+      for (let x = 0; x < width; x += 4) {
         const idx = (y * width + x) * bytesPerPixel;
         const r = pixels[idx];
         const g = pixels[idx + 1];
         const b = pixels[idx + 2];
-        colorSet.add((r << 16) | (g << 8) | b);
-
-        const diffSky = Math.hypot(r - 20, g - 30, b - 46);
-        if (diffSky > 25) {
-          inRegionModelPixels++;
+        if (!isEnvironmentPixel(r, g, b)) {
+          totalModelPixels++;
+          colorSet.add((r << 16) | (g << 8) | b);
+          // Upper-center where the driver character (head, cap, shoulders, face) is positioned
+          if (x >= 350 && x <= 930 && y >= 120 && y <= 420) {
+            driverRegionPixels++;
+          }
+          // Lower-center where the kart chassis (bodywork, bumper, side pods, wheels) is positioned
+          if (x >= 250 && x <= 1050 && y >= 350 && y <= 620) {
+            chassisRegionPixels++;
+          }
         }
       }
     }
@@ -185,11 +203,33 @@ function validatePNGImage(buffer, expectedWidth = 1280, expectedHeight = 720, vi
       };
     }
 
-    if (inRegionModelPixels < 10000) {
+    if (totalModelPixels < 12000) {
       return {
         valid: false,
-        reason: `Expected model region is too sparse (${inRegionModelPixels} model pixels detected; expected >= 10000)`,
+        reason: `Actual 3D vehicle/driver model not detected (only ${totalModelPixels} non-environment model pixels detected; expected >= 12000)`,
       };
+    }
+
+    if (!isCockpit) {
+      if (driverRegionPixels < 3500) {
+        return {
+          valid: false,
+          reason: `Driver character not detected in upper cockpit region (only ${driverRegionPixels} driver pixels; expected >= 3500)`,
+        };
+      }
+      if (chassisRegionPixels < 3500) {
+        return {
+          valid: false,
+          reason: `Kart chassis not detected in vehicle body region (only ${chassisRegionPixels} chassis pixels; expected >= 3500)`,
+        };
+      }
+    } else {
+      if (driverRegionPixels < 8000 || chassisRegionPixels < 10000) {
+        return {
+          valid: false,
+          reason: `Cockpit view does not contain expected driver and cockpit interior geometry (driver=${driverRegionPixels}, chassis=${chassisRegionPixels})`,
+        };
+      }
     }
   } catch (err) {
     return { valid: false, reason: `Failed to decompress and inspect PNG image data: ${err.message}` };

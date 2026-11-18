@@ -278,7 +278,7 @@ test("GPU resources are released only when ownership permits (master assets prot
   assert.equal(masterGeoDisposed, false, "Master cached geometry must NEVER be disposed by instance teardown");
 });
 
-test("All eight driver/kart combinations have verified anatomical seating and clearance", async () => {
+test("All eight driver/kart combinations satisfy approximate geometric cockpit placement, clearance and proportion constraints", async () => {
   for (const [id, spec] of Object.entries(KART_SPECS)) {
     const kGltf = await loadGLB(spec.kart);
     const cGltf = await loadGLB(spec.character);
@@ -291,19 +291,18 @@ test("All eight driver/kart combinations have verified anatomical seating and cl
       built.model.updateMatrixWorld(true);
 
       // 2. Asset reference inspection & reporting
-      // Check whether source assets contain separate seat or steering-wheel meshes
+      // Check whether source assets contain separate seat or steering-wheel submesh nodes
       const hasSteeringWheelMesh = !!(kGltf.scene.getObjectByName("steering-wheel") || kGltf.scene.getObjectByName("steering_wheel"));
       const hasSeatMesh = !!(kGltf.scene.getObjectByName("seat") || kGltf.scene.getObjectByName("cockpit_seat"));
-      const staticDriverRef = kGltf.scene.getObjectByName("character");
-      const hasStaticDriver = !!staticDriverRef;
 
-      // Explicitly report asset reference status
-      if (!hasSteeringWheelMesh || !hasSeatMesh) {
-        // Asset lacks dedicated separate nodes; establish documented geometric references
-        // (Reported explicitly as required by verification guidelines)
-      }
+      // Source assets lack discrete physical seat-cushion and steering-wheel submesh nodes.
+      // Therefore, approximateSeatPlaneY and approximateSteeringZoneRef are documented approximate
+      // geometric proxies representing the expected cockpit bounding volume rather than verified physical contact surfaces.
+      assert.ok(!hasSteeringWheelMesh && !hasSeatMesh, `${id} source assets confirm absence of discrete physical seat/wheel meshes; using approximate geometric proxies`);
 
-      // 3. Evaluate exact skinned driver geometry using complete bind-matrix skinning transformation
+      // 3. Evaluate driver geometry using complete bind-matrix skinning transformation.
+      // In the absence of discrete physical finger/wrist or ischial tuberosity landmarks on these stylized mini-character meshes,
+      // the distal arm extremity cluster centroid and lowest torso/root vertex serve as approximate geometric proxies.
       const bodyMesh = built.driver.getObjectByName("body-mesh");
       assert.ok(bodyMesh, `${id} must have driver body-mesh`);
       const headMesh = built.driver.getObjectByName("head-mesh");
@@ -323,7 +322,7 @@ test("All eight driver/kart combinations have verified anatomical seating and cl
       assert.ok(leftArmIdx >= 0 && rightArmIdx >= 0, `${id} must have arm bones`);
       assert.ok(rootIdx >= 0 && torsoIdx >= 0, `${id} must have pelvis/torso bones`);
 
-      // Identify arm and pelvis vertices in bind space to establish actual anatomical clusters
+      // Identify arm and pelvis vertices in bind space to establish approximate distal clusters
       const leftArmVertIndices = [];
       const rightArmVertIndices = [];
       const pelvisIndices = [];
@@ -338,7 +337,7 @@ test("All eight driver/kart combinations have verified anatomical seating and cl
         }
       }
 
-      // Establish distal hand clusters in bind space (extremity at |X| >= 0.85 * maxAbsX)
+      // Establish distal arm extremity clusters in bind space (|X| >= 0.85 * maxAbsX)
       let maxAbsXL = 0, maxAbsXR = 0;
       for (const idx of leftArmVertIndices) maxAbsXL = Math.max(maxAbsXL, Math.abs(posAttr.getX(idx)));
       for (const idx of rightArmVertIndices) maxAbsXR = Math.max(maxAbsXR, Math.abs(posAttr.getX(idx)));
@@ -349,39 +348,39 @@ test("All eight driver/kart combinations have verified anatomical seating and cl
       const rightHandIndices = rightArmVertIndices.filter(
         (idx) => Math.abs(posAttr.getX(idx)) >= 0.85 * maxAbsXR
       );
-      assert.ok(leftHandIndices.length > 0 && rightHandIndices.length > 0, `${id} must have anatomical hand clusters`);
+      assert.ok(leftHandIndices.length > 0 && rightHandIndices.length > 0, `${id} must have distal arm extremity clusters`);
 
       // Complete bind-matrix skinning transformation:
       // applyBoneTransform(index, target) + target.applyMatrix4(bodyMesh.matrixWorld)
       const tmp = new THREE.Vector3();
-      const leftHandTip = new THREE.Vector3();
+      const distalArmLeftProxy = new THREE.Vector3();
       for (const idx of leftHandIndices) {
         tmp.fromBufferAttribute(posAttr, idx);
         bodyMesh.applyBoneTransform(idx, tmp);
         tmp.applyMatrix4(bodyMesh.matrixWorld);
-        leftHandTip.add(tmp);
+        distalArmLeftProxy.add(tmp);
       }
-      leftHandTip.divideScalar(leftHandIndices.length);
+      distalArmLeftProxy.divideScalar(leftHandIndices.length);
 
-      const rightHandTip = new THREE.Vector3();
+      const distalArmRightProxy = new THREE.Vector3();
       for (const idx of rightHandIndices) {
         tmp.fromBufferAttribute(posAttr, idx);
         bodyMesh.applyBoneTransform(idx, tmp);
         tmp.applyMatrix4(bodyMesh.matrixWorld);
-        rightHandTip.add(tmp);
+        distalArmRightProxy.add(tmp);
       }
-      rightHandTip.divideScalar(rightHandIndices.length);
+      distalArmRightProxy.divideScalar(rightHandIndices.length);
 
-      // Pelvis contact surface via complete bind-matrix skinning
-      let minPelvisY = Infinity;
+      // Approximate lowest torso/pelvis proxy via complete bind-matrix skinning
+      let lowestTorsoPelvisProxyY = Infinity;
       for (const idx of pelvisIndices) {
         tmp.fromBufferAttribute(posAttr, idx);
         bodyMesh.applyBoneTransform(idx, tmp);
         tmp.applyMatrix4(bodyMesh.matrixWorld);
-        if (tmp.y < minPelvisY) minPelvisY = tmp.y;
+        if (tmp.y < lowestTorsoPelvisProxyY) lowestTorsoPelvisProxyY = tmp.y;
       }
 
-      // Top of head from animated head mesh via complete bind-matrix skinning
+      // Top of head sightline proxy from animated head mesh via complete bind-matrix skinning
       const headPosAttr = headMesh.geometry.attributes.position;
       let maxHeadY = -Infinity;
       for (let i = 0; i < headPosAttr.count; i++) {
@@ -391,77 +390,77 @@ test("All eight driver/kart combinations have verified anatomical seating and cl
         if (tmp.y > maxHeadY) maxHeadY = tmp.y;
       }
 
-      // 4. Cockpit seat and underbody floor geometry
+      // 4. Cockpit bounding box and underbody floor geometry
       const kartScene = built.model.children.find((c) => c !== built.driver && !c.name.startsWith("wheel-"));
       const chassisBox = new THREE.Box3().setFromObject(kartScene);
       const underbodyFloor = chassisBox.min.y;
 
-      // Documented geometric seat reference for each kart type
-      let seatPlaneY;
-      let steeringRefPos;
+      // Documented approximate geometric seat and steering-zone references for each vehicle body type
+      let approximateSeatPlaneY;
+      let approximateSteeringZoneRef;
       if (spec.scale > 2.0) {
         // Standard open-cockpit kart (Mario, Luigi, Peach, Yoshi, Toad)
-        seatPlaneY = 0.60;
-        steeringRefPos = new THREE.Vector3(0, 0.73, -0.32);
+        approximateSeatPlaneY = 0.60;
+        approximateSteeringZoneRef = new THREE.Vector3(0, 0.73, -0.32);
       } else if (id === "bowser") {
         // Race Future car body
-        seatPlaneY = 0.55;
-        steeringRefPos = new THREE.Vector3(0, 0.74, -0.60);
+        approximateSeatPlaneY = 0.55;
+        approximateSteeringZoneRef = new THREE.Vector3(0, 0.74, -0.60);
       } else if (id === "donkey-kong") {
         // Classic GT race car body
-        seatPlaneY = 0.48;
-        steeringRefPos = new THREE.Vector3(0, 0.68, -0.80);
+        approximateSeatPlaneY = 0.48;
+        approximateSteeringZoneRef = new THREE.Vector3(0, 0.68, -0.80);
       } else {
         // Sedan Sports car body (Koopa)
-        seatPlaneY = 0.44;
-        steeringRefPos = new THREE.Vector3(0, 0.60, -0.55);
+        approximateSeatPlaneY = 0.44;
+        approximateSteeringZoneRef = new THREE.Vector3(0, 0.60, -0.55);
       }
 
-      // A. Pelvis-to-seat contact and clearance above chassis underbody
+      // A. Lowest torso/pelvis proxy clearance above underbody floor and alignment with approximate seat plane
       assert.ok(
-        minPelvisY > underbodyFloor + 0.15,
-        `${id} pelvis contact (${minPelvisY.toFixed(3)}m) must clear underbody floor (${underbodyFloor.toFixed(3)}m)`
+        lowestTorsoPelvisProxyY > underbodyFloor + 0.15,
+        `${id} lowest torso/pelvis proxy (${lowestTorsoPelvisProxyY.toFixed(3)}m) must clear underbody floor (${underbodyFloor.toFixed(3)}m)`
       );
-      const pelvisToSeatContactDiff = Math.abs(minPelvisY - seatPlaneY);
+      const pelvisToSeatContactDiff = Math.abs(lowestTorsoPelvisProxyY - approximateSeatPlaneY);
       assert.ok(
         pelvisToSeatContactDiff < 0.12,
-        `${id} pelvis contact (${minPelvisY.toFixed(3)}m) must align with cockpit seat reference (${seatPlaneY.toFixed(3)}m, diff ${pelvisToSeatContactDiff.toFixed(3)}m)`
+        `${id} lowest torso/pelvis proxy (${lowestTorsoPelvisProxyY.toFixed(3)}m) must align with approximate seat plane proxy (${approximateSeatPlaneY.toFixed(3)}m, diff ${pelvisToSeatContactDiff.toFixed(3)}m)`
       );
 
       // B. Lateral centering in cockpit
-      const handCenterX = (leftHandTip.x + rightHandTip.x) * 0.5;
+      const armCenterX = (distalArmLeftProxy.x + distalArmRightProxy.x) * 0.5;
       assert.ok(
-        Math.abs(handCenterX) < 0.05,
-        `${id} driver hands must be centered laterally in cockpit (x=${handCenterX.toFixed(4)})`
+        Math.abs(armCenterX) < 0.05,
+        `${id} driver distal arm proxies must be centered laterally in cockpit (x=${armCenterX.toFixed(4)})`
       );
 
-      // C. Hand reach and distance to steering wheel reference
+      // C. Forward arm reach and distance to approximate steering zone reference
       assert.ok(
-        leftHandTip.z < spec.driverOffset[2] && rightHandTip.z < spec.driverOffset[2],
-        `${id} hands must reach forward from driver origin into steering area`
+        distalArmLeftProxy.z < spec.driverOffset[2] && distalArmRightProxy.z < spec.driverOffset[2],
+        `${id} distal arm proxies must reach forward from driver origin into cockpit steering zone`
       );
-      const leftHandToSteer = leftHandTip.distanceTo(steeringRefPos);
-      const rightHandToSteer = rightHandTip.distanceTo(steeringRefPos);
+      const leftArmToSteer = distalArmLeftProxy.distanceTo(approximateSteeringZoneRef);
+      const rightArmToSteer = distalArmRightProxy.distanceTo(approximateSteeringZoneRef);
       assert.ok(
-        leftHandToSteer < 0.48 && rightHandToSteer < 0.48,
-        `${id} hands must reach steering wheel reference (L=${leftHandToSteer.toFixed(3)}m, R=${rightHandToSteer.toFixed(3)}m)`
+        leftArmToSteer < 0.48 && rightArmToSteer < 0.48,
+        `${id} distal arm proxies must reach into approximate steering zone (L=${leftArmToSteer.toFixed(3)}m, R=${rightArmToSteer.toFixed(3)}m)`
       );
 
-      const gripWidth = leftHandTip.distanceTo(rightHandTip);
+      const armSpan = distalArmLeftProxy.distanceTo(distalArmRightProxy);
       assert.ok(
-        gripWidth >= 0.45 && gripWidth <= 0.90,
-        `${id} hand grip width (${gripWidth.toFixed(3)}m) must be anatomically appropriate [0.45, 0.90]`
+        armSpan >= 0.45 && armSpan <= 0.90,
+        `${id} distal arm proxy span (${armSpan.toFixed(3)}m) must be within expected geometric range [0.45, 0.90]`
       );
 
       // D. Head clearance and sightlines
-      const headHeightAbovePelvis = maxHeadY - minPelvisY;
+      const headHeightAbovePelvis = maxHeadY - lowestTorsoPelvisProxyY;
       assert.ok(
         headHeightAbovePelvis >= 0.85 && headHeightAbovePelvis <= 1.25,
-        `${id} head clearance above pelvis (${headHeightAbovePelvis.toFixed(3)}m) must be anatomically natural [0.85, 1.25]`
+        `${id} head-to-torso-base vertical clearance (${headHeightAbovePelvis.toFixed(3)}m) must be within expected geometric range [0.85, 1.25]`
       );
       assert.ok(
         maxHeadY >= 1.35 && maxHeadY <= 1.70,
-        `${id} head top (${maxHeadY.toFixed(3)}m) must give clear sightlines above chassis [1.35, 1.70]`
+        `${id} head top sightline proxy (${maxHeadY.toFixed(3)}m) must give clear sightlines above chassis [1.35, 1.70]`
       );
 
       // E. Vehicle chassis proportions
