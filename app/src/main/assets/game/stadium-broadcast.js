@@ -2,7 +2,7 @@ import * as THREE from "three";
 /** Low-resolution GPU-only race feed for the arena screens. */
 export function stadiumBroadcast(renderer, scene, materials, {width=512,height=384} = {}) {
   const target = new THREE.WebGLRenderTarget(width, height, {
-    type: THREE.HalfFloatType,
+    type: THREE.UnsignedByteType,
     minFilter: THREE.LinearFilter,
     magFilter: THREE.LinearFilter,
     depthBuffer: true,

@@ -60,41 +60,58 @@ import {
 } from "./models.js";
 import { buildWorld, canvasTexture } from "./world.js";
 import { ITEM_ICONS, portrait, loadSourcePortraits } from "./icons.js";
+import { RENDER_CONFIG, activeQuality, logger, isTv } from "./config.js";
+
 const $ = (id) => document.getElementById(id),
   canvas = $("game"),
   V = THREE.Vector3;
+
+// Attach error handlers immediately before any asynchronous initialization
+window.addEventListener("error", (e) => {
+  logger.error("Runtime error:", e.message, e);
+  const errEl = $("error");
+  if (errEl) {
+    errEl.hidden = false;
+    errEl.textContent = "The race could not load: " + (e.message || e);
+  }
+});
+window.addEventListener("unhandledrejection", (e) => {
+  logger.error("Unhandled promise rejection:", e.reason);
+  const errEl = $("error");
+  if (errEl) {
+    errEl.hidden = false;
+    errEl.textContent = "Async error: " + (e.reason?.message || e.reason || e);
+  }
+});
+
 await loadSourcePortraits();
 const renderedItemIcons=itemPortraits();
 const updateItemReel=itemRoulette($("item-icon"),{...ITEM_ICONS,...renderedItemIcons},ITEMS);
 const updateBoostScreen=boostScreen($("speed-lines"));
 let boostFeedback={strength:0,kick:0};
-window.addEventListener("error", (e) => {
-  $("error").hidden = false;
-  $("error").textContent = "The race could not load: " + e.message;
-});
+
 const renderer = new THREE.WebGLRenderer({
   canvas,
-  antialias: true,
-  powerPreference: "high-performance",
+  antialias: RENDER_CONFIG.antialias,
+  powerPreference: RENDER_CONFIG.powerPreference,
 });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 1.6));
+renderer.setPixelRatio(RENDER_CONFIG.pixelRatio);
 renderer.setSize(innerWidth, innerHeight);
-const isMobileOrHeadless = /Android|iPhone|Mobile|Headless/i.test(navigator.userAgent) || !!window.AndroidBridge;
-renderer.shadowMap.enabled = !isMobileOrHeadless;
+renderer.shadowMap.enabled = activeQuality.shadows;
 if (renderer.shadowMap.enabled) {
   renderer.shadowMap.type = THREE.PCFShadowMap;
 }
 renderer.toneMapping = THREE.NeutralToneMapping;
-renderer.toneMappingExposure = 1.05;
+renderer.toneMappingExposure = RENDER_CONFIG.toneMappingExposure;
 const scene = new THREE.Scene();
 const effects=raceEffects(scene,seeded(8703));
-scene.background = new THREE.Color("#081325");
-scene.fog = new THREE.FogExp2("#111c30", 0.0011);
+scene.background = new THREE.Color(RENDER_CONFIG.clearColor);
+scene.fog = new THREE.FogExp2(RENDER_CONFIG.fog.color, RENDER_CONFIG.fog.density);
 const camera = new THREE.PerspectiveCamera(
-  59,
+  RENDER_CONFIG.camera.fov,
   innerWidth / innerHeight,
-  0.2,
-  1100,
+  RENDER_CONFIG.camera.near,
+  RENDER_CONFIG.camera.far,
 );
 const pmrem = new THREE.PMREMGenerator(renderer);
 const room = new RoomEnvironment();
@@ -374,6 +391,7 @@ function constructRace() {
       world.statue.userData.finishedModel = true;
     }
   });
+  syncPickupPools();
   $("results").hidden = true;
   $("pause").hidden = true;
   paused = false;
@@ -433,11 +451,14 @@ function setupTouchControls() {
     const el = $(id);
     if (!el) return;
     let isPressed = false;
+    let activePointerId = null;
+
     const press = (e) => {
-      if (e) {
-        if (e.cancelable) e.preventDefault();
+      if (e && e.cancelable) e.preventDefault();
+      if (e && e.pointerId !== undefined) {
+        activePointerId = e.pointerId;
         try {
-          if (e.pointerId !== undefined && el.setPointerCapture) el.setPointerCapture(e.pointerId);
+          if (el.setPointerCapture) el.setPointerCapture(e.pointerId);
         } catch (err) {}
       }
       if (!isPressed) {
@@ -446,23 +467,36 @@ function setupTouchControls() {
         onDown();
       }
     };
+
     const release = (e) => {
       if (e && e.cancelable) e.preventDefault();
       if (isPressed) {
         isPressed = false;
         el.classList.remove("active");
+        try {
+          if (activePointerId !== null && el.releasePointerCapture && el.hasPointerCapture?.(activePointerId)) {
+            el.releasePointerCapture(activePointerId);
+          }
+        } catch (err) {}
+        activePointerId = null;
         onUp();
       }
     };
-    el.addEventListener("pointerdown", press);
-    el.addEventListener("pointerup", release);
-    el.addEventListener("pointercancel", release);
-    el.addEventListener("touchstart", press, { passive: false });
-    el.addEventListener("touchend", release, { passive: false });
-    el.addEventListener("touchcancel", release, { passive: false });
-    el.addEventListener("mousedown", press);
-    el.addEventListener("mouseup", release);
-    el.addEventListener("mouseleave", release);
+
+    if (typeof window !== "undefined" && window.PointerEvent) {
+      el.addEventListener("pointerdown", press);
+      el.addEventListener("pointerup", release);
+      el.addEventListener("pointercancel", release);
+      el.addEventListener("lostpointercapture", release);
+    } else {
+      el.addEventListener("touchstart", press, { passive: false });
+      el.addEventListener("touchend", release, { passive: false });
+      el.addEventListener("touchcancel", release, { passive: false });
+      el.addEventListener("mousedown", press);
+      el.addEventListener("mouseup", release);
+    }
+
+    window.addEventListener("blur", release);
   };
 
   bindTouch("touch-steer-left", () => wheel.setTouchSteer(-1), () => wheel.setTouchSteer(0));
@@ -1655,6 +1689,7 @@ syncPickupPools();
 audio.prepare();
 requestAnimationFrame(frame);
 window.addEventListener("resize", () => {
+  renderer.setPixelRatio(RENDER_CONFIG.pixelRatio);
   renderer.setSize(innerWidth, innerHeight);
   if (composer) composer.setSize(innerWidth, innerHeight);
   camera.aspect = innerWidth / innerHeight;

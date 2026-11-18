@@ -142,6 +142,15 @@
     <div id="wheel-ready" hidden></div>
     <button id="fullscreen" hidden type="button"></button>
     <div id="error" hidden></div>
+    <script>
+      window.addEventListener("error", function(e) {
+        var err = document.getElementById("error");
+        if (err) {
+          err.hidden = false;
+          err.textContent = "Initialization error: " + (e.message || e);
+        }
+      });
+    </script>
     <script type="module" src="game.js"></script>
   </body>
 </html>

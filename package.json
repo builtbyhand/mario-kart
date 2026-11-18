@@ -1,0 +1,11 @@
+{
+  "name": "mario-kart-android",
+  "version": "0.2.0",
+  "description": "Mario Kart stylized 3D racing game for Android WebView and Kotlin integration",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "check": "for f in app/src/main/assets/game/*.js; do node --check \"$f\"; done"
+  }
+}

@@ -165,6 +165,9 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
     }
 
     override fun onDestroy() {
+        sensorManager?.unregisterListener(this)
+        (webView.parent as? android.view.ViewGroup)?.removeView(webView)
+        webView.stopLoading()
         webView.destroy()
         super.onDestroy()
     }
@@ -181,11 +184,14 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
     // ─────────────────────────────────────────────────────────────────────────────
     override fun onSensorChanged(event: SensorEvent?) {
         if (event == null || event.sensor.type != Sensor.TYPE_ACCELEROMETER) return
+        if (isFinishing || isDestroyed) return
         // In landscape, event.values[1] represents sideways tilt roll
         val roll = event.values[1] * 9.0f // convert to degrees approximately
         val pitch = event.values[0] * 9.0f
         webView.post {
-            webView.evaluateJavascript("window.onNativeSensorOrientation?.($roll, $pitch);", null)
+            if (!isFinishing && !isDestroyed) {
+                webView.evaluateJavascript("window.onNativeSensorOrientation?.($roll, $pitch);", null)
+            }
         }
     }
 
@@ -218,8 +224,8 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
 
                 if (Math.abs(steer - lastSteer) > 0.03f || isGasTrigger != gasPressed || isBrakeTrigger != brakePressed) {
                     lastSteer = steer
-                    if (isGasTrigger) gasPressed = true
-                    if (isBrakeTrigger) brakePressed = true
+                    gasPressed = isGasTrigger
+                    brakePressed = isBrakeTrigger
                     dispatchGamepadState()
                 }
                 return true
@@ -283,6 +289,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
     }
 
     private fun dispatchGamepadState() {
+        if (isFinishing || isDestroyed) return
         val json = """
             {
                 "steer": $lastSteer,
@@ -293,7 +300,9 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
             }
         """.trimIndent()
         webView.post {
-            webView.evaluateJavascript("window.onNativeGamepadInput?.($json);", null)
+            if (!isFinishing && !isDestroyed) {
+                webView.evaluateJavascript("window.onNativeGamepadInput?.($json);", null)
+            }
         }
     }
 
@@ -308,14 +317,9 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         @JavascriptInterface
         fun vibrate(durationMs: Long) {
             try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    vibrator?.vibrate(
-                        VibrationEffect.createOneShot(durationMs, VibrationEffect.DEFAULT_AMPLITUDE)
-                    )
-                } else {
-                    @Suppress("DEPRECATION")
-                    vibrator?.vibrate(durationMs)
-                }
+                vibrator?.vibrate(
+                    VibrationEffect.createOneShot(durationMs, VibrationEffect.DEFAULT_AMPLITUDE)
+                )
             } catch (e: Exception) {
                 Log.w("MarioKart", "Vibration failed: ${e.message}")
             }
@@ -326,14 +330,9 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
             try {
                 val array = JSONArray(patternJson)
                 val timings = LongArray(array.length()) { i -> array.getLong(i) }
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    vibrator?.vibrate(
-                        VibrationEffect.createWaveform(timings, -1)
-                    )
-                } else {
-                    @Suppress("DEPRECATION")
-                    vibrator?.vibrate(timings, -1)
-                }
+                vibrator?.vibrate(
+                    VibrationEffect.createWaveform(timings, -1)
+                )
             } catch (e: Exception) {
                 Log.w("MarioKart", "Pattern vibration failed: ${e.message}")
             }

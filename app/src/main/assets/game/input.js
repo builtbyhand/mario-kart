@@ -14,12 +14,6 @@ export class WheelInput {
     this.invert = invert;
     this.tiltEnabled = false;
     this.steer = 0;
-    this.buttons = {
-      gas: false,
-      brake: false,
-      drift: false,
-      item: false,
-    };
     this.touchSteer = 0;
     this.tiltSteer = 0;
     this.keySteer = 0;
@@ -28,15 +22,21 @@ export class WheelInput {
     this.status = "Touch or tilt to steer";
     this.lastItemTrigger = false;
 
+    // Separate input sources to prevent stuck inputs or clobbering across controllers
+    this.touchButtons = { gas: false, brake: false, drift: false, item: false };
+    this.nativeButtons = { gas: false, brake: false, drift: false, item: false };
+    this.gamepadButtons = { gas: false, brake: false, drift: false, item: false };
+    this.buttons = { gas: false, brake: false, drift: false, item: false };
+
     // Listen to native bridge events if available
     if (typeof window !== "undefined") {
       window.onNativeGamepadInput = (data) => {
         if (!data) return;
         if (typeof data.steer === "number") this.gamepadSteer = clamp(data.steer, -1, 1);
-        if (typeof data.gas === "boolean") this.buttons.gas = data.gas;
-        if (typeof data.brake === "boolean") this.buttons.brake = data.brake;
-        if (typeof data.drift === "boolean") this.buttons.drift = data.drift;
-        if (typeof data.item === "boolean") this.buttons.item = data.item;
+        if (typeof data.gas === "boolean") this.nativeButtons.gas = data.gas;
+        if (typeof data.brake === "boolean") this.nativeButtons.brake = data.brake;
+        if (typeof data.drift === "boolean") this.nativeButtons.drift = data.drift;
+        if (typeof data.item === "boolean") this.nativeButtons.item = data.item;
       };
 
       window.onNativeSensorOrientation = (gamma, beta) => {
@@ -64,9 +64,13 @@ export class WheelInput {
     this.tiltSteer = 0;
     this.keySteer = 0;
     this.gamepadSteer = 0;
+    this.touchButtons = { gas: false, brake: false, drift: false, item: false };
+    this.nativeButtons = { gas: false, brake: false, drift: false, item: false };
+    this.gamepadButtons = { gas: false, brake: false, drift: false, item: false };
     this.buttons = { gas: false, brake: false, drift: false, item: false };
     this.armed = true;
     this.status = "Ready";
+    this.lastItemTrigger = false;
   }
 
   release() {
@@ -78,17 +82,20 @@ export class WheelInput {
   }
 
   setTouchButton(name, pressed) {
-    if (this.buttons.hasOwnProperty(name)) {
-      this.buttons[name] = Boolean(pressed);
+    if (Object.prototype.hasOwnProperty.call(this.touchButtons, name)) {
+      this.touchButtons[name] = Boolean(pressed);
     }
   }
 
   pollGamepad() {
     if (typeof navigator === "undefined" || !navigator.getGamepads) return;
     const gamepads = navigator.getGamepads();
+    let foundActive = false;
+
     for (let i = 0; i < gamepads.length; i++) {
       const gp = gamepads[i];
       if (!gp || !gp.connected) continue;
+      foundActive = true;
 
       // Analog stick X
       let steer = 0;
@@ -114,12 +121,19 @@ export class WheelInput {
         const itemPressed = Boolean(gp.buttons[4]?.pressed || gp.buttons[3]?.pressed);
 
         this.gamepadSteer = steer;
-        if (gasPressed) this.buttons.gas = true;
-        if (brakePressed) this.buttons.brake = true;
-        if (driftPressed) this.buttons.drift = true;
-        if (itemPressed) this.buttons.item = true;
+        this.gamepadButtons.gas = gasPressed;
+        this.gamepadButtons.brake = brakePressed;
+        this.gamepadButtons.drift = driftPressed;
+        this.gamepadButtons.item = itemPressed;
       }
       break;
+    }
+
+    if (!foundActive) {
+      this.gamepadButtons.gas = false;
+      this.gamepadButtons.brake = false;
+      this.gamepadButtons.drift = false;
+      this.gamepadButtons.item = false;
     }
   }
 
@@ -138,16 +152,26 @@ export class WheelInput {
 
     this.steer = clamp(combinedSteer, -1, 1);
 
-    const itemTriggered = this.buttons.item;
-    const pulseItem = itemTriggered && !this.lastItemTrigger;
-    this.lastItemTrigger = itemTriggered;
+    // Combine all sources cleanly
+    const gas = this.touchButtons.gas || this.nativeButtons.gas || this.gamepadButtons.gas;
+    const brake = this.touchButtons.brake || this.nativeButtons.brake || this.gamepadButtons.brake;
+    const drift = this.touchButtons.drift || this.nativeButtons.drift || this.gamepadButtons.drift;
+    const item = this.touchButtons.item || this.nativeButtons.item || this.gamepadButtons.item;
+
+    this.buttons.gas = gas;
+    this.buttons.brake = brake;
+    this.buttons.drift = drift;
+    this.buttons.item = item;
+
+    const pulseItem = item && !this.lastItemTrigger;
+    this.lastItemTrigger = item;
 
     return {
       steer: this.steer,
       gas: this.buttons.gas,
       brake: this.buttons.brake,
       drift: this.buttons.drift,
-      item: pulseItem || itemTriggered,
+      item: pulseItem || item,
       live: true,
       status: this.status,
     };
