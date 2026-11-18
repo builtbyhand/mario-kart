@@ -278,6 +278,14 @@ server.listen(8888, "127.0.0.1", async () => {
     "--disable-setuid-sandbox",
     "--disable-gpu-sandbox",
     "--disable-dev-shm-usage",
+    "--disable-background-networking",
+    "--disable-default-apps",
+    "--disable-extensions",
+    "--disable-sync",
+    "--disable-translate",
+    "--mute-audio",
+    "--no-first-run",
+    "--no-default-browser-check",
     "--use-gl=angle",
     "--use-angle=swiftshader",
     "--enable-unsafe-swiftshader",
@@ -298,7 +306,7 @@ server.listen(8888, "127.0.0.1", async () => {
   });
 
   let page = null;
-  for (let attempt = 0; attempt < 40; attempt++) {
+  for (let attempt = 0; attempt < 100; attempt++) {
     try {
       const resp = await fetch("http://127.0.0.1:9222/json/list");
       if (resp.ok) {
