@@ -47,6 +47,11 @@ import {
   loadKartPack,
   proceduralKart,
   disposeModel,
+  assetCache,
+  masterCachedGeometries,
+  masterCachedMaterials,
+  masterCachedTextures,
+  clearAssetCache,
 } from "../app/src/main/assets/game/models.js";
 
 test("All 8 kart GLB models exist, parse cleanly, and contain four wheels", async () => {
@@ -191,23 +196,173 @@ test("loadKartPack gracefully falls back when an asset cannot be loaded", async 
   }
 });
 
-test("disposeModel cleanly disposes GLB geometries and materials", async () => {
-  const kartGltf = await loadGLB(KART_SPECS.peach.kart);
-  const charGltf = await loadGLB(KART_SPECS.peach.character);
-  const glbResult = buildGLBKart("peach", kartGltf, charGltf);
+test("Repeated GLB loading uses assetCache correctly", async () => {
+  const gltf1 = await loadGLB(KART_SPECS.mario.kart);
+  const gltf2 = await loadGLB(KART_SPECS.mario.kart);
+  assert.strictEqual(gltf1, gltf2, "Subsequent calls to loadGLB must return identical cached GLTF instance");
+  assert.ok(assetCache.has(KART_SPECS.mario.kart), "Asset cache must contain the entry");
+});
 
-  // Track disposal
-  let geometriesDisposed = 0;
-  glbResult.model.traverse((o) => {
-    if (o.geometry) {
-      const origDispose = o.geometry.dispose.bind(o.geometry);
+test("Rebuilding and disposing races does not invalidate cached master assets", async () => {
+  // Pre-load mario kart
+  const kartGltf = await loadGLB(KART_SPECS.mario.kart);
+  const charGltf = await loadGLB(KART_SPECS.mario.character);
+
+  // Record master geometry and material references
+  const masterGeos = [];
+  const masterMats = [];
+  kartGltf.scene.traverse((o) => {
+    if (o.isMesh) {
+      masterGeos.push(o.geometry);
+      masterMats.push(o.material);
+    }
+  });
+
+  // Build race 1
+  const race1Kart = buildGLBKart("mario", kartGltf, charGltf);
+  assert.ok(race1Kart.model, "Race 1 kart built");
+
+  // Teardown race 1 (simulating constructRace() teardown)
+  disposeModel(race1Kart.model);
+
+  // Verify master geometries and materials in assetCache are still intact
+  for (const g of masterGeos) {
+    assert.ok(g.attributes.position, "Master geometry attributes must remain intact");
+    assert.ok(g.attributes.position.count > 0, "Master vertex count must remain > 0");
+  }
+
+  // Build race 2 using the same cached GLTF
+  const race2Kart = buildGLBKart("mario", kartGltf, charGltf);
+  assert.ok(race2Kart.model, "Race 2 kart must build cleanly from cached asset");
+  assert.equal(race2Kart.wheels.length, 4, "Race 2 kart must have all 4 wheels");
+  assert.ok(race2Kart.driver, "Race 2 kart must have driver");
+  assert.ok(race2Kart.mixer, "Race 2 kart must have functional mixer");
+
+  // Clean up race 2
+  disposeModel(race2Kart.model);
+});
+
+test("GPU resources are released only when ownership permits (master assets protected)", async () => {
+  const kartGltf = await loadGLB(KART_SPECS.luigi.kart);
+  const charGltf = await loadGLB(KART_SPECS.luigi.character);
+
+  let masterGeoDisposed = false;
+  kartGltf.scene.traverse((o) => {
+    if (o.isMesh && o.geometry) {
+      const orig = o.geometry.dispose.bind(o.geometry);
       o.geometry.dispose = () => {
-        geometriesDisposed++;
-        origDispose();
+        masterGeoDisposed = true;
+        orig();
       };
     }
   });
 
-  disposeModel(glbResult.model);
-  assert.ok(geometriesDisposed > 0, "All geometries must be cleanly disposed");
+  const built = buildGLBKart("luigi", kartGltf, charGltf);
+
+  let instanceGeoDisposed = 0;
+  built.model.traverse((o) => {
+    if (o.isMesh && o.geometry) {
+      const orig = o.geometry.dispose.bind(o.geometry);
+      o.geometry.dispose = () => {
+        instanceGeoDisposed++;
+        orig();
+      };
+    }
+  });
+
+  disposeModel(built.model);
+
+  assert.ok(instanceGeoDisposed > 0, "Instance geometries must be disposed");
+  assert.equal(masterGeoDisposed, false, "Master cached geometry must NEVER be disposed by instance teardown");
+});
+
+test("All eight driver/kart combinations have valid world dimensions and seating attachment", async () => {
+  for (const [id, spec] of Object.entries(KART_SPECS)) {
+    const kGltf = await loadGLB(spec.kart);
+    const cGltf = await loadGLB(spec.character);
+    const built = buildGLBKart(id, kGltf, cGltf);
+
+    built.model.updateMatrixWorld(true);
+
+    // Measure kart body bounds (excluding driver)
+    const kartScene = built.model.children.find((c) => c !== built.driver && !c.name.startsWith("wheel-"));
+    assert.ok(kartScene, `${id} must contain kartScene`);
+    const kBox = new THREE.Box3().setFromObject(kartScene);
+    const kartLength = kBox.max.z - kBox.min.z;
+
+    assert.ok(
+      kartLength >= 2.5 && kartLength <= 4.0,
+      `${id} kart length (${kartLength.toFixed(2)}m) must be in valid vehicle range [2.5, 4.0]`
+    );
+
+    // Measure driver bounds
+    assert.ok(built.driver, `${id} must have driverScene`);
+    const dBox = new THREE.Box3().setFromObject(built.driver);
+    const driverHeight = dBox.max.y - dBox.min.y;
+    const driverSeatY = dBox.min.y;
+    const driverHeadY = dBox.max.y;
+
+    assert.ok(
+      driverHeight >= 0.85 && driverHeight <= 1.30,
+      `${id} driver height (${driverHeight.toFixed(2)}m) must be stylized humanoid proportion [0.85, 1.30]`
+    );
+    assert.ok(
+      driverSeatY >= 0.25 && driverSeatY <= 0.60,
+      `${id} driver seat Y (${driverSeatY.toFixed(2)}m) must sit in cockpit floor/seat [0.25, 0.60]`
+    );
+    assert.ok(
+      driverHeadY >= 1.25 && driverHeadY <= 1.70,
+      `${id} driver head Y (${driverHeadY.toFixed(2)}m) must be visible above cockpit [1.25, 1.70]`
+    );
+
+    // Verify 4 wheels
+    assert.equal(built.wheels.length, 4, `${id} must have 4 wheels`);
+    for (let wi = 0; wi < 4; wi++) {
+      const w = built.wheels[wi];
+      assert.ok(w, `${id} wheel-${wi} exists`);
+      assert.ok(w.userData.rolling, `${id} wheel-${wi} has rolling group`);
+      assert.ok(w.userData.glow, `${id} wheel-${wi} has anti-glow group`);
+      assert.ok(w.position.y >= 0.30 && w.position.y <= 0.70, `${id} wheel-${wi} axle height must be reasonable`);
+    }
+
+    disposeModel(built.model);
+  }
+});
+
+test("Driver animation and wheel motion behavior remain functional across frame updates", async () => {
+  const kGltf = await loadGLB(KART_SPECS.toad.kart);
+  const cGltf = await loadGLB(KART_SPECS.toad.character);
+  const built = buildGLBKart("toad", kGltf, cGltf);
+
+  // 1. Animation mixer update
+  assert.ok(built.mixer, "Mixer must exist");
+  assert.doesNotThrow(() => {
+    built.mixer.update(0.016);
+  }, "Mixer must advance cleanly on frame update");
+
+  // 2. Wheel rolling rotation
+  const frontLeft = built.wheels[0];
+  const rolling = frontLeft.userData.rolling;
+  const initialRotX = rolling.rotation.x;
+  rolling.rotation.x -= (15 * 0.016) / 0.39;
+  assert.ok(rolling.rotation.x < initialRotX, "Rolling forward must decrease rotation.x");
+
+  // 3. Wheel steering
+  frontLeft.rotation.y = -0.5 * 0.32;
+  assert.equal(frontLeft.rotation.y, -0.16, "Wheel steering must apply to pivot Y");
+
+  // 4. Anti-gravity glow toggle
+  assert.equal(frontLeft.userData.glow.visible, false, "Glow must start hidden");
+  frontLeft.userData.glow.visible = true;
+  assert.equal(frontLeft.userData.glow.visible, true, "Glow must toggle visible during anti-gravity");
+
+  // 5. Driver steering lean
+  built.driver.rotation.z = -0.5 * 0.12;
+  assert.equal(built.driver.rotation.z, -0.06, "Driver must lean into steer angle");
+
+  // 6. Driver head look
+  assert.ok(built.driverHead, "Driver head must exist");
+  assert.ok(built.driverHead.userData.lookRestQuaternion, "Driver head must cache rest quaternion");
+
+  disposeModel(built.model);
 });

@@ -32,8 +32,8 @@ Android WebView WebGL performance is heavily bound by vertex transformation and 
 
 ## 4. In-Memory Asset Caching & Lifecycle
 
-- **`assetCache` Registry:** The `loadGLB()` function caches parsed GLTF objects in a `Map`. Subsequent race restarts, lap resets, or spectator views clone from the cached hierarchy in memory in under 2ms without re-parsing binary buffers.
-- **Clean Disposal (`disposeModel`):** When a race restarts or karts are cleared, `disposeModel()` traverses the entire hierarchy, disposing all geometry buffers, skinned mesh attributes, cloned materials, and textures, preventing GPU memory leaks across continuous play sessions.
+- **`assetCache` Registry & Master Resource Protection:** The `loadGLB()` function caches parsed GLTF objects in `assetCache`. Master geometries, materials, and textures are tracked in `masterCachedGeometries`, `masterCachedMaterials`, and `masterCachedTextures`.
+- **Instance Isolation & Clean Disposal (`disposeModel`):** When karts are instantiated in `buildGLBKart()`, their geometries and materials are cloned per instance. When a race restarts or karts are cleared in `constructRace()`, `disposeModel()` traverses the hierarchy, disposes instance cloned geometries and materials, stops and unbinds `AnimationMixer`s, and preserves master cached resources. This prevents both GPU memory leaks and resource corruption across repeated race restarts.
 - **Graceful Fallback:** If an asset fails to load, the engine silently preserves the procedural kart fallback (`k.source = "procedural"`), guaranteeing the game never crashes or stalls at the start line.
 
 ---

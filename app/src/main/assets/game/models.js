@@ -148,19 +148,44 @@ export function proceduralKart(id) {
   finishKart(group, id);
   return group;
 }
+export const masterCachedGeometries = new WeakSet();
+export const masterCachedMaterials = new WeakSet();
+export const masterCachedTextures = new WeakSet();
+
 export function disposeModel(root) {
+  if (!root) return;
+
+  // Cleanly stop and unbind animation mixer from Three.js runtime
+  if (root.userData?.mixer) {
+    try {
+      root.userData.mixer.stopAllAction();
+      if (root.userData.driver) {
+        root.userData.mixer.uncacheRoot(root.userData.driver);
+      }
+    } catch (_) {}
+    root.userData.mixer = null;
+  }
+
   const geometries = new Set(),
     ownedMaterials = new Set();
   const shared = new Set(materials.values());
+
   root.traverse((o) => {
-    if (o.geometry) geometries.add(o.geometry);
+    if (o.geometry && !masterCachedGeometries.has(o.geometry)) {
+      geometries.add(o.geometry);
+    }
     for (const m of Array.isArray(o.material) ? o.material : [o.material]) {
-      if (m && !shared.has(m)) ownedMaterials.add(m);
+      if (m && !shared.has(m) && !masterCachedMaterials.has(m)) {
+        ownedMaterials.add(m);
+      }
     }
   });
+
   geometries.forEach((g) => g.dispose());
   ownedMaterials.forEach((m) => {
-    m.map?.dispose();
+    if (m.map && !masterCachedTextures.has(m.map)) {
+      m.map.dispose();
+    }
     m.dispose();
   });
 }
@@ -170,69 +195,84 @@ export const KART_SPECS = {
     character: "models/character-male-a.glb",
     name: "Red Speedster",
     scale: 2.2,
-    driverOffset: [0, 0.38, -0.06],
-    driverScale: 1.4,
+    driverOffset: [0, 0.45, 0.12],
+    driverScale: 1.45,
   },
   luigi: {
     kart: "models/kart-oodi.glb",
     character: "models/character-male-b.glb",
     name: "Green Aero",
     scale: 2.2,
-    driverOffset: [0, 0.38, -0.06],
-    driverScale: 1.4,
+    driverOffset: [0, 0.45, 0.12],
+    driverScale: 1.45,
   },
   peach: {
     kart: "models/kart-ooli.glb",
     character: "models/character-female-a.glb",
     name: "Pink Sport",
     scale: 2.2,
-    driverOffset: [0, 0.38, -0.06],
-    driverScale: 1.4,
+    driverOffset: [0, 0.45, 0.12],
+    driverScale: 1.35,
   },
   yoshi: {
     kart: "models/kart-oopi.glb",
     character: "models/character-female-b.glb",
     name: "Lime Turbo",
     scale: 2.2,
-    driverOffset: [0, 0.38, -0.06],
-    driverScale: 1.4,
+    driverOffset: [0, 0.45, 0.12],
+    driverScale: 1.40,
   },
   toad: {
     kart: "models/kart-oozi.glb",
     character: "models/character-male-c.glb",
     name: "Blue Comet",
     scale: 2.2,
-    driverOffset: [0, 0.38, -0.06],
-    driverScale: 1.4,
+    driverOffset: [0, 0.45, 0.12],
+    driverScale: 1.35,
   },
   bowser: {
     kart: "models/race-future.glb",
     character: "models/character-male-d.glb",
     name: "Cyber Beast",
-    scale: 2.0,
-    driverOffset: [0, 0.45, 0.05],
-    driverScale: 1.5,
+    scale: 1.25,
+    driverOffset: [0, 0.38, -0.18],
+    driverScale: 1.50,
   },
   "donkey-kong": {
     kart: "models/race.glb",
     character: "models/character-male-d.glb",
     name: "Classic GT",
-    scale: 2.0,
-    driverOffset: [0, 0.45, 0.05],
-    driverScale: 1.5,
+    scale: 1.25,
+    driverOffset: [0, 0.35, -0.38],
+    driverScale: 1.50,
   },
   koopa: {
     kart: "models/sedan-sports.glb",
     character: "models/character-female-c.glb",
     name: "Yellow Sprint",
-    scale: 2.0,
-    driverOffset: [0, 0.42, 0.05],
-    driverScale: 1.4,
+    scale: 1.25,
+    driverOffset: [0, 0.35, -0.15],
+    driverScale: 1.30,
   },
 };
 
 const gltfLoader = new GLTFLoader();
-const assetCache = new Map();
+export const assetCache = new Map();
+
+export function clearAssetCache() {
+  for (const gltf of assetCache.values()) {
+    gltf.scene?.traverse((o) => {
+      if (o.geometry) o.geometry.dispose();
+      for (const m of Array.isArray(o.material) ? o.material : [o.material]) {
+        if (m) {
+          if (m.map) m.map.dispose();
+          m.dispose();
+        }
+      }
+    });
+  }
+  assetCache.clear();
+}
 
 export async function loadGLB(pathUrl) {
   if (assetCache.has(pathUrl)) {
@@ -263,6 +303,18 @@ export async function loadGLB(pathUrl) {
   }
 
   const gltf = await gltfPromise;
+
+  // Register master cached resources to protect them from instance disposal
+  gltf.scene?.traverse((o) => {
+    if (o.geometry) masterCachedGeometries.add(o.geometry);
+    for (const m of Array.isArray(o.material) ? o.material : [o.material]) {
+      if (m) {
+        masterCachedMaterials.add(m);
+        if (m.map) masterCachedTextures.add(m.map);
+      }
+    }
+  });
+
   assetCache.set(pathUrl, gltf);
   return gltf;
 }
@@ -273,14 +325,24 @@ export function buildGLBKart(id, kartGltf, charGltf) {
   root.name = "glb-kart";
   root.userData.isGLB = true;
 
-  // Clone kart hierarchy
-  const kartScene = kartGltf.scene.clone(true);
+  // Clone kart hierarchy with cloned geometry and materials for full instance isolation
+  const kartScene = cloneSkeleton(kartGltf.scene);
+  kartScene.traverse((o) => {
+    if (o.isMesh) {
+      if (o.geometry) o.geometry = o.geometry.clone();
+      if (o.material) {
+        o.material = Array.isArray(o.material)
+          ? o.material.map((m) => m.clone())
+          : o.material.clone();
+      }
+    }
+  });
 
   // Hide static driver in kart mesh if present
   const staticDriver = kartScene.getObjectByName("character");
   if (staticDriver) staticDriver.visible = false;
 
-  // Articulate 4 wheels
+  // Articulate 4 wheels as unscaled, world-aligned pivots attached directly to root
   const wheelAliases = [
     ["wheel-front-left", "wheel-0"],
     ["wheel-front-right", "wheel-1"],
@@ -295,13 +357,16 @@ export function buildGLBKart(id, kartGltf, charGltf) {
     mesh.geometry.computeBoundingBox();
     const box = mesh.geometry.boundingBox;
     const center = box.getCenter(new THREE.Vector3());
-    const axle = mesh.position.clone().add(center);
+    const rawAxle = mesh.position.clone().add(center);
     const extent = box.getSize(new THREE.Vector3());
-    const radius = Math.max(extent.y, extent.z) * 0.5;
+    const radius = Math.max(extent.y, extent.z) * 0.5 * spec.scale;
+
+    // Convert raw axle pos to world coordinates (rotated Math.PI around Y and scaled)
+    const worldAxle = rawAxle.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI).multiplyScalar(spec.scale);
 
     const wheelPivot = new THREE.Group();
     wheelPivot.name = "wheel-" + i;
-    wheelPivot.position.copy(axle);
+    wheelPivot.position.copy(worldAxle);
 
     const rolling = new THREE.Group();
     wheelPivot.add(rolling);
@@ -309,12 +374,16 @@ export function buildGLBKart(id, kartGltf, charGltf) {
     wheelPivot.userData.hubCenter = [0, 0, 0];
     wheelPivot.userData.hubRadius = radius;
 
-    // Reparent mesh inside rolling group
-    mesh.position.sub(axle);
+    // Reparent mesh inside rolling group, scaled and oriented with kart forward (-Z)
+    mesh.removeFromParent();
+    mesh.position.sub(rawAxle);
+    mesh.scale.setScalar(spec.scale);
+    mesh.rotation.y = Math.PI;
     rolling.add(mesh);
 
     // Anti-gravity glow ring
     const glow = new THREE.Group();
+    glow.name = "anti-glow";
     const light = new THREE.MeshBasicMaterial({
       color: new THREE.Color("#35e3ff").multiplyScalar(3.1),
     });
@@ -325,7 +394,8 @@ export function buildGLBKart(id, kartGltf, charGltf) {
       metalness: 0.55,
       roughness: 0.32,
     });
-    for (const face of [-extent.x * 0.45, extent.x * 0.45]) {
+    const halfWidth = extent.x * 0.45 * spec.scale;
+    for (const face of [-halfWidth, halfWidth]) {
       const ring = new THREE.Mesh(
         new THREE.TorusGeometry(radius * 0.82, radius * 0.045, 8, 40),
         light
@@ -342,22 +412,33 @@ export function buildGLBKart(id, kartGltf, charGltf) {
     wheelPivot.add(glow);
     wheelPivot.userData.glow = glow;
 
-    kartScene.add(wheelPivot);
+    root.add(wheelPivot);
     return wheelPivot;
   });
 
-  // Scale and orient kart: Rotate by Math.PI around Y so nose faces -Z
+  // Scale and orient kart chassis: Rotate by Math.PI around Y so nose faces -Z
   kartScene.scale.setScalar(spec.scale);
   kartScene.rotation.y = Math.PI;
   root.add(kartScene);
 
-  // Driver character integration with animation
+  // Driver character integration: separate unscaled attachment hierarchy directly under root
   let mixer = null;
   let driverScene = null;
   let driverHead = null;
 
   if (charGltf && charGltf.scene) {
     driverScene = cloneSkeleton(charGltf.scene);
+    driverScene.traverse((o) => {
+      if (o.isMesh) {
+        if (o.geometry) o.geometry = o.geometry.clone();
+        if (o.material) {
+          o.material = Array.isArray(o.material)
+            ? o.material.map((m) => m.clone())
+            : o.material.clone();
+        }
+      }
+    });
+
     mixer = new THREE.AnimationMixer(driverScene);
 
     const driveClip =
@@ -368,8 +449,9 @@ export function buildGLBKart(id, kartGltf, charGltf) {
       action.play();
     }
 
-    driverScene.position.set(...spec.driverOffset);
     driverScene.scale.setScalar(spec.driverScale);
+    driverScene.position.set(...spec.driverOffset);
+    driverScene.rotation.y = Math.PI; // Aligns forward with kart (-Z)
 
     // Set up driver-head anchor for camera look-at and glance attention
     driverHead =
@@ -379,7 +461,7 @@ export function buildGLBKart(id, kartGltf, charGltf) {
     driverHead.name = "driver-head";
     driverHead.userData.lookRestQuaternion = driverHead.quaternion.toArray();
 
-    kartScene.add(driverScene);
+    root.add(driverScene);
   }
 
   // Ensure all meshes cast/receive shadows and have correct color space
