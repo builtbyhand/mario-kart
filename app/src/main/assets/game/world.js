@@ -370,7 +370,16 @@ export async function buildWorld(scene, capabilities = null, envAssets = null) {
   const redBarrierMatrices = [];
   const whiteBarrierMatrices = [];
   const fenceMatrices = [];
-  const barrierCounts = { left: 0, right: 0, leftRed: 0, leftWhite: 0, rightRed: 0, rightWhite: 0 };
+  const barrierCounts = {
+    left: 0,
+    right: 0,
+    leftRed: 0,
+    leftWhite: 0,
+    rightRed: 0,
+    rightWhite: 0,
+    leftS: [],
+    rightS: [],
+  };
 
   // 1. Rumble Curbs along road edge (lateral ±10.6m)
   for (let s = 0; s < L; s += 3) {
@@ -394,14 +403,14 @@ export async function buildWorld(scene, capabilities = null, envAssets = null) {
   }
 
   // 2. High-Definition Continuous Barrier Placement with Zero Gaps on Curves
-  // Arc-length parameterization ensures consecutive barrier centers are spaced <= 2.75m apart
-  // along the actual wall curve (side * WALL_HALF), guaranteeing >= 30cm overlap with 3.05m barriers.
+  // Dual-distance progression (3D Euclidean step and centerline arc parameterization at step=2.46m)
+  // guarantees that consecutive barrier instances overlap physically in 3D geometry across all tight curves,
+  // extreme banking (up to 57 deg), and rapid elevation changes, with zero uncovered gaps along the entire 1400m circuit.
   for (const side of [-1, 1]) {
     const fineDs = 0.05;
-    const placementStep = 2.65;
-    let currentPos = surfaceAt(0, side * WALL_HALF);
-    let lastPlacedDist = 0;
-    let cumDist = 0;
+    const placementStep = 2.46;
+    let lastPlacedS = 0;
+    let lastPlacedPos = surfaceAt(0, side * WALL_HALF);
     let barrierCounter = 0;
 
     function placeBarrierInstance(s, q) {
@@ -417,6 +426,11 @@ export async function buildWorld(scene, capabilities = null, envAssets = null) {
         redBarrierMatrices.push(bMat);
       } else {
         whiteBarrierMatrices.push(bMat);
+      }
+      if (side === -1) {
+        barrierCounts.leftS.push(s);
+      } else {
+        barrierCounts.rightS.push(s);
       }
 
       // 3. Safety Catch Fences behind barriers along spectator areas
@@ -446,23 +460,22 @@ export async function buildWorld(scene, capabilities = null, envAssets = null) {
       barrierCounter++;
     }
 
-    placeBarrierInstance(0, currentPos);
+    placeBarrierInstance(0, lastPlacedPos);
 
     for (let s = fineDs; s < L; s += fineDs) {
       if (s > SECTIONS.glideStart && s < SECTIONS.glideEnd) {
-        cumDist = 0;
-        lastPlacedDist = 0;
-        currentPos = surfaceAt(s, side * WALL_HALF);
+        lastPlacedS = s;
+        lastPlacedPos = surfaceAt(s, side * WALL_HALF);
         continue;
       }
-      const nextPos = surfaceAt(s, side * WALL_HALF);
-      const d = Math.hypot(nextPos.x - currentPos.x, nextPos.y - currentPos.y, nextPos.z - currentPos.z);
-      cumDist += d;
-      currentPos = nextPos;
+      const p = surfaceAt(s, side * WALL_HALF);
+      const dist3D = Math.hypot(p.x - lastPlacedPos.x, p.y - lastPlacedPos.y, p.z - lastPlacedPos.z);
+      const deltaS = s - lastPlacedS;
 
-      if (cumDist - lastPlacedDist >= placementStep) {
-        placeBarrierInstance(s, currentPos);
-        lastPlacedDist = cumDist;
+      if (dist3D >= placementStep || deltaS >= placementStep) {
+        placeBarrierInstance(s, p);
+        lastPlacedS = s;
+        lastPlacedPos = p;
       }
     }
 
