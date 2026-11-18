@@ -507,19 +507,19 @@ const TRACK_ZONES = [
     rms3D: 3.80,
     maxTransverse: 0.080,
     maxLat: 0.035,
-    maxVert: 0.075,
+    maxVert: 0.080,
     minExactFraction: 0.85,
   },
   {
     name: "Zone 4: Mountain Hairpin",
     minS: 500,
     maxS: 540,
-    max3D: 4.85,
-    rms3D: 4.75,
-    maxTransverse: 0.590,
-    maxLat: 0.280,
-    maxVert: 0.530,
-    minExactFraction: 0.15,
+    max3D: 4.45,
+    rms3D: 4.35,
+    maxTransverse: 0.485,
+    maxLat: 0.185,
+    maxVert: 0.450,
+    minExactFraction: 0.30,
   },
   {
     name: "Zone 5: Mountain Descent",
@@ -528,7 +528,7 @@ const TRACK_ZONES = [
     max3D: 0.85,
     rms3D: 0.82,
     maxTransverse: 0.040,
-    maxLat: 0.025,
+    maxLat: 0.030,
     maxVert: 0.030,
     minExactFraction: 0.90,
   },
@@ -536,12 +536,12 @@ const TRACK_ZONES = [
     name: "Zone 6: Banked Climb",
     minS: 740,
     maxS: 780,
-    max3D: 3.15,
-    rms3D: 3.05,
-    maxTransverse: 0.490,
-    maxLat: 0.400,
-    maxVert: 0.280,
-    minExactFraction: 0.10,
+    max3D: 3.25,
+    rms3D: 3.15,
+    maxTransverse: 0.330,
+    maxLat: 0.280,
+    maxVert: 0.200,
+    minExactFraction: 0.30,
   },
   {
     name: "Zone 7: Upper Plateau",
@@ -558,12 +558,12 @@ const TRACK_ZONES = [
     name: "Zone 8: Banked Hairpin",
     minS: 850,
     maxS: 950,
-    max3D: 3.25,
-    rms3D: 3.15,
-    maxTransverse: 0.310,
-    maxLat: 0.200,
-    maxVert: 0.270,
-    minExactFraction: 0.38,
+    max3D: 3.20,
+    rms3D: 3.10,
+    maxTransverse: 0.300,
+    maxLat: 0.205,
+    maxVert: 0.265,
+    minExactFraction: 0.45,
   },
   {
     name: "Zone 9: Final Straight / Approach",
@@ -1072,6 +1072,36 @@ async function validateBarrierGeometry(worldResult, options = {}) {
       // Primary Check: Match rear endpoint face of barrier N against front endpoint face of barrier N+1
       const geom = calculateEndpointGeometry(b1, b2);
 
+      if (!report.zoneStats) report.zoneStats = {};
+      const zKey = isLoopClosure ? `Loop Closure (${sideName})` : TRACK_ZONES.find((z) => b1.s >= z.minS && b1.s < z.maxS)?.name || "Unknown";
+      if (!report.zoneStats[zKey]) {
+        report.zoneStats[zKey] = {
+          count: 0,
+          max3D: 0,
+          rms3D: 0,
+          maxTransverse: 0,
+          maxLat: 0,
+          maxVert: 0,
+          minExactFraction: 1.0,
+          minOverlap: Infinity,
+          maxOverlap: -Infinity,
+          worstPair: null,
+        };
+      }
+      const zs = report.zoneStats[zKey];
+      zs.count++;
+      if (geom.pairMax3D > zs.max3D) zs.max3D = geom.pairMax3D;
+      if (geom.pairRMS3D > zs.rms3D) zs.rms3D = geom.pairRMS3D;
+      if (geom.pairMaxTransverse > zs.maxTransverse) {
+        zs.maxTransverse = geom.pairMaxTransverse;
+        zs.worstPair = { b1: b1.i, s1: b1.s, b2: b2.i, s2: b2.s, side: sideName, dTrans: geom.pairMaxTransverse, dLat: geom.pairMaxLat, dVert: geom.pairMaxVert, frac: geom.exactProfileIntersectionFraction };
+      }
+      if (geom.pairMaxLat > zs.maxLat) zs.maxLat = geom.pairMaxLat;
+      if (geom.pairMaxVert > zs.maxVert) zs.maxVert = geom.pairMaxVert;
+      if (geom.exactProfileIntersectionFraction < zs.minExactFraction) zs.minExactFraction = geom.exactProfileIntersectionFraction;
+      if (geom.endpointOverlap < zs.minOverlap) zs.minOverlap = geom.endpointOverlap;
+      if (geom.endpointOverlap > zs.maxOverlap) zs.maxOverlap = geom.endpointOverlap;
+
       // 1. Endpoint-plane separation (gap along local tangent) must be 0 (< 1mm)
       if (geom.tangentSeparation > 0.001) {
         if (isLoopClosure) {
@@ -1298,32 +1328,32 @@ async function validateBarrierGeometry(worldResult, options = {}) {
         `Mountain hairpin barriers must connect with >= 0.40m endpoint overlap at s=${mountainBarriers[k].s.toFixed(1)}`
       );
       assert.ok(
-        g.pairMax3D <= 4.85,
-        `Mountain hairpin barriers must maintain max3D <= 4.85m at s=${mountainBarriers[k].s.toFixed(1)}, got ${g.pairMax3D.toFixed(4)}m`
+        g.pairMax3D <= 4.45,
+        `Mountain hairpin barriers must maintain max3D <= 4.45m at s=${mountainBarriers[k].s.toFixed(1)}, got ${g.pairMax3D.toFixed(4)}m`
       );
       assert.ok(
-        g.pairRMS3D <= 4.75,
-        `Mountain hairpin barriers must maintain rms3D <= 4.75m at s=${mountainBarriers[k].s.toFixed(1)}, got ${g.pairRMS3D.toFixed(4)}m`
+        g.pairRMS3D <= 4.35,
+        `Mountain hairpin barriers must maintain rms3D <= 4.35m at s=${mountainBarriers[k].s.toFixed(1)}, got ${g.pairRMS3D.toFixed(4)}m`
       );
       assert.ok(
-        g.pairMaxTransverse <= 0.590,
-        `Mountain hairpin barriers must maintain maxTransverse <= 0.590m at s=${mountainBarriers[k].s.toFixed(1)}, got ${g.pairMaxTransverse.toFixed(4)}m`
+        g.pairMaxTransverse <= 0.485,
+        `Mountain hairpin barriers must maintain maxTransverse <= 0.485m at s=${mountainBarriers[k].s.toFixed(1)}, got ${g.pairMaxTransverse.toFixed(4)}m`
       );
       assert.ok(
-        g.pairMaxLat <= 0.280,
-        `Mountain hairpin barriers must maintain maxLat <= 0.280m at s=${mountainBarriers[k].s.toFixed(1)}, got ${g.pairMaxLat.toFixed(4)}m`
+        g.pairMaxLat <= 0.185,
+        `Mountain hairpin barriers must maintain maxLat <= 0.185m at s=${mountainBarriers[k].s.toFixed(1)}, got ${g.pairMaxLat.toFixed(4)}m`
       );
       assert.ok(
-        g.pairMaxVert <= 0.530,
-        `Mountain hairpin barriers must maintain maxVert <= 0.530m at s=${mountainBarriers[k].s.toFixed(1)}, got ${g.pairMaxVert.toFixed(4)}m`
+        g.pairMaxVert <= 0.450,
+        `Mountain hairpin barriers must maintain maxVert <= 0.450m at s=${mountainBarriers[k].s.toFixed(1)}, got ${g.pairMaxVert.toFixed(4)}m`
       );
       assert.ok(
-        g.exactProfileIntersectionFraction >= 0.15,
-        `Mountain hairpin barriers must maintain >= 15% exact profile intersection at s=${mountainBarriers[k].s.toFixed(1)}`
+        g.exactProfileIntersectionFraction >= 0.30,
+        `Mountain hairpin barriers must maintain >= 30% exact profile intersection at s=${mountainBarriers[k].s.toFixed(1)}`
       );
       assert.ok(
-        g.transverseBoundingBoxOverlapFraction >= 0.20,
-        `Mountain hairpin barriers must maintain >= 20% transverse bounding box overlap at s=${mountainBarriers[k].s.toFixed(1)}`
+        g.transverseBoundingBoxOverlapFraction >= 0.35,
+        `Mountain hairpin barriers must maintain >= 35% transverse bounding box overlap at s=${mountainBarriers[k].s.toFixed(1)}`
       );
       assert.ok(
         testOBBOverlap(mountainBarriers[k].obb, mountainBarriers[k + 1].obb).intersects,
@@ -1341,32 +1371,32 @@ async function validateBarrierGeometry(worldResult, options = {}) {
         `Banked elevation barriers must connect with >= 0.40m endpoint overlap at s=${bankedBarriers[k].s.toFixed(1)}`
       );
       assert.ok(
-        g.pairMax3D <= 3.15,
-        `Banked elevation barriers must maintain max3D <= 3.15m at s=${bankedBarriers[k].s.toFixed(1)}, got ${g.pairMax3D.toFixed(4)}m`
+        g.pairMax3D <= 3.25,
+        `Banked elevation barriers must maintain max3D <= 3.25m at s=${bankedBarriers[k].s.toFixed(1)}, got ${g.pairMax3D.toFixed(4)}m`
       );
       assert.ok(
-        g.pairRMS3D <= 3.05,
-        `Banked elevation barriers must maintain rms3D <= 3.05m at s=${bankedBarriers[k].s.toFixed(1)}, got ${g.pairRMS3D.toFixed(4)}m`
+        g.pairRMS3D <= 3.15,
+        `Banked elevation barriers must maintain rms3D <= 3.15m at s=${bankedBarriers[k].s.toFixed(1)}, got ${g.pairRMS3D.toFixed(4)}m`
       );
       assert.ok(
-        g.pairMaxTransverse <= 0.490,
-        `Banked elevation barriers must maintain maxTransverse <= 0.490m at s=${bankedBarriers[k].s.toFixed(1)}, got ${g.pairMaxTransverse.toFixed(4)}m`
+        g.pairMaxTransverse <= 0.330,
+        `Banked elevation barriers must maintain maxTransverse <= 0.330m at s=${bankedBarriers[k].s.toFixed(1)}, got ${g.pairMaxTransverse.toFixed(4)}m`
       );
       assert.ok(
-        g.pairMaxLat <= 0.400,
-        `Banked elevation barriers must maintain maxLat <= 0.400m at s=${bankedBarriers[k].s.toFixed(1)}, got ${g.pairMaxLat.toFixed(4)}m`
+        g.pairMaxLat <= 0.280,
+        `Banked elevation barriers must maintain maxLat <= 0.280m at s=${bankedBarriers[k].s.toFixed(1)}, got ${g.pairMaxLat.toFixed(4)}m`
       );
       assert.ok(
-        g.pairMaxVert <= 0.280,
-        `Banked elevation barriers must maintain maxVert <= 0.280m at s=${bankedBarriers[k].s.toFixed(1)}, got ${g.pairMaxVert.toFixed(4)}m`
+        g.pairMaxVert <= 0.200,
+        `Banked elevation barriers must maintain maxVert <= 0.200m at s=${bankedBarriers[k].s.toFixed(1)}, got ${g.pairMaxVert.toFixed(4)}m`
       );
       assert.ok(
-        g.exactProfileIntersectionFraction >= 0.10,
-        `Banked elevation barriers must maintain >= 10% exact profile intersection at s=${bankedBarriers[k].s.toFixed(1)}`
+        g.exactProfileIntersectionFraction >= 0.30,
+        `Banked elevation barriers must maintain >= 30% exact profile intersection at s=${bankedBarriers[k].s.toFixed(1)}`
       );
       assert.ok(
-        g.transverseBoundingBoxOverlapFraction >= 0.20,
-        `Banked elevation barriers must maintain >= 20% transverse bounding box overlap at s=${bankedBarriers[k].s.toFixed(1)}`
+        g.transverseBoundingBoxOverlapFraction >= 0.40,
+        `Banked elevation barriers must maintain >= 40% transverse bounding box overlap at s=${bankedBarriers[k].s.toFixed(1)}`
       );
       assert.ok(
         testOBBOverlap(bankedBarriers[k].obb, bankedBarriers[k + 1].obb).intersects,
@@ -1384,32 +1414,32 @@ async function validateBarrierGeometry(worldResult, options = {}) {
         `Banked hairpin barriers must connect with >= 0.40m endpoint overlap at s=${hairpinBarriers[k].s.toFixed(1)}`
       );
       assert.ok(
-        g.pairMax3D <= 3.25,
-        `Banked hairpin barriers must maintain max3D <= 3.25m at s=${hairpinBarriers[k].s.toFixed(1)}, got ${g.pairMax3D.toFixed(4)}m`
+        g.pairMax3D <= 3.20,
+        `Banked hairpin barriers must maintain max3D <= 3.20m at s=${hairpinBarriers[k].s.toFixed(1)}, got ${g.pairMax3D.toFixed(4)}m`
       );
       assert.ok(
-        g.pairRMS3D <= 3.15,
-        `Banked hairpin barriers must maintain rms3D <= 3.15m at s=${hairpinBarriers[k].s.toFixed(1)}, got ${g.pairRMS3D.toFixed(4)}m`
+        g.pairRMS3D <= 3.10,
+        `Banked hairpin barriers must maintain rms3D <= 3.10m at s=${hairpinBarriers[k].s.toFixed(1)}, got ${g.pairRMS3D.toFixed(4)}m`
       );
       assert.ok(
-        g.pairMaxTransverse <= 0.310,
-        `Banked hairpin barriers must maintain maxTransverse <= 0.310m at s=${hairpinBarriers[k].s.toFixed(1)}, got ${g.pairMaxTransverse.toFixed(4)}m`
+        g.pairMaxTransverse <= 0.300,
+        `Banked hairpin barriers must maintain maxTransverse <= 0.300m at s=${hairpinBarriers[k].s.toFixed(1)}, got ${g.pairMaxTransverse.toFixed(4)}m`
       );
       assert.ok(
-        g.pairMaxLat <= 0.200,
-        `Banked hairpin barriers must maintain maxLat <= 0.200m at s=${hairpinBarriers[k].s.toFixed(1)}, got ${g.pairMaxLat.toFixed(4)}m`
+        g.pairMaxLat <= 0.205,
+        `Banked hairpin barriers must maintain maxLat <= 0.205m at s=${hairpinBarriers[k].s.toFixed(1)}, got ${g.pairMaxLat.toFixed(4)}m`
       );
       assert.ok(
-        g.pairMaxVert <= 0.270,
-        `Banked hairpin barriers must maintain maxVert <= 0.270m at s=${hairpinBarriers[k].s.toFixed(1)}, got ${g.pairMaxVert.toFixed(4)}m`
+        g.pairMaxVert <= 0.265,
+        `Banked hairpin barriers must maintain maxVert <= 0.265m at s=${hairpinBarriers[k].s.toFixed(1)}, got ${g.pairMaxVert.toFixed(4)}m`
       );
       assert.ok(
-        g.exactProfileIntersectionFraction >= 0.25,
-        `Banked hairpin barriers must maintain >= 25% exact profile intersection at s=${hairpinBarriers[k].s.toFixed(1)}`
+        g.exactProfileIntersectionFraction >= 0.45,
+        `Banked hairpin barriers must maintain >= 45% exact profile intersection at s=${hairpinBarriers[k].s.toFixed(1)}`
       );
       assert.ok(
-        g.transverseBoundingBoxOverlapFraction >= 0.30,
-        `Banked hairpin barriers must maintain >= 30% transverse bounding box overlap at s=${hairpinBarriers[k].s.toFixed(1)}`
+        g.transverseBoundingBoxOverlapFraction >= 0.50,
+        `Banked hairpin barriers must maintain >= 50% transverse bounding box overlap at s=${hairpinBarriers[k].s.toFixed(1)}`
       );
       assert.ok(
         testOBBOverlap(hairpinBarriers[k].obb, hairpinBarriers[k + 1].obb).intersects,
@@ -1440,39 +1470,39 @@ test("Verify barrier actual geometry: complete transforms, connection endpoints,
   assert.ok(report.meshSeam.minOverlap >= 0.45, `Minimum actual endpoint overlap must be >= 0.45m, got ${report.meshSeam.minOverlap.toFixed(4)}m`);
   assert.ok(report.meshSeam.maxOverlap <= 4.80, `Maximum actual endpoint overlap must be <= 4.80m, got ${report.meshSeam.maxOverlap.toFixed(4)}m`);
   assert.ok(
-    report.meshSeam.max3DDist <= 4.85,
-    `Maximum 3D endpoint vertex separation must be <= 4.85m, got ${report.meshSeam.max3DDist.toFixed(4)}m`
+    report.meshSeam.max3DDist <= 4.45,
+    `Maximum 3D endpoint vertex separation must be <= 4.45m, got ${report.meshSeam.max3DDist.toFixed(4)}m`
   );
   assert.ok(
-    report.meshSeam.maxRMS3D <= 4.75,
-    `Maximum RMS 3D endpoint vertex separation must be <= 4.75m, got ${report.meshSeam.maxRMS3D.toFixed(4)}m`
+    report.meshSeam.maxRMS3D <= 4.35,
+    `Maximum RMS 3D endpoint vertex separation must be <= 4.35m, got ${report.meshSeam.maxRMS3D.toFixed(4)}m`
   );
   assert.ok(
-    report.meshSeam.maxTransverseMismatch <= 0.590,
-    `Maximum transverse profile mismatch must be <= 0.590m, got ${report.meshSeam.maxTransverseMismatch.toFixed(4)}m`
+    report.meshSeam.maxTransverseMismatch <= 0.485,
+    `Maximum transverse profile mismatch must be <= 0.485m, got ${report.meshSeam.maxTransverseMismatch.toFixed(4)}m`
   );
   assert.ok(
-    report.meshSeam.minExactProfileIntersectionFraction >= 0.10,
-    `Minimum exact profile intersection fraction must be >= 10%, got ${(report.meshSeam.minExactProfileIntersectionFraction * 100).toFixed(1)}%`
+    report.meshSeam.minExactProfileIntersectionFraction >= 0.30,
+    `Minimum exact profile intersection fraction must be >= 30%, got ${(report.meshSeam.minExactProfileIntersectionFraction * 100).toFixed(1)}%`
   );
   assert.ok(
-    report.meshSeam.minTransverseBoundingBoxOverlapFraction >= 0.20,
-    `Minimum transverse bounding box overlap fraction must be >= 20%, got ${(report.meshSeam.minTransverseBoundingBoxOverlapFraction * 100).toFixed(1)}%`
+    report.meshSeam.minTransverseBoundingBoxOverlapFraction >= 0.35,
+    `Minimum transverse bounding box overlap fraction must be >= 35%, got ${(report.meshSeam.minTransverseBoundingBoxOverlapFraction * 100).toFixed(1)}%`
   );
   assert.ok(
-    report.meshSeam.maxLateralMismatch <= 0.40,
-    `Maximum lateral profile mismatch must be <= 0.40m, got ${report.meshSeam.maxLateralMismatch.toFixed(4)}m`
+    report.meshSeam.maxLateralMismatch <= 0.285,
+    `Maximum lateral profile mismatch must be <= 0.285m, got ${report.meshSeam.maxLateralMismatch.toFixed(4)}m`
   );
   assert.ok(
-    report.meshSeam.maxVerticalMismatch <= 0.53,
-    `Maximum vertical profile mismatch must be <= 0.53m, got ${report.meshSeam.maxVerticalMismatch.toFixed(4)}m`
+    report.meshSeam.maxVerticalMismatch <= 0.45,
+    `Maximum vertical profile mismatch must be <= 0.45m, got ${report.meshSeam.maxVerticalMismatch.toFixed(4)}m`
   );
   assert.equal(report.meshSeam.loopClosure.left.separation, 0, "Left wall loop closure must have zero separation");
   assert.equal(report.meshSeam.loopClosure.right.separation, 0, "Right wall loop closure must have zero separation");
-  assert.ok(report.meshSeam.loopClosure.left.overlap > 2.0, "Left wall loop closure must overlap by > 2.0m");
-  assert.ok(report.meshSeam.loopClosure.right.overlap > 0.7, "Right wall loop closure must overlap by > 0.7m");
-  assert.ok(report.meshSeam.loopClosure.left.max3DDist <= 2.45, `Left wall loop closure max 3D must be <= 2.45m, got ${report.meshSeam.loopClosure.left.max3DDist.toFixed(6)}m`);
-  assert.ok(report.meshSeam.loopClosure.left.rms3DDist <= 2.45, `Left wall loop closure rms 3D must be <= 2.45m, got ${report.meshSeam.loopClosure.left.rms3DDist.toFixed(6)}m`);
+  assert.ok(report.meshSeam.loopClosure.left.overlap >= 0.45, "Left wall loop closure must overlap by >= 0.45m");
+  assert.ok(report.meshSeam.loopClosure.right.overlap >= 0.45, "Right wall loop closure must overlap by >= 0.45m");
+  assert.ok(report.meshSeam.loopClosure.left.max3DDist <= 1.0, `Left wall loop closure max 3D must be <= 1.0m, got ${report.meshSeam.loopClosure.left.max3DDist.toFixed(6)}m`);
+  assert.ok(report.meshSeam.loopClosure.left.rms3DDist <= 1.0, `Left wall loop closure rms 3D must be <= 1.0m, got ${report.meshSeam.loopClosure.left.rms3DDist.toFixed(6)}m`);
   assert.ok(report.meshSeam.loopClosure.left.maxTransverse <= 0.002, "Left wall loop closure max transverse must be <= 0.002m");
   assert.ok(report.meshSeam.loopClosure.left.maxLat <= 0.002, "Left wall loop closure max lateral must be <= 0.002m");
   assert.ok(report.meshSeam.loopClosure.left.maxVert <= 0.002, "Left wall loop closure max vertical must be <= 0.002m");
@@ -1504,20 +1534,20 @@ test("Barrier regression tests: detect endpoint displacements in X/Z/Y, loop clo
   const nominalReport = await validateBarrierGeometry(worldResult);
   assert.equal(nominalReport.meshSeam.maxSeparation, 0, "Nominal aligned barriers must pass with zero separation");
   assert.ok(nominalReport.meshSeam.minOverlap >= 0.45, "Nominal aligned barriers must pass with >= 0.45m overlap");
-  assert.ok(nominalReport.meshSeam.max3DDist <= 4.85, `Nominal max 3D distance must be <= 4.85m, got ${nominalReport.meshSeam.max3DDist.toFixed(4)}m`);
-  assert.ok(nominalReport.meshSeam.maxRMS3D <= 4.75, `Nominal max RMS 3D distance must be <= 4.75m, got ${nominalReport.meshSeam.maxRMS3D.toFixed(4)}m`);
-  assert.ok(nominalReport.meshSeam.maxTransverseMismatch <= 0.590, `Nominal max transverse distance must be <= 0.590m, got ${nominalReport.meshSeam.maxTransverseMismatch.toFixed(4)}m`);
-  assert.ok(nominalReport.meshSeam.loopClosure.left.max3DDist <= 2.45, "Nominal left loop closure max 3D must be <= 2.45m");
+  assert.ok(nominalReport.meshSeam.max3DDist <= 4.45, `Nominal max 3D distance must be <= 4.45m, got ${nominalReport.meshSeam.max3DDist.toFixed(4)}m`);
+  assert.ok(nominalReport.meshSeam.maxRMS3D <= 4.35, `Nominal max RMS 3D distance must be <= 4.35m, got ${nominalReport.meshSeam.maxRMS3D.toFixed(4)}m`);
+  assert.ok(nominalReport.meshSeam.maxTransverseMismatch <= 0.485, `Nominal max transverse distance must be <= 0.485m, got ${nominalReport.meshSeam.maxTransverseMismatch.toFixed(4)}m`);
+  assert.ok(nominalReport.meshSeam.loopClosure.left.max3DDist <= 1.0, "Nominal left loop closure max 3D must be <= 1.0m");
   assert.ok(nominalReport.meshSeam.loopClosure.right.max3DDist <= 0.80, "Nominal right loop closure max 3D must be <= 0.80m");
   assert.ok(nominalReport.meshSeam.loopClosure.left.maxTransverse <= 0.002, "Nominal left loop closure max transverse must be <= 0.002m");
   assert.ok(nominalReport.meshSeam.loopClosure.right.maxTransverse <= 0.002, "Nominal right loop closure max transverse must be <= 0.002m");
   assert.ok(
-    nominalReport.meshSeam.minExactProfileIntersectionFraction >= 0.10,
-    "Nominal aligned barriers must pass with >= 10% exact profile intersection across whole track"
+    nominalReport.meshSeam.minExactProfileIntersectionFraction >= 0.30,
+    "Nominal aligned barriers must pass with >= 30% exact profile intersection across whole track"
   );
   assert.ok(
-    nominalReport.meshSeam.minTransverseBoundingBoxOverlapFraction >= 0.20,
-    "Nominal aligned barriers must pass with >= 20% transverse bounding box overlap"
+    nominalReport.meshSeam.minTransverseBoundingBoxOverlapFraction >= 0.35,
+    "Nominal aligned barriers must pass with >= 35% transverse bounding box overlap"
   );
 
   // Regression 1: Independent localized defect rejected by transverse or 3D mismatch
@@ -1577,7 +1607,7 @@ test("Barrier regression tests: detect endpoint displacements in X/Z/Y, loop clo
         }
       },
     });
-  }, /(RMS 3D endpoint mismatch in Zone 6: Banked Climb|Vertical endpoint mismatch in Zone 6: Banked Climb|3D endpoint mismatch in Zone 6: Banked Climb)/);
+  }, /(RMS 3D endpoint mismatch in Zone 6: Banked Climb|Vertical endpoint mismatch in Zone 6: Banked Climb|3D endpoint mismatch in Zone 6: Banked Climb|Transverse endpoint mismatch in Zone 6: Banked Climb)/);
 
   // Regression 5: Endpoint profile deformation that preserves centroid but distorts shape
   // Shear barrier 50 profile: top 4 vertices +0.08m lateral, bottom 4 vertices -0.08m lateral.

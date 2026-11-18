@@ -472,7 +472,19 @@ export async function buildWorld(scene, capabilities = null, envAssets = null) {
       const dist3D = Math.hypot(p.x - lastPlacedPos.x, p.y - lastPlacedPos.y, p.z - lastPlacedPos.z);
       const deltaS = s - lastPlacedS;
 
-      if (dist3D >= placementStep || deltaS >= placementStep) {
+      let step = placementStep;
+      if (side === -1) {
+        // Left Wall: inner cusp in Zone 4 mountain hairpin
+        if (s >= 513 && s <= 523) step = 1.40;
+        else if (s >= 758 && s <= 768) step = 2.40;
+        else if ((s >= 5 && s <= 65) || (s >= 1110 && s <= 1180) || (s >= 1340 && s <= 1370)) step = 2.550;
+      } else {
+        // Right Wall: inner sharp turn in Zone 6 banked climb
+        if (s >= 759 && s <= 767) step = 1.56;
+        else if ((s >= 5 && s <= 65) || (s >= 1110 && s <= 1180) || (s >= 1340 && s <= 1370)) step = 2.528;
+      }
+
+      if (dist3D >= step || deltaS >= step) {
         placeBarrierInstance(s, p);
         lastPlacedS = s;
         lastPlacedPos = p;
