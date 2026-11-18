@@ -114,6 +114,17 @@ export function pavementMaps(options = {}, capabilities = null) {
     };
   }
 
+  if (typeof document === "undefined" || !document.createElement) {
+    const map = new THREE.DataTexture(new Uint8Array(4), 1, 1, THREE.RGBAFormat);
+    map.colorSpace = THREE.SRGBColorSpace;
+    map.needsUpdate = true;
+    return {
+      map,
+      normalMap: map,
+      roughnessMap: map,
+    };
+  }
+
   const height = new Float32Array(size * size);
   let seed = 28971;
   const random = () => {

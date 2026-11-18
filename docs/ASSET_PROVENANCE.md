@@ -163,16 +163,17 @@ All 28 environment 3D assets are created by **Kenney** (Kenney Vleugels — [ken
    - The engine automatically computes an exact affine normalization matrix:
      $$\mathbf{M}_{\text{norm}} = \mathbf{M}_{\text{scale}} \cdot \mathbf{M}_{\text{rotY}} \cdot \mathbf{M}_{\text{center}}$$
    - Centering on $X$ and $Z$, placing the lowest ground contact plane at $Y = 0$, applying canonical yaw rotation, and scaling to intended metric dimensions (e.g. barriers: $0.6\text{m} \times 0.9\text{m} \times 3.0\text{m}$).
-3. **Collision & Visual Synchronization:**
+3. **Collision & Visual Synchronization (Zero-Gap Continuous Wall):**
    - Drivable asphalt width: `ROAD_HALF = 10` ($10\text{m}$).
    - Collision boundaries in `logic.js`: `WALL_HALF = 14.5` ($14.5\text{m}$).
-   - Visual barriers (`barrierRed`, `barrierWhite`) are placed at exactly $\pm 14.5\text{m}$ lateral offset from the track centerline, aligning with the collision envelope with mathematical precision and zero clipping.
+   - Visual barriers (`barrierRed`, `barrierWhite`) are placed at exactly $\pm 14.5\text{m}$ lateral offset from the track centerline along the continuous wall arc length ($2.65\text{m}$ arc-length step), matching the collision envelope with mathematical precision. Because the barrier mesh length is $3.05\text{m}$ and center spacing is $\le 2.75\text{m}$, consecutive barriers overlap by $\ge 0.30\text{m}$ along curves, straights, and elevated sections, eliminating visual and physical gaps entirely.
    - Corner apex pylons are positioned at lateral $\pm 9.8\text{m}$ along the inner curb edge, visually marking apexes without protruding into drivable lanes.
-4. **Instanced GPU Rendering Optimization (`createInstancedModel`):**
+4. **Instanced GPU Rendering Optimization & Measured Renderer Statistics:**
    - High-density assets (barriers, trees, catch fences, apex cones, floodlights) use Three.js `InstancedMesh`.
-   - Over 500 track barrier segments are drawn in only 2 draw calls (one red, one white).
-   - Over 100 roadside trees and pines are drawn in 3 draw calls.
-   - Total scene draw calls remain under 60, preserving 60 FPS mobile performance.
+   - Over 1,000 track barrier blocks are batched into 2 draw calls (one red, one white).
+   - Over 100 roadside trees and pines are batched into 3 draw calls.
+   - *Measured Renderer Statistics:* In the full stadium scene with PCF directional shadow mapping, stadium bowl seating, grandstands, floodlights, billboards, and skyscrapers, actual renderer stats measured via `renderer.info` range from 9,372 to 17,500 draw calls per frame across shadow passes and main camera.
+   - *Target vs. Proven Performance:* 60 FPS is an engine optimization budget and target for Android deployment. Headless Chrome captures with SwiftShader validate visual scene geometry, lighting, and textures in CI, and must not be presented as proven 60 FPS hardware performance without physical device benchmarks.
 5. **Lighting, Atmosphere & Countdown Sequence:**
    - Integrated with Phase 2 PCF soft shadows, AgX tone mapping (exposure 1.15), and nighttime stadium lighting.
    - Start/finish gantry features 3 dynamic countdown light pods that transition dynamically from red ($3, 2, 1$) to green ($0 / \text{GO}$).

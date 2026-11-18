@@ -4,6 +4,13 @@ let weave;
 /** A small, tileable woven surface authored here; mipmaps suppress distant sparkle. */
 export function driverFabric() {
   if (weave) return weave;
+  if (typeof document === "undefined" || !document.createElement) {
+    weave = new THREE.DataTexture(new Uint8Array(128 * 128 * 4), 128, 128, THREE.RGBAFormat);
+    weave.wrapS = weave.wrapT = THREE.RepeatWrapping;
+    weave.anisotropy = 4;
+    weave.needsUpdate = true;
+    return weave;
+  }
   const canvas = document.createElement("canvas");
   canvas.width = canvas.height = 128;
   const context = canvas.getContext("2d"), pixels = context.createImageData(128, 128);

@@ -53,6 +53,13 @@ const basic = (c) => {
 };
 
 export function canvasTexture(w, h, draw) {
+  if (typeof document === "undefined" || !document.createElement) {
+    const t = new THREE.DataTexture(new Uint8Array(4), 1, 1, THREE.RGBAFormat);
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.anisotropy = 8;
+    t.needsUpdate = true;
+    return t;
+  }
   const c = document.createElement("canvas");
   c.width = w;
   c.height = h;
@@ -363,12 +370,13 @@ export async function buildWorld(scene, capabilities = null, envAssets = null) {
   const redBarrierMatrices = [];
   const whiteBarrierMatrices = [];
   const fenceMatrices = [];
+  const barrierCounts = { left: 0, right: 0, leftRed: 0, leftWhite: 0, rightRed: 0, rightWhite: 0 };
 
+  // 1. Rumble Curbs along road edge (lateral ±10.6m)
   for (let s = 0; s < L; s += 3) {
     if (s > SECTIONS.glideStart && s < SECTIONS.glideEnd) continue;
 
     for (const side of [-1, 1]) {
-      // 1. Rumble Curbs along road edge
       const p = surfaceAt(s, side * 10.6),
         geo = new THREE.BoxGeometry(1.15, 0.16, 3.15);
       const cf = roadFrame(s, side * 10.6, p.heading),
@@ -382,9 +390,21 @@ export async function buildWorld(scene, capabilities = null, envAssets = null) {
       const planted = s >= controlDistances[8] && s < SECTIONS.glideStart;
       if (planted) geo.dispose();
       else curbGeo[Math.floor(s / 3) % 2].push(geo);
+    }
+  }
 
-      // 2. High-Definition Barrier Alignment exactly at WALL_HALF
-      const q = surfaceAt(s, side * WALL_HALF);
+  // 2. High-Definition Continuous Barrier Placement with Zero Gaps on Curves
+  // Arc-length parameterization ensures consecutive barrier centers are spaced <= 2.75m apart
+  // along the actual wall curve (side * WALL_HALF), guaranteeing >= 30cm overlap with 3.05m barriers.
+  for (const side of [-1, 1]) {
+    const fineDs = 0.05;
+    const placementStep = 2.65;
+    let currentPos = surfaceAt(0, side * WALL_HALF);
+    let lastPlacedDist = 0;
+    let cumDist = 0;
+    let barrierCounter = 0;
+
+    function placeBarrierInstance(s, q) {
       const qf = roadFrame(s, side * WALL_HALF, q.heading);
       const bMat = new THREE.Matrix4().makeBasis(
         new V(qf.right.x, qf.right.y, qf.right.z),
@@ -393,18 +413,17 @@ export async function buildWorld(scene, capabilities = null, envAssets = null) {
       );
       bMat.setPosition(q.x, q.y, q.z);
 
-      if (Math.floor(s / 3) % 2 === 0) {
+      if (barrierCounter % 2 === 0) {
         redBarrierMatrices.push(bMat);
       } else {
         whiteBarrierMatrices.push(bMat);
       }
 
-      // 3. Safety Catch Fences behind barriers along grandstand & pit straights
+      // 3. Safety Catch Fences behind barriers along spectator areas
       const isSpectatorStraight =
         (s < 120 || s > L - 120) || (s > 180 && s < 260) || (s > 900 && s < 1000);
       if (isSpectatorStraight) {
         const fenceM = bMat.clone();
-        // Offset fence slightly behind barrier
         const offset = new V(qf.right.x, qf.right.y, qf.right.z).multiplyScalar(side * 0.45);
         fenceM.elements[12] += offset.x;
         fenceM.elements[13] += offset.y;
@@ -414,14 +433,47 @@ export async function buildWorld(scene, capabilities = null, envAssets = null) {
 
       // Procedural fallback rail geometry
       const g = new THREE.BoxGeometry(0.6, 0.85, 3.2);
-      g.applyMatrix4(cm);
-      g.translate(q.x, q.y + 0.55, q.z);
+      g.applyMatrix4(bMat);
+      g.translate(0, 0.55, 0);
       railGeo.push(g);
-      if (Math.floor(s / 3) % 8 === 0) {
+      if (barrierCounter % 8 === 0) {
         const post = new THREE.BoxGeometry(0.5, 2, 0.5);
-        post.translate(q.x, q.y + 0.8, q.z);
+        post.applyMatrix4(bMat);
+        post.translate(0, 0.8, 0);
         supportGeo.push(post);
       }
+
+      barrierCounter++;
+    }
+
+    placeBarrierInstance(0, currentPos);
+
+    for (let s = fineDs; s < L; s += fineDs) {
+      if (s > SECTIONS.glideStart && s < SECTIONS.glideEnd) {
+        cumDist = 0;
+        lastPlacedDist = 0;
+        currentPos = surfaceAt(s, side * WALL_HALF);
+        continue;
+      }
+      const nextPos = surfaceAt(s, side * WALL_HALF);
+      const d = Math.hypot(nextPos.x - currentPos.x, nextPos.y - currentPos.y, nextPos.z - currentPos.z);
+      cumDist += d;
+      currentPos = nextPos;
+
+      if (cumDist - lastPlacedDist >= placementStep) {
+        placeBarrierInstance(s, currentPos);
+        lastPlacedDist = cumDist;
+      }
+    }
+
+    if (side === -1) {
+      barrierCounts.left = barrierCounter;
+      barrierCounts.leftRed = redBarrierMatrices.length;
+      barrierCounts.leftWhite = whiteBarrierMatrices.length;
+    } else {
+      barrierCounts.right = barrierCounter;
+      barrierCounts.rightRed = redBarrierMatrices.length - barrierCounts.leftRed;
+      barrierCounts.rightWhite = whiteBarrierMatrices.length - barrierCounts.leftWhite;
     }
   }
 
@@ -1077,6 +1129,7 @@ export async function buildWorld(scene, capabilities = null, envAssets = null) {
     world,
     lights,
     fireworks,
+    barrierCounts,
     statue: architecture.statue,
     screenMaterials: architecture.screenMaterials,
     pavement,

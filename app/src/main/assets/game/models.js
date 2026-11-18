@@ -101,16 +101,23 @@ export function proceduralKart(id) {
         }
       }
     } else if (p.shape === "text") {
-      const c = document.createElement("canvas");
-      c.width = c.height = 128;
-      const ctx = c.getContext("2d");
-      ctx.font = "900 96px Arial";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillStyle = p.color;
-      ctx.fillText(p.text, 64, 70);
-      const tex = new THREE.CanvasTexture(c);
-      tex.colorSpace = THREE.SRGBColorSpace;
+      let tex;
+      if (typeof document !== "undefined" && document.createElement) {
+        const c = document.createElement("canvas");
+        c.width = c.height = 128;
+        const ctx = c.getContext("2d");
+        ctx.font = "900 96px Arial";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillStyle = p.color;
+        ctx.fillText(p.text, 64, 70);
+        tex = new THREE.CanvasTexture(c);
+        tex.colorSpace = THREE.SRGBColorSpace;
+      } else {
+        tex = new THREE.DataTexture(new Uint8Array(4), 1, 1, THREE.RGBAFormat);
+        tex.colorSpace = THREE.SRGBColorSpace;
+        tex.needsUpdate = true;
+      }
       obj = new THREE.Mesh(
         new THREE.PlaneGeometry(1.5, 1.5),
         new THREE.MeshBasicMaterial({
