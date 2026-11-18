@@ -23,18 +23,43 @@
 import * as THREE from 'three';
 import { KART_SPECS, loadGLB, buildGLBKart } from './models.js';
 
+window.__RENDER_DONE = false;
+window.__RENDER_ERROR = null;
+window.__RENDER_METADATA = null;
+
+window.addEventListener('error', (e) => {
+  window.__RENDER_ERROR = e.message || String(e);
+  console.error('[verify.html uncaught error]', e);
+});
+window.addEventListener('unhandledrejection', (e) => {
+  window.__RENDER_ERROR = e.reason?.message || String(e.reason);
+  console.error('[verify.html unhandled rejection]', e.reason);
+});
+
 const params = new URLSearchParams(window.location.search);
 const racerId = params.get('racer') || 'mario';
 const viewType = params.get('view') || 'three_quarter';
 
 const canvas = document.getElementById('view');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
-renderer.setSize(1280, 720);
-renderer.setPixelRatio(1);
-renderer.toneMapping = THREE.AgXToneMapping;
-renderer.toneMappingExposure = 1.15;
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFShadowMap;
+canvas.addEventListener('webglcontextlost', (e) => {
+  e.preventDefault();
+  window.__RENDER_ERROR = 'WebGL context lost during render';
+  window.__RENDER_DONE = false;
+});
+
+let renderer, gl;
+try {
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+  renderer.setSize(1280, 720);
+  renderer.setPixelRatio(1);
+  renderer.toneMapping = THREE.AgXToneMapping;
+  renderer.toneMappingExposure = 1.15;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFShadowMap;
+  gl = renderer.getContext();
+} catch (e) {
+  window.__RENDER_ERROR = 'WebGL renderer initialization failed: ' + (e?.message || e);
+}
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color('#141e2e');
@@ -96,20 +121,66 @@ grid.position.y = 0.001;
 scene.add(grid);
 
 async function init() {
-  const spec = KART_SPECS[racerId] || KART_SPECS.mario;
-  const kartGltf = await loadGLB(spec.kart);
-  const charGltf = await loadGLB(spec.character);
-  const result = buildGLBKart(racerId, kartGltf, charGltf);
+  if (window.__RENDER_ERROR) return;
 
-  scene.add(result.model);
+  try {
+    const spec = KART_SPECS[racerId];
+    if (!spec) {
+      throw new Error(`Unknown racer ID: '${racerId}'`);
+    }
 
-  // Advance animation 1 step into drive pose
-  if (result.mixer) {
-    result.mixer.update(0.016);
+    const kartGltf = await loadGLB(spec.kart);
+    if (!kartGltf || !kartGltf.scene) {
+      throw new Error(`Failed to load kart GLB for '${racerId}': ${spec.kart}`);
+    }
+
+    const charGltf = await loadGLB(spec.character);
+    if (!charGltf || !charGltf.scene) {
+      throw new Error(`Failed to load character GLB for '${racerId}': ${spec.character}`);
+    }
+
+    const result = buildGLBKart(racerId, kartGltf, charGltf);
+    if (!result || !result.model || !result.wheels || result.wheels.length !== 4) {
+      throw new Error(`buildGLBKart failed to articulate complete 4-wheel model for '${racerId}'`);
+    }
+
+    scene.add(result.model);
+
+    // Advance animation 1 step into drive pose
+    if (result.mixer) {
+      result.mixer.update(0.016);
+    }
+
+    renderer.render(scene, camera);
+
+    // Read small pixel patch to verify non-empty render
+    if (gl) {
+      const pixels = new Uint8Array(4 * 4 * 4);
+      gl.readPixels(640 - 2, 360 - 2, 4, 4, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+      let totalNonZero = 0;
+      for (let i = 0; i < pixels.length; i++) {
+        if (pixels[i] > 0) totalNonZero++;
+      }
+      if (totalNonZero === 0) {
+        throw new Error('Canvas render produced blank/empty framebuffer');
+      }
+    }
+
+    window.__RENDER_METADATA = {
+      racerId,
+      viewType,
+      wheelCount: result.wheels.length,
+      kartAsset: spec.kart,
+      characterAsset: spec.character,
+      success: true,
+      timestamp: Date.now()
+    };
+    window.__RENDER_DONE = true;
+  } catch (err) {
+    window.__RENDER_ERROR = err?.message || String(err);
+    window.__RENDER_DONE = false;
+    console.error('[verify.html render failed]', err);
   }
-
-  renderer.render(scene, camera);
-  window.__RENDER_DONE = true;
 }
 
 init();

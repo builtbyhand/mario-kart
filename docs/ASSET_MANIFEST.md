@@ -21,16 +21,16 @@ All 3D models integrated in Phase 3 are 100% original, legally distributable, an
 
 ## 2. Driver Character Models
 
-| Asset File | Creator | Source URL | License | Original Format | Processed Format | Skeleton / Clips | File Size | Assigned Driver |
+| Asset File | Creator | Source URL | License | Original Format | Processed Format | Skeleton / Clips | File Size | In-Game Assignment (`KART_SPECS`) |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| `character-male-a.glb` | Kenney | [kenney.nl/assets/mini-characters](https://kenney.nl/assets/mini-characters) | CC0 1.0 | glTF 2.0 / GLB | Rigged GLB | 8 bones, 32 anims | 255 KB | Male Driver A (Red Suit) |
-| `character-male-b.glb` | Kenney | [kenney.nl/assets/mini-characters](https://kenney.nl/assets/mini-characters) | CC0 1.0 | glTF 2.0 / GLB | Rigged GLB | 8 bones, 32 anims | 255 KB | Male Driver B (Green Suit) |
-| `character-male-c.glb` | Kenney | [kenney.nl/assets/mini-characters](https://kenney.nl/assets/mini-characters) | CC0 1.0 | glTF 2.0 / GLB | Rigged GLB | 8 bones, 32 anims | 270 KB | Male Driver C (Blue Suit) |
-| `character-male-d.glb` | Kenney | [kenney.nl/assets/mini-characters](https://kenney.nl/assets/mini-characters) | CC0 1.0 | glTF 2.0 / GLB | Rigged GLB | 8 bones, 32 anims | 253 KB | Male Driver D (Heavy Suit) |
-| `character-female-a.glb` | Kenney | [kenney.nl/assets/mini-characters](https://kenney.nl/assets/mini-characters) | CC0 1.0 | glTF 2.0 / GLB | Rigged GLB | 8 bones, 32 anims | 281 KB | Female Driver A (Pink Suit) |
-| `character-female-b.glb` | Kenney | [kenney.nl/assets/mini-characters](https://kenney.nl/assets/mini-characters) | CC0 1.0 | glTF 2.0 / GLB | Rigged GLB | 8 bones, 32 anims | 260 KB | Female Driver B (Lime Suit) |
-| `character-female-c.glb` | Kenney | [kenney.nl/assets/mini-characters](https://kenney.nl/assets/mini-characters) | CC0 1.0 | glTF 2.0 / GLB | Rigged GLB | 8 bones, 32 anims | 260 KB | Female Driver C (Yellow Suit) |
-| `character-female-d.glb` | Kenney | [kenney.nl/assets/mini-characters](https://kenney.nl/assets/mini-characters) | CC0 1.0 | glTF 2.0 / GLB | Rigged GLB | 8 bones, 32 anims | 266 KB | Female Driver D (Sport Suit) |
+| `character-male-a.glb` | Kenney | [kenney.nl/assets/mini-characters](https://kenney.nl/assets/mini-characters) | CC0 1.0 | glTF 2.0 / GLB | Rigged GLB | 8 bones, 32 anims | 255 KB | Racer 1 (`mario` / Red Speedster) |
+| `character-male-b.glb` | Kenney | [kenney.nl/assets/mini-characters](https://kenney.nl/assets/mini-characters) | CC0 1.0 | glTF 2.0 / GLB | Rigged GLB | 8 bones, 32 anims | 255 KB | Racer 2 (`luigi` / Green Aero) |
+| `character-female-a.glb` | Kenney | [kenney.nl/assets/mini-characters](https://kenney.nl/assets/mini-characters) | CC0 1.0 | glTF 2.0 / GLB | Rigged GLB | 8 bones, 32 anims | 281 KB | Racer 3 (`peach` / Pink Sport) |
+| `character-female-b.glb` | Kenney | [kenney.nl/assets/mini-characters](https://kenney.nl/assets/mini-characters) | CC0 1.0 | glTF 2.0 / GLB | Rigged GLB | 8 bones, 32 anims | 260 KB | Racer 4 (`yoshi` / Lime Turbo) |
+| `character-male-c.glb` | Kenney | [kenney.nl/assets/mini-characters](https://kenney.nl/assets/mini-characters) | CC0 1.0 | glTF 2.0 / GLB | Rigged GLB | 8 bones, 32 anims | 270 KB | Racer 5 (`toad` / Blue Comet) |
+| `character-male-d.glb` | Kenney | [kenney.nl/assets/mini-characters](https://kenney.nl/assets/mini-characters) | CC0 1.0 | glTF 2.0 / GLB | Rigged GLB | 8 bones, 32 anims | 253 KB | Racer 6 (`bowser`) & Racer 7 (`donkey-kong`) |
+| `character-female-c.glb` | Kenney | [kenney.nl/assets/mini-characters](https://kenney.nl/assets/mini-characters) | CC0 1.0 | glTF 2.0 / GLB | Rigged GLB | 8 bones, 32 anims | 260 KB | Racer 8 (`koopa` / Yellow Sprint) |
+| `character-female-d.glb` | Kenney | [kenney.nl/assets/mini-characters](https://kenney.nl/assets/mini-characters) | CC0 1.0 | glTF 2.0 / GLB | Rigged GLB | 8 bones, 32 anims | 266 KB | *Intentionally Unused / Reserved Asset* (stored locally in `models/` for future roster expansion) |
 
 ---
 
@@ -68,8 +68,9 @@ All 3D models integrated in Phase 3 are 100% original, legally distributable, an
 6. **Resource Ownership & Instance Isolation:**
    - Geometries and materials are cloned per racer instance when instantiated from the master cached GLTF.
    - Master assets registered in `assetCache` are marked in `masterCachedGeometries`, `masterCachedMaterials`, and `masterCachedTextures`, protected from disposal during race teardown (`disposeModel(k.root)`).
-   - Active instances are tracked in `activeInstances`. `clearAssetCache(force = false)` guards master cached assets against invalidation while active racer instances exist, releasing only when all instances have been cleanly disposed.
+   - Active instances are tracked in `activeInstances`. `clearAssetCache()` strictly refuses to clear master cached assets while active racer instances exist, releasing only when all instances have been cleanly disposed.
    - This ensures multiple consecutive races can be constructed and torn down repeatedly without corrupting or invalidating GPU resources.
 7. **Visual Validation & Verification Gallery:**
    - 32 high-definition visual validation screenshots ($1280 \times 720$) are recorded under `docs/screenshots/verification/` capturing all eight racer combinations from four calibrated perspectives: `three_quarter`, `side`, `rear`, and `cockpit`.
    - Verified driver pelvis contact at seat cushion, steering wheel grip clearance, head clearance, and wheel axle alignment under full studio lighting and shadow mapping.
+   - *Benchmark & Tooling Note:* SwiftShader headless screenshots are software-rendered visual and geometric validation checks executed in CI, not Android GPU benchmarks. Quality presets configure dynamic engine parameters rather than guaranteeing unmeasured 60 FPS hardware performance.

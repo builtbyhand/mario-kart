@@ -243,7 +243,7 @@ export const KART_SPECS = {
     character: "models/character-male-d.glb",
     name: "Cyber Beast",
     scale: 1.25,
-    driverOffset: [0, 0.46, -0.18],
+    driverOffset: [0, 0.52, -0.18],
     driverScale: 1.65,
   },
   "donkey-kong": {
@@ -251,7 +251,7 @@ export const KART_SPECS = {
     character: "models/character-male-d.glb",
     name: "Classic GT",
     scale: 1.25,
-    driverOffset: [0, 0.44, -0.38],
+    driverOffset: [0, 0.46, -0.38],
     driverScale: 1.65,
   },
   koopa: {
@@ -259,7 +259,7 @@ export const KART_SPECS = {
     character: "models/character-female-c.glb",
     name: "Yellow Sprint",
     scale: 1.25,
-    driverOffset: [0, 0.42, -0.15],
+    driverOffset: [0, 0.45, -0.15],
     driverScale: 1.55,
   },
 };
@@ -267,9 +267,11 @@ export const KART_SPECS = {
 const gltfLoader = new GLTFLoader();
 export const assetCache = new Map();
 
-export function clearAssetCache(force = false) {
-  if (activeInstances.size > 0 && !force) {
-    console.warn(`[clearAssetCache] Cannot clear cache while ${activeInstances.size} active kart instance(s) exist. Pass force=true to override.`);
+export function clearAssetCache() {
+  if (activeInstances.size > 0) {
+    console.warn(
+      `[clearAssetCache] Cannot clear cache while ${activeInstances.size} active kart instance(s) exist. Dispose all active instances before clearing.`
+    );
     return false;
   }
   for (const gltf of assetCache.values()) {
@@ -356,6 +358,12 @@ export function buildGLBKart(id, kartGltf, charGltf) {
   const staticDriver = kartScene.getObjectByName("character");
   if (staticDriver) staticDriver.visible = false;
 
+  // Scale and orient kart chassis: Rotate by Math.PI around Y so nose faces -Z
+  kartScene.scale.setScalar(spec.scale);
+  kartScene.rotation.y = Math.PI;
+  root.add(kartScene);
+  root.updateMatrixWorld(true);
+
   // Articulate 4 wheels as unscaled, world-aligned pivots attached directly to root
   const wheelAliases = [
     ["wheel-front-left", "wheel-0"],
@@ -368,33 +376,46 @@ export function buildGLBKart(id, kartGltf, charGltf) {
     const mesh = kartScene.getObjectByName(name) || kartScene.getObjectByName(alias);
     if (!mesh) return null;
 
+    // 1. Calculate axle center using complete source GLTF hierarchy and its updated matrixWorld
     mesh.geometry.computeBoundingBox();
-    const box = mesh.geometry.boundingBox;
-    const center = box.getCenter(new THREE.Vector3());
-    const rawAxle = mesh.position.clone().add(center);
-    const extent = box.getSize(new THREE.Vector3());
-    const radius = Math.max(extent.y, extent.z) * 0.5 * spec.scale;
+    const localBox = mesh.geometry.boundingBox;
+    const localCenter = localBox.getCenter(new THREE.Vector3());
+    const localExtent = localBox.getSize(new THREE.Vector3());
 
-    // Convert raw axle pos to world coordinates (rotated Math.PI around Y and scaled)
-    const worldAxle = rawAxle.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI).multiplyScalar(spec.scale);
+    const origWorldMatrix = mesh.matrixWorld.clone();
+    const worldAxle = localCenter.clone().applyMatrix4(origWorldMatrix);
 
+    const worldScale = new THREE.Vector3();
+    const worldQuat = new THREE.Quaternion();
+    const worldPos = new THREE.Vector3();
+    origWorldMatrix.decompose(worldPos, worldQuat, worldScale);
+
+    const radius = Math.max(localExtent.y * worldScale.y, localExtent.z * worldScale.z) * 0.5;
+
+    // 2. Create wheelPivot placed at the exact geometric axle center in world space
     const wheelPivot = new THREE.Group();
     wheelPivot.name = "wheel-" + i;
     wheelPivot.position.copy(worldAxle);
+    root.add(wheelPivot);
+    root.updateMatrixWorld(true);
 
+    // 3. Create rolling group under wheelPivot for pitch rotation around axle
     const rolling = new THREE.Group();
     wheelPivot.add(rolling);
     wheelPivot.userData.rolling = rolling;
     wheelPivot.userData.hubCenter = [0, 0, 0];
     wheelPivot.userData.hubRadius = radius;
+    root.updateMatrixWorld(true);
 
-    // Reparent mesh inside rolling group, centered so pivot is exact axle center
+    // 4. Convert mesh world transform into rolling group local coordinate system:
+    // localMatrix = (rolling.matrixWorld)^-1 * origWorldMatrix
+    const rollingWorldInv = rolling.matrixWorld.clone().invert();
+    const localMatrix = origWorldMatrix.clone().premultiply(rollingWorldInv);
+
     mesh.removeFromParent();
-    mesh.geometry.center();
-    mesh.position.set(0, 0, 0);
-    mesh.scale.setScalar(spec.scale);
-    mesh.rotation.y = Math.PI;
+    localMatrix.decompose(mesh.position, mesh.quaternion, mesh.scale);
     rolling.add(mesh);
+    root.updateMatrixWorld(true);
 
     // Anti-gravity glow ring
     const glow = new THREE.Group();
@@ -409,7 +430,7 @@ export function buildGLBKart(id, kartGltf, charGltf) {
       metalness: 0.55,
       roughness: 0.32,
     });
-    const halfWidth = extent.x * 0.45 * spec.scale;
+    const halfWidth = localExtent.x * worldScale.x * 0.45;
     for (const face of [-halfWidth, halfWidth]) {
       const ring = new THREE.Mesh(
         new THREE.TorusGeometry(radius * 0.82, radius * 0.045, 8, 40),
@@ -427,14 +448,8 @@ export function buildGLBKart(id, kartGltf, charGltf) {
     wheelPivot.add(glow);
     wheelPivot.userData.glow = glow;
 
-    root.add(wheelPivot);
     return wheelPivot;
   });
-
-  // Scale and orient kart chassis: Rotate by Math.PI around Y so nose faces -Z
-  kartScene.scale.setScalar(spec.scale);
-  kartScene.rotation.y = Math.PI;
-  root.add(kartScene);
 
   // Driver character integration: separate unscaled attachment hierarchy directly under root
   let mixer = null;

@@ -42,7 +42,7 @@ All vehicle models are created by **Kenney** (Kenney Vleugels — [kenney.nl](ht
 
 ---
 
-### 2.2 Driver Character Models (8 Rigged GLB Assets)
+### 2.2 Driver Character Models (Rigged GLB Assets)
 
 All humanoid driver models are created by **Kenney** (Kenney Vleugels — [kenney.nl](https://kenney.nl)) from the **Kenney Mini Characters 1** collection:
 - **Source Page:** [https://kenney.nl/assets/mini-characters-1](https://kenney.nl/assets/mini-characters-1)
@@ -50,16 +50,16 @@ All humanoid driver models are created by **Kenney** (Kenney Vleugels — [kenne
 - **Original Format:** glTF 2.0 with 8-bone humanoid rig and 32 animations.
 - **Processed Format:** Self-contained binary `.glb` with embedded `colormap.png` binary buffer chunk.
 
-| Filename | In-Game Driver Assignment | Creator | License | Packaged Size (Bytes) | SHA-256 Checksum |
+| Filename | In-Game Driver Assignment (`KART_SPECS`) | Creator | License | Packaged Size (Bytes) | SHA-256 Checksum |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| `character-male-a.glb` | Red Racer (`mario`) | Kenney | CC0 1.0 | 257,064 B (251 KB) | `0b709f4d6fa144ed829cb579295b45a82f21203d743999cf10987413cfc29584` |
-| `character-male-b.glb` | Green Racer (`luigi`) | Kenney | CC0 1.0 | 257,492 B (251 KB) | `8e8c286299e00fdc6758d87010d17c8f6f93bd194b201b1bc1fb1ed0884062a0` |
-| `character-female-a.glb` | Pink Racer (`peach`) | Kenney | CC0 1.0 | 283,604 B (277 KB) | `39692b85256c8d3261dd07d7b81b29d56f9b05f83c75d066cf2bba0bfb892544` |
-| `character-female-b.glb` | Lime Racer (`yoshi`) | Kenney | CC0 1.0 | 262,296 B (256 KB) | `eea7b9b6ef6a5bf31fe046e5e920c68cc9ac12200bf95f6f8413616a104d4546` |
-| `character-male-c.glb` | Blue Racer (`toad`) | Kenney | CC0 1.0 | 273,252 B (267 KB) | `14020c7a8442194a0b3703532bdadb02d3ded1779b80518b0a188a6e58cfa47f` |
-| `character-male-d.glb` | Cyber Heavy (`bowser`) | Kenney | CC0 1.0 | 255,336 B (249 KB) | `0f6c91938870653908a711429394064ab6516ebf5f7743d085f14e87616424f7` |
-| `character-male-d.glb` | Classic Heavy (`donkey-kong`) | Kenney | CC0 1.0 | 255,336 B (249 KB) | `0f6c91938870653908a711429394064ab6516ebf5f7743d085f14e87616424f7` |
-| `character-female-c.glb` | Yellow Racer (`koopa`) | Kenney | CC0 1.0 | 262,196 B (256 KB) | `9257c5665f30386c28c455f534a52557dad517bfd3cbaae3496465cd7cdf37c7` |
+| `character-male-a.glb` | Racer 1 (`mario` / Red Speedster) | Kenney | CC0 1.0 | 257,064 B (251 KB) | `0b709f4d6fa144ed829cb579295b45a82f21203d743999cf10987413cfc29584` |
+| `character-male-b.glb` | Racer 2 (`luigi` / Green Aero) | Kenney | CC0 1.0 | 257,492 B (251 KB) | `8e8c286299e00fdc6758d87010d17c8f6f93bd194b201b1bc1fb1ed0884062a0` |
+| `character-female-a.glb` | Racer 3 (`peach` / Pink Sport) | Kenney | CC0 1.0 | 283,604 B (277 KB) | `39692b85256c8d3261dd07d7b81b29d56f9b05f83c75d066cf2bba0bfb892544` |
+| `character-female-b.glb` | Racer 4 (`yoshi` / Lime Turbo) | Kenney | CC0 1.0 | 262,296 B (256 KB) | `eea7b9b6ef6a5bf31fe046e5e920c68cc9ac12200bf95f6f8413616a104d4546` |
+| `character-male-c.glb` | Racer 5 (`toad` / Blue Comet) | Kenney | CC0 1.0 | 273,252 B (267 KB) | `14020c7a8442194a0b3703532bdadb02d3ded1779b80518b0a188a6e58cfa47f` |
+| `character-male-d.glb` | Racer 6 (`bowser`) & Racer 7 (`donkey-kong`) | Kenney | CC0 1.0 | 255,336 B (249 KB) | `0f6c91938870653908a711429394064ab6516ebf5f7743d085f14e87616424f7` |
+| `character-female-c.glb` | Racer 8 (`koopa` / Yellow Sprint) | Kenney | CC0 1.0 | 262,196 B (256 KB) | `9257c5665f30386c28c455f534a52557dad517bfd3cbaae3496465cd7cdf37c7` |
+| `character-female-d.glb` | *Intentionally Unused / Reserved in Initial Roster* | Kenney | CC0 1.0 | 272,384 B (266 KB) | `fde08e246804ded47bb31dd42963f118f3dc94728f58e1e564d6deb64f9276c7` |
 
 ---
 
@@ -83,15 +83,18 @@ All humanoid driver models are created by **Kenney** (Kenney Vleugels — [kenne
 3. **Instance Isolation & Safe Cache Lifecycle:**
    - Geometries and materials are cloned per racer instance from the master cached GLTF, protecting master cached assets from being disposed during race teardown.
    - Master assets registered in `assetCache` are safeguarded; active instances are tracked via `activeInstances` and `clearAssetCache` blocks accidental destruction of in-use master resources.
-4. **Mathematical Axle Centering & Seating Calibration:**
-   - Wheel mesh clones have their geometry centered at origin `(0, 0, 0)` via `mesh.geometry.center()` and positioned at `(0, 0, 0)` inside the `rolling` group, ensuring 100% concentric rotation around the raw source axle with zero wobble.
-   - Posed driver seating positions place the pelvis directly on the seat/cockpit floor ($0.27\text{m} - 0.40\text{m}$) and head clearance at $1.38\text{m} - 1.66\text{m}$ world $Y$.
+4. **Complete MatrixWorld Axle Alignment & Seating Calibration:**
+   - Wheel axle centers and orientations are derived from the complete source GLTF hierarchy using updated `matrixWorld` transformations, preserving parent translations, rotations, and scales.
+   - Each wheel's local matrix inside the unscaled `rolling` group is converted from `matrixWorld` so that the rotation axis coincides exactly with the geometric axle center ($< 10^{-5}\text{ m}$) with zero eccentric wobble, preserving original source mesh geometry without destructive centering.
+   - Posed driver seating positions place the pelvis bone and contact plane directly at the cockpit seat floor ($0.21\text{m} - 0.31\text{m}$) and head clearance at $0.75\text{m} - 0.91\text{m}$ world $Y$ without chassis penetration.
 
 ---
 
 ## 4. Visual Validation Artifacts
 
-All 8 kart and driver combinations have been verified and documented via 32 high-definition ($1280 \times 720$) photographic renders located in `docs/screenshots/verification/`:
+All 8 kart and driver combinations have been verified and documented via 32 high-definition ($1280 \times 720$) photographic renders located in `docs/screenshots/verification/`.
+
+*Note on Validation Tooling:* SwiftShader headless screenshots are software-rendered visual and geometric validation checks executed in CI, not Android GPU benchmarks. Quality presets configure dynamic engine parameters rather than guaranteeing unmeasured 60 FPS hardware performance.
 
 | Racer | Combination | Screenshots Available |
 | :--- | :--- | :--- |

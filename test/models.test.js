@@ -278,57 +278,108 @@ test("GPU resources are released only when ownership permits (master assets prot
   assert.equal(masterGeoDisposed, false, "Master cached geometry must NEVER be disposed by instance teardown");
 });
 
-test("All eight driver/kart combinations have valid world dimensions and seating attachment", async () => {
+test("All eight driver/kart combinations have verified anatomical seating and clearance", async () => {
   for (const [id, spec] of Object.entries(KART_SPECS)) {
     const kGltf = await loadGLB(spec.kart);
     const cGltf = await loadGLB(spec.character);
     const built = buildGLBKart(id, kGltf, cGltf);
 
-    if (built.mixer) built.mixer.update(0.016);
-    built.model.updateMatrixWorld(true);
+    try {
+      // 1. Evaluate driving animation pose
+      assert.ok(built.mixer, `${id} must have AnimationMixer`);
+      built.mixer.update(0.016);
+      built.model.updateMatrixWorld(true);
 
-    // Measure kart body bounds (excluding driver)
-    const kartScene = built.model.children.find((c) => c !== built.driver && !c.name.startsWith("wheel-"));
-    assert.ok(kartScene, `${id} must contain kartScene`);
-    const kBox = new THREE.Box3().setFromObject(kartScene);
-    const kartLength = kBox.max.z - kBox.min.z;
+      // 2. Anatomical references on driver
+      const rootBone = built.driver.getObjectByName("root");
+      assert.ok(rootBone, `${id} must have 'root' pelvis/hip origin bone`);
+      const torsoBone = built.driver.getObjectByName("torso");
+      assert.ok(torsoBone, `${id} must have 'torso' spine bone`);
+      const headBone = built.driverHead;
+      assert.ok(headBone, `${id} must have head bone / driverHead anchor`);
+      const armL = built.driver.getObjectByName("arm-left");
+      const armR = built.driver.getObjectByName("arm-right");
+      assert.ok(armL && armR, `${id} must have arm/hand bones`);
 
-    assert.ok(
-      kartLength >= 2.5 && kartLength <= 4.0,
-      `${id} kart length (${kartLength.toFixed(2)}m) must be in valid vehicle range [2.5, 4.0]`
-    );
+      // Evaluate world positions
+      const pelvisWorldPos = new THREE.Vector3();
+      rootBone.getWorldPosition(pelvisWorldPos);
 
-    // Measure driver bounds in seated drive pose
-    assert.ok(built.driver, `${id} must have driverScene`);
-    const dBox = new THREE.Box3().setFromObject(built.driver);
-    const driverHeight = dBox.max.y - dBox.min.y;
-    const driverSeatY = dBox.min.y;
-    const driverHeadY = dBox.max.y;
+      const torsoWorldPos = new THREE.Vector3();
+      torsoBone.getWorldPosition(torsoWorldPos);
 
-    assert.ok(
-      driverHeight >= 1.00 && driverHeight <= 1.30,
-      `${id} driver height (${driverHeight.toFixed(2)}m) must be stylized humanoid proportion [1.00, 1.30]`
-    );
-    assert.ok(
-      driverSeatY >= 0.25 && driverSeatY <= 0.42,
-      `${id} driver seat Y (${driverSeatY.toFixed(2)}m) must sit in cockpit floor/seat [0.25, 0.42]`
-    );
-    assert.ok(
-      driverHeadY >= 1.35 && driverHeadY <= 1.70,
-      `${id} driver head Y (${driverHeadY.toFixed(2)}m) must be visible above cockpit [1.35, 1.70]`
-    );
+      const headWorldPos = new THREE.Vector3();
+      headBone.getWorldPosition(headWorldPos);
 
-    // Verify 4 wheels
-    assert.equal(built.wheels.length, 4, `${id} must have 4 wheels`);
-    for (let wi = 0; wi < 4; wi++) {
-      const w = built.wheels[wi];
-      assert.ok(w, `${id} wheel-${wi} exists`);
-      assert.ok(w.userData.rolling, `${id} wheel-${wi} has rolling group`);
-      assert.ok(w.userData.glow, `${id} wheel-${wi} has anti-glow group`);
-      assert.ok(w.position.y >= 0.30 && w.position.y <= 0.70, `${id} wheel-${wi} axle height must be reasonable`);
+      const handLWorldPos = new THREE.Vector3();
+      armL.getWorldPosition(handLWorldPos);
+      const handRWorldPos = new THREE.Vector3();
+      armR.getWorldPosition(handRWorldPos);
+
+      // Head bone must be anatomically above torso and pelvis
+      assert.ok(
+        headWorldPos.y > torsoWorldPos.y && torsoWorldPos.y > pelvisWorldPos.y,
+        `${id} vertical anatomical order must hold: head (${headWorldPos.y.toFixed(3)}) > torso (${torsoWorldPos.y.toFixed(3)}) > pelvis (${pelvisWorldPos.y.toFixed(3)})`
+      );
+
+      // Head clearance: head bone must sit naturally above cockpit rim [0.70m, 0.96m]
+      assert.ok(
+        headWorldPos.y >= 0.70 && headWorldPos.y <= 0.96,
+        `${id} head bone Y (${headWorldPos.y.toFixed(3)}m) must be naturally positioned above cockpit rim [0.70, 0.96]`
+      );
+
+      // Hands reach steering wheel forward into the cockpit
+      assert.ok(
+        handLWorldPos.z < pelvisWorldPos.z + 0.15 && handRWorldPos.z < pelvisWorldPos.z + 0.15,
+        `${id} hands must reach forward toward steering area`
+      );
+      const handSeparation = handLWorldPos.distanceTo(handRWorldPos);
+      assert.ok(
+        handSeparation >= 0.28 && handSeparation <= 0.40,
+        `${id} hand separation (${handSeparation.toFixed(3)}m) must match steering wheel grip width [0.28, 0.40]`
+      );
+
+      // 3. Cockpit seating reference comparison
+      // Locate the chassis mesh
+      const kartScene = built.model.children.find((c) => c !== built.driver && !c.name.startsWith("wheel-"));
+      const chassisBox = new THREE.Box3().setFromObject(kartScene);
+      const underbodyFloor = chassisBox.min.y;
+
+      // The pelvis contact plane must NEVER penetrate through the underbody floor of the kart
+      assert.ok(
+        pelvisWorldPos.y > underbodyFloor,
+        `${id} pelvis bone (${pelvisWorldPos.y.toFixed(3)}m) must not clip through underbody floor (${underbodyFloor.toFixed(3)}m)`
+      );
+
+      // Driver must be centered laterally inside the chassis
+      assert.ok(
+        Math.abs(pelvisWorldPos.x) < 0.05,
+        `${id} pelvis bone must be centered laterally in cockpit (x=${pelvisWorldPos.x.toFixed(4)})`
+      );
+
+      // Cockpit seating height alignment:
+      // Open karts have higher seats (0.28m-0.35m pelvis bone Y); sports cars have lower bucket floors (0.20m-0.28m pelvis bone Y)
+      if (spec.scale > 2.0) {
+        assert.ok(
+          pelvisWorldPos.y >= 0.28 && pelvisWorldPos.y <= 0.35,
+          `${id} open-kart pelvis bone Y (${pelvisWorldPos.y.toFixed(3)}m) aligns with seat cushion level [0.28, 0.35]`
+        );
+      } else {
+        assert.ok(
+          pelvisWorldPos.y >= 0.20 && pelvisWorldPos.y <= 0.28,
+          `${id} sports-car pelvis bone Y (${pelvisWorldPos.y.toFixed(3)}m) aligns with low cockpit floor [0.20, 0.28]`
+        );
+      }
+
+      // Measure overall kart vehicle length
+      const kartLength = chassisBox.max.z - chassisBox.min.z;
+      assert.ok(
+        kartLength >= 2.5 && kartLength <= 4.0,
+        `${id} kart length (${kartLength.toFixed(2)}m) must be in valid vehicle range [2.5, 4.0]`
+      );
+    } finally {
+      disposeModel(built.model);
     }
-
-    disposeModel(built.model);
   }
 });
 
@@ -370,7 +421,7 @@ test("Driver animation and wheel motion behavior remain functional across frame 
   disposeModel(built.model);
 });
 
-test("All 32 wheels across all eight karts have mathematically exact axle alignment with zero wobble", async () => {
+test("All 32 wheels across all eight karts match independent world-space geometry with zero wobble", async () => {
   const wheelAliases = [
     ["wheel-front-left", "wheel-0"],
     ["wheel-front-right", "wheel-1"],
@@ -381,68 +432,251 @@ test("All 32 wheels across all eight karts have mathematically exact axle alignm
   for (const [id, spec] of Object.entries(KART_SPECS)) {
     const rawGltf = await loadGLB(spec.kart);
     const charGltf = await loadGLB(spec.character);
-    const built = buildGLBKart(id, rawGltf, charGltf);
 
+    // Build independent reference scene to derive ground-truth world geometry
+    const refScene = rawGltf.scene.clone(true);
+    const refRoot = new THREE.Group();
+    refScene.scale.setScalar(spec.scale);
+    refScene.rotation.y = Math.PI;
+    refRoot.add(refScene);
+    refRoot.updateMatrixWorld(true);
+
+    const built = buildGLBKart(id, rawGltf, charGltf);
     built.model.updateMatrixWorld(true);
 
     for (let i = 0; i < 4; i++) {
       const [name, alias] = wheelAliases[i];
-      const origMesh = rawGltf.scene.getObjectByName(name) || rawGltf.scene.getObjectByName(alias);
+      const origMesh = refScene.getObjectByName(name) || refScene.getObjectByName(alias);
       assert.ok(origMesh, `${id} ${name} must exist in source GLTF`);
 
-      // 1. Raw source GLTF axle in world space
-      origMesh.geometry.computeBoundingBox();
-      const rawCenter = origMesh.geometry.boundingBox.getCenter(new THREE.Vector3());
-      const rawAxle = origMesh.position.clone().add(rawCenter);
-      const expectedWorldAxle = rawAxle.clone()
-        .applyAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI)
-        .multiplyScalar(spec.scale);
+      // 1. Independently derive expected world-space bounding geometry directly from transformed vertices
+      const posAttr = origMesh.geometry.attributes.position;
+      const vWorld = new THREE.Vector3();
+      const expectedWorldBox = new THREE.Box3();
+      for (let vi = 0; vi < posAttr.count; vi++) {
+        vWorld.fromBufferAttribute(posAttr, vi).applyMatrix4(origMesh.matrixWorld);
+        expectedWorldBox.expandByPoint(vWorld);
+      }
+      const expectedAxle = expectedWorldBox.getCenter(new THREE.Vector3());
+      const expectedExtent = expectedWorldBox.getSize(new THREE.Vector3());
 
-      // 2. Built wheel pivot in world space
+      // 2. Validate built wheelPivot world position against independent axle center
       const pivot = built.wheels[i];
       const pivotWorldPos = new THREE.Vector3();
       pivot.getWorldPosition(pivotWorldPos);
 
-      const diff = pivotWorldPos.distanceTo(expectedWorldAxle);
+      const diff = pivotWorldPos.distanceTo(expectedAxle);
       assert.ok(
-        diff < 1e-4,
+        diff < 1e-5,
         `${id} wheel-${i} pivot (${pivotWorldPos.x.toFixed(4)}, ${pivotWorldPos.y.toFixed(4)}, ${pivotWorldPos.z.toFixed(4)}) ` +
-        `must match raw source axle (${expectedWorldAxle.x.toFixed(4)}, ${expectedWorldAxle.y.toFixed(4)}, ${expectedWorldAxle.z.toFixed(4)}) ` +
-        `within 0.1mm (diff was ${diff.toFixed(6)})`
+        `must match independently derived world axle (${expectedAxle.x.toFixed(4)}, ${expectedAxle.y.toFixed(4)}, ${expectedAxle.z.toFixed(4)}) ` +
+        `within 0.01mm (diff was ${diff.toExponential(3)}m)`
       );
 
-      // 3. Verify wheel mesh geometry is centered at origin (0, 0, 0)
+      // 3. Compare reconstructed wheel mesh geometry in world space
       const rolling = pivot.userData.rolling;
-      const mesh = rolling.children.find((c) => c.isMesh);
-      assert.ok(mesh, `${id} wheel-${i} rolling group must contain wheel mesh`);
-      mesh.geometry.computeBoundingBox();
-      const meshCenter = mesh.geometry.boundingBox.getCenter(new THREE.Vector3());
+      const builtMesh = rolling.children.find((c) => c.isMesh);
+      assert.ok(builtMesh, `${id} wheel-${i} rolling group must contain wheel mesh`);
+
+      const builtWorldBox = new THREE.Box3();
+      const bPosAttr = builtMesh.geometry.attributes.position;
+      for (let vi = 0; vi < bPosAttr.count; vi++) {
+        vWorld.fromBufferAttribute(bPosAttr, vi).applyMatrix4(builtMesh.matrixWorld);
+        builtWorldBox.expandByPoint(vWorld);
+      }
+      const builtCenter = builtWorldBox.getCenter(new THREE.Vector3());
+      const centerDiff = builtCenter.distanceTo(expectedAxle);
       assert.ok(
-        meshCenter.length() < 1e-5,
-        `${id} wheel-${i} mesh geometry must be centered at (0, 0, 0) to rotate with zero wobble (got ${meshCenter.length().toFixed(6)})`
+        centerDiff < 1e-5,
+        `${id} wheel-${i} reconstructed mesh world center must match original source mesh (diff: ${centerDiff.toExponential(3)}m)`
+      );
+
+      // 4. Verify reconstructed wheel mesh in rolling space has center (0, 0, 0) for zero wobble
+      builtMesh.geometry.computeBoundingBox();
+      const localCenter = builtMesh.geometry.boundingBox.getCenter(new THREE.Vector3());
+      const centerInRolling = localCenter.clone().applyMatrix4(builtMesh.matrix);
+      assert.ok(
+        centerInRolling.length() < 1e-5,
+        `${id} wheel-${i} center in rolling group must be (0, 0, 0) for zero wobble (got ${centerInRolling.length().toExponential(3)})`
+      );
+
+      // 5. Verify reconstructed dimensions and radius
+      const builtExtent = builtWorldBox.getSize(new THREE.Vector3());
+      const extentDiff = builtExtent.distanceTo(expectedExtent);
+      assert.ok(
+        extentDiff < 1e-4,
+        `${id} wheel-${i} reconstructed dimensions must match original extent (diff: ${extentDiff.toExponential(3)}m)`
       );
     }
 
     disposeModel(built.model);
+    disposeModel(refRoot);
   }
 });
 
-test("clearAssetCache refuses to clear while active kart instances exist unless forced", async () => {
+test("Regression test: wheel transform calculation handles deeply nested non-identity parent hierarchies without assumption", async () => {
+  // Construct a synthetic GLTF scene with multiple nested parent nodes having non-identity translation, rotation and scale
+  const syntheticScene = new THREE.Group();
+  syntheticScene.name = "synthetic-kart";
+
+  const chassisParent = new THREE.Group();
+  chassisParent.name = "chassis-parent";
+  chassisParent.position.set(0.35, 0.42, -0.28);
+  chassisParent.rotation.set(0.12, -0.25, 0.08);
+  chassisParent.scale.set(1.3, 1.3, 1.3);
+  syntheticScene.add(chassisParent);
+
+  const subAssembly = new THREE.Group();
+  subAssembly.name = "sub-assembly";
+  subAssembly.position.set(-0.15, 0.10, 0.22);
+  subAssembly.rotation.set(-0.05, 0.18, 0.10);
+  subAssembly.scale.set(0.85, 0.85, 0.85);
+  chassisParent.add(subAssembly);
+
+  // Add 4 synthetic wheel meshes inside the nested hierarchy
+  const wheelOffsets = [
+    ["wheel-front-left", [-0.4, 0.0, 0.6]],
+    ["wheel-front-right", [0.4, 0.0, 0.6]],
+    ["wheel-back-left", [-0.4, 0.0, -0.6]],
+    ["wheel-back-right", [0.4, 0.0, -0.6]],
+  ];
+
+  for (const [wName, offset] of wheelOffsets) {
+    const geo = new THREE.CylinderGeometry(0.3, 0.3, 0.2, 16);
+    const mat = new THREE.MeshBasicMaterial({ color: 0x222222 });
+    const wMesh = new THREE.Mesh(geo, mat);
+    wMesh.name = wName;
+    wMesh.position.set(...offset);
+    wMesh.rotation.set(0, 0, Math.PI / 2); // local wheel orientation
+    subAssembly.add(wMesh);
+  }
+
+  const syntheticGltf = { scene: syntheticScene };
+  const mockCharGltf = await loadGLB(KART_SPECS.mario.character);
+
+  KART_SPECS["synthetic-test"] = {
+    kart: "synthetic",
+    character: KART_SPECS.mario.character,
+    scale: 1.75,
+    driverOffset: [0, 0.5, 0],
+    driverScale: 1.5,
+  };
+
+  try {
+    // 1. Derive expected world axle positions independently from the reference hierarchy
+    const refScene = syntheticScene.clone(true);
+    const refRoot = new THREE.Group();
+    refScene.scale.setScalar(1.75);
+    refScene.rotation.y = Math.PI;
+    refRoot.add(refScene);
+    refRoot.updateMatrixWorld(true);
+
+    const expectedAxles = wheelOffsets.map(([name]) => {
+      const orig = refScene.getObjectByName(name);
+      const posAttr = orig.geometry.attributes.position;
+      const v = new THREE.Vector3();
+      const b = new THREE.Box3();
+      for (let i = 0; i < posAttr.count; i++) {
+        v.fromBufferAttribute(posAttr, i).applyMatrix4(orig.matrixWorld);
+        b.expandByPoint(v);
+      }
+      return b.getCenter(new THREE.Vector3());
+    });
+
+    // 2. Build kart through production buildGLBKart
+    const built = buildGLBKart("synthetic-test", syntheticGltf, mockCharGltf);
+    built.model.updateMatrixWorld(true);
+
+    for (let i = 0; i < 4; i++) {
+      const pivot = built.wheels[i];
+      const pivotPos = new THREE.Vector3();
+      pivot.getWorldPosition(pivotPos);
+
+      const diff = pivotPos.distanceTo(expectedAxles[i]);
+      assert.ok(
+        diff < 1e-5,
+        `Synthetic wheel-${i} pivot must match expected axle even with nested parent transforms (diff: ${diff.toExponential(3)}m)`
+      );
+
+      // Verify zero eccentric wobble in rolling group
+      const rolling = pivot.userData.rolling;
+      const builtMesh = rolling.children.find((c) => c.isMesh);
+      builtMesh.geometry.computeBoundingBox();
+      const localCenter = builtMesh.geometry.boundingBox.getCenter(new THREE.Vector3());
+      const centerInRolling = localCenter.clone().applyMatrix4(builtMesh.matrix);
+      assert.ok(
+        centerInRolling.length() < 1e-5,
+        `Synthetic wheel-${i} in rolling group must rotate around exact axle with zero wobble (got ${centerInRolling.length().toExponential(3)})`
+      );
+    }
+
+    disposeModel(built.model);
+    disposeModel(refRoot);
+  } finally {
+    delete KART_SPECS["synthetic-test"];
+  }
+});
+
+test("clearAssetCache refuses to clear while active kart instances exist and succeeds when disposed", async () => {
   const kGltf = await loadGLB(KART_SPECS.mario.kart);
   const cGltf = await loadGLB(KART_SPECS.mario.character);
 
   const kart = buildGLBKart("mario", kGltf, cGltf);
 
-  // Attempt to clear without force while active instance is alive
-  const clearResultBlocked = clearAssetCache(false);
-  assert.equal(clearResultBlocked, false, "clearAssetCache must return false when active instances exist");
+  // Attempt to clear while active instance is alive - must be refused
+  const clearResultBlocked = clearAssetCache();
+  assert.equal(clearResultBlocked, false, "clearAssetCache must return false while active instances exist");
   assert.ok(assetCache.size > 0, "assetCache must not be emptied while active instances exist");
 
   // Dispose active instance
   disposeModel(kart.model);
 
   // Now clear should succeed
-  const clearResultSuccess = clearAssetCache(false);
+  const clearResultSuccess = clearAssetCache();
   assert.equal(clearResultSuccess, true, "clearAssetCache must succeed once all instances are disposed");
   assert.equal(assetCache.size, 0, "assetCache must be empty after successful clear");
+});
+
+test("Multiple simultaneous kart instances maintain independent transforms and do not collide", async () => {
+  const k1 = await loadGLB(KART_SPECS.mario.kart);
+  const c1 = await loadGLB(KART_SPECS.mario.character);
+  const k2 = await loadGLB(KART_SPECS.luigi.kart);
+  const c2 = await loadGLB(KART_SPECS.luigi.character);
+
+  const kart1 = buildGLBKart("mario", k1, c1);
+  const kart2 = buildGLBKart("luigi", k2, c2);
+
+  kart1.model.position.set(-2, 0, 5);
+  kart2.model.position.set(2, 0, -5);
+
+  kart1.model.updateMatrixWorld(true);
+  kart2.model.updateMatrixWorld(true);
+
+  const pos1 = new THREE.Vector3();
+  const pos2 = new THREE.Vector3();
+  kart1.wheels[0].getWorldPosition(pos1);
+  kart2.wheels[0].getWorldPosition(pos2);
+
+  assert.notEqual(pos1.x, pos2.x, "Instances must have independent world positions");
+  assert.ok(pos1.distanceTo(pos2) > 5.0, "Instances must be spaced according to their root positions");
+
+  disposeModel(kart1.model);
+  disposeModel(kart2.model);
+});
+
+test("Repeated race construction and teardown cycles leave master cached assets intact and reusable", async () => {
+  const kGltf = await loadGLB(KART_SPECS.peach.kart);
+  const cGltf = await loadGLB(KART_SPECS.peach.character);
+
+  for (let cycle = 1; cycle <= 5; cycle++) {
+    const built = buildGLBKart("peach", kGltf, cGltf);
+    assert.ok(built.model, `Cycle ${cycle}: model built`);
+    assert.equal(built.wheels.length, 4, `Cycle ${cycle}: 4 wheels`);
+    assert.ok(built.driver, `Cycle ${cycle}: driver attached`);
+    disposeModel(built.model);
+  }
+
+  // Verify master asset still valid
+  assert.ok(kGltf.scene, "Master kart scene still exists");
+  assert.ok(cGltf.scene, "Master character scene still exists");
 });
