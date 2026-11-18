@@ -1,6 +1,12 @@
 /**
  * Centralized Game Configuration and Architecture Foundation for Mario Kart Android.
- * Phase 1: Baseline settings, rendering quality presets, asset registry, and lifecycle management.
+ *
+ * Operational Status (Phase 1 Baseline):
+ * - Active / Wired: Device profiling, RENDER_CONFIG (pixelRatio clamping, antialias, powerPreference,
+ *   toneMappingExposure, clearColor, fog parameters, camera FOV/clipping, shadowMap toggle).
+ * - Architectural Targets (Deferred to later visual/asset phases): particleLimit (Phase 6 VFX),
+ *   dynamic bloom pass activation (Phase 6), per-preset shadowMap resolution (Phase 6),
+ *   and ASSET_REGISTRY external asset loading (Phases 2-4).
  */
 
 // Device profiling
@@ -8,17 +14,23 @@ export const isAndroid = typeof navigator !== "undefined" && /Android/i.test(nav
 export const isTv = typeof window !== "undefined" && Boolean(window.AndroidBridge?.isTv?.());
 export const isMobile = (typeof navigator !== "undefined" && /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)) || (typeof window !== "undefined" && Boolean(window.AndroidBridge));
 
-// Quality Presets
+/**
+ * Quality Presets.
+ * Note: Clamping pixelRatio and disabling dynamic shadow maps reduces GPU shading
+ * and fillrate pressure on mobile SoCs, but does not guarantee a fixed 60 FPS across
+ * all Android hardware variants (which depends on GPU capabilities, WebView rendering
+ * overhead, and thermal throttling).
+ */
 export const QUALITY_PRESETS = {
   low: {
     name: "low",
     maxPixelRatio: 1.0,
     shadows: false,
-    shadowMapSize: 512,
+    shadowMapSize: 512,       // Architectural target: to be wired into directional light in VFX phase
     antialias: false,
-    useBloom: false,
-    particleLimit: 300,
-    anisotropy: 1,
+    useBloom: false,          // Architectural target: to be wired to post-processing pipeline
+    particleLimit: 300,       // Architectural target: to be wired to race-effects pool
+    anisotropy: 1,            // Architectural target: to be wired to texture loader
   },
   medium: {
     name: "medium",
@@ -54,7 +66,7 @@ export const QUALITY_PRESETS = {
 
 /**
  * Determine default quality preset based on device environment.
- * Android mobile and TV default to medium for guaranteed smooth 60 FPS performance.
+ * Mobile phones and Android TV default to medium to prioritize rendering stability.
  */
 export function getDefaultQualityPreset() {
   if (isTv) return QUALITY_PRESETS.medium;
@@ -64,7 +76,7 @@ export function getDefaultQualityPreset() {
 
 export const activeQuality = getDefaultQualityPreset();
 
-// Centralized Renderer Configuration
+// Centralized Renderer Configuration (Wired & Operational in Phase 1)
 export const RENDER_CONFIG = {
   get pixelRatio() {
     const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
@@ -85,7 +97,7 @@ export const RENDER_CONFIG = {
   clearColor: "#081325",
 };
 
-// Centralized Input Configuration
+// Centralized Input Configuration (Baseline values)
 export const INPUT_CONFIG = {
   tilt: {
     maxDegrees: 45,
@@ -107,6 +119,7 @@ export const AUDIO_CONFIG = {
 };
 
 // Asset Provenance and Offline Package Registry Structure
+// Architectural foundation for external GLB/glTF model packs in Phases 2-4
 export const ASSET_REGISTRY = {
   models: {},
   textures: {

@@ -1,6 +1,6 @@
 # Mario Kart Android — Architecture Overview & Technical Baseline
 
-**Version:** 0.2 (Phase 1 Baseline)  
+**Version:** 0.2 (Phase 1 Baseline & Review Correction)  
 **Platform:** Android (Min SDK 26, Target SDK 35, Compile SDK 36)  
 **Orientation:** Sensor Landscape  
 **Architecture:** Three.js / WebGL hardware-rasterized engine hosted within an Android `WebView`, bound to native Kotlin via `AndroidBridge`.
@@ -20,6 +20,7 @@
         │
         ├─► JavaScript enabled, DomStorage, Hardware layer type
         ├─► Register JavascriptInterface ("AndroidBridge")
+        ├─► Enforce MIXED_CONTENT_NEVER_ALLOW security setting
         └─► Load "file:///android_asset/game/index.html"
                 │
                 ▼
@@ -43,19 +44,32 @@
 
 ---
 
-## 2. Rendering Pipeline
+## 2. Rendering Pipeline & Quality Preset Mapping
 
 - **Engine:** Three.js r186 (bundled offline in `app/src/main/assets/game/vendor/three/three.module.js`).
 - **Surface:** Hardware-accelerated `<canvas id="game">` with WebGL 2.0 context.
-- **Tone Mapping:** `THREE.NeutralToneMapping` with exposure 1.05 for vibrant, natural color reproduction.
+- **Tone Mapping:** `THREE.NeutralToneMapping` with exposure 1.05 for natural color reproduction.
 - **Lighting & Atmosphere:**
   - Ambient Hemisphere light (`#a5c8f4` sky / `#34384a` ground).
-  - Main Key Directional light with PCF soft shadows (conditional on quality preset).
+  - Main Key Directional light with PCF soft shadows (toggled conditionally by quality preset).
   - Fill light (`#77baff`) and 5 bank spotlights tracking key track curvatures.
-  - Custom Atmospheric shader sky dome (`atmosphere.js`) with dynamic searchlight beams.
-- **Quality Presets:** Defined in `config.js` (`low`, `medium`, `high`, `ultra`):
-  - On mobile Android phones and Android TVs, presets clamp DPR to 1.3–1.6 to ensure rock-solid 60 FPS without GPU thermal throttling.
-  - Shadow mapping and post-processing passes (GTAO, UnrealBloom) can be dynamically toggled per profile.
+  - Custom atmospheric shader sky dome (`atmosphere.js`) with dynamic searchlight beams.
+
+### Quality Configuration: Operational vs. Architectural Targets
+
+The `QUALITY_PRESETS` in `config.js` (`low`, `medium`, `high`, `ultra`) serve two distinct roles:
+
+1. **Wired & Operational in Phase 1:**
+   - `maxPixelRatio`: Clamps `renderer.setPixelRatio(...)` (e.g., 1.3 on mobile/TV, 1.6 on high/desktop). This mitigates excessive fillrate overhead on high-DPI smartphone displays, though actual frame rate depends on device GPU performance, thermal state, and browser process overhead (presets do not guarantee an unconditional 60 FPS).
+   - `shadows`: Controls `renderer.shadowMap.enabled` and directional light shadow casting (`key.castShadow`). Disabled on mobile by default.
+   - `antialias`: Configures WebGL anti-aliasing on the canvas context.
+   - `toneMappingExposure`, `fog`, `camera`, and `clearColor`: Directly applied to Three.js scene parameters.
+2. **Architectural Targets (Deferred to Later Phases):**
+   - `particleLimit`: Defined in presets (300 to 1800) as the target budget for Phase 6 particle scaling. In Phase 1, `raceEffects.js` operates with a fixed internal buffer pool (1200 particles).
+   - `shadowMapSize`: Defined in presets (512 to 2048). Directional light shadow map currently defaults to 1024 when shadows are enabled.
+   - `useBloom`: Post-processing bloom is currently gated via URL parameter `?post=1`; dynamic pass injection belongs to Phase 6 visual polish.
+   - `anisotropy`: Defined in presets (1 to 16); texture loader currently uses baseline anisotropy 8.
+   - `ASSET_REGISTRY`: Establishes the registration and provenance tracking schema for external GLB/glTF asset packages in Phases 2–4; in Phase 1, all karts are generated via procedural meshes.
 
 ---
 
@@ -84,7 +98,7 @@
 - **Measured Surface Ribbon (`surface-track.js` & `surface-mesh.js`):**
   - Generates 3D frames with tangent vectors, surface normal vectors, right-vector cross products, and localized track banking angles.
   - Tracks specific racing zones: Anti-gravity sections (vertical bank angles) and Glider launch ramps / flight envelopes.
-- **Pickup Pools:** Resettable coin and mystery item box arrays anchored to track geometry normals.
+- **Pickup Pools:** Resettable coin and mystery item box arrays anchored to track geometry normals. In Phase 1, `syncPickupPools()` is tied into `constructRace()` to ensure visual meshes synchronize cleanly across race restarts.
 
 ---
 
@@ -112,25 +126,26 @@
 
 ## 7. Input Architecture & Control Schemes
 
-Managed comprehensively through `input.js` (`WheelInput`) and `MainActivity.kt`:
+Managed through `input.js` (`WheelInput`) and `MainActivity.kt` with discrete state slices (`touchButtons`, `nativeButtons`, `gamepadButtons`):
 
 1. **Touch Controls (Landscape Mobile):**
    - Left cluster: Left/Right directional steering pedals + Gyro/Tilt toggle.
    - Right cluster: Gas pedal (accelerate), Brake pedal (reverse), Drift button, Item trigger.
-   - Standardized on Pointer Events with pointer capture and release-on-blur safety to eliminate stuck button states.
+   - Handled via Pointer Events (`pointerdown`, `pointerup`, `pointercancel`, `lostpointercapture`) with pointer capture and release-on-blur safety.
 2. **Device Gyro / Accelerometer (Tilt Steering):**
    - Native Android `SensorEventListener` reads `Sensor.TYPE_ACCELEROMETER`.
    - Dispatches sideways roll to JavaScript `window.onNativeSensorOrientation(roll, pitch)`.
-   - Normalized in `WheelInput` with configurable deadzone (0.08) and 28° full lock sensitivity.
+   - Normalized in `WheelInput` with deadzone (0.08) and 28° full lock sensitivity.
 3. **Gamepad & Android TV Remote:**
    - Native Android `dispatchGenericMotionEvent` & `dispatchKeyEvent` dispatch state to `window.onNativeGamepadInput(json)`.
    - Browser Gamepad API (`navigator.getGamepads()`) polled as a secondary source.
-   - Input sources isolated into discrete state slices (`touchButtons`, `nativeButtons`, `gamepadButtons`) to guarantee zero stuck states.
+   - Button press and release events update dedicated state slices, preventing stuck inputs across controller disconnects or trigger releases.
 
 ---
 
 ## 8. Android-to-JavaScript Bridge API
 
+- **Production Utilities:** `InputBridgeUtils` companion object in `MainActivity.kt` provides testable, verified JSON serialization (`formatGamepadJson`), sensor math (`computeRollDegrees`, `computePitchDegrees`), and waveform parsing (`parseVibrationPattern`).
 - **Namespace:** `window.AndroidBridge`
   - `isTv(): Boolean` — Returns `true` if executed on Android TV / Leanback environment.
   - `vibrate(durationMs: Long)` — Triggers single-shot haptic rumble.
@@ -153,7 +168,28 @@ Managed comprehensively through `input.js` (`WheelInput`) and `MainActivity.kt`:
 
 ---
 
-## 10. Identified Architectural Limitations & Future Roadmap
+## 10. WebView Security Configuration & Asset Loading Risks
+
+### 10.1 Existing Configuration & Risk Analysis
+- **File Access (`allowFileAccess = true`):**
+  - *Risk:* Historically enabled to allow `WebView` to load assets via `file:///android_asset/`. However, `allowFileAccess = true` permits access to the underlying filesystem if user-supplied URLs or redirect vulnerabilities are introduced.
+  - *Mitigation in Phase 1:* The WebView is strictly locked to load only `file:///android_asset/game/index.html`. External URL navigation is disabled in `WebViewClient`.
+- **Mixed Content (`MIXED_CONTENT_NEVER_ALLOW`):**
+  - *Correction:* Previously set to `MIXED_CONTENT_ALWAYS_ALLOW`, which allowed insecure HTTP content. In Phase 1 this has been hardened to `MIXED_CONTENT_NEVER_ALLOW`. Because the game is 100% offline and packaged locally, no mixed content is permitted.
+- **WebSQL Deprecation (`databaseEnabled`):**
+  - *Correction:* Removed deprecated `databaseEnabled = true` setting, which was obsolete and flagged as deprecated in modern Android SDKs.
+
+### 10.2 Recommended Safe Approach for Bundled Assets
+For subsequent development phases where remote/cloud asset fetching may be explored, the recommended Android architecture is:
+- **`androidx.webkit.WebViewAssetLoader`:**
+  - Intercepts requests using standard, secure HTTPS virtual domains (e.g. `https://appassets.androidplatform.net/assets/game/index.html`).
+  - Allows disabling `allowFileAccess = false` and `allowContentAccess = false` completely.
+  - Enforces Same-Origin Policy (SOP) and CORS standards identical to modern web browsers, eliminating `file://` origin isolation caveats.
+  - *Note on Scope:* To prevent breaking existing working relative imports and path mappings during Phase 1 stabilization, `file:///android_asset/` is retained with hardened settings; migration to `WebViewAssetLoader` is cataloged for subsequent asset pipeline phases.
+
+---
+
+## 11. Identified Architectural Limitations & Future Roadmap
 
 1. **Procedural Geometry vs. Stylized 3D Assets:** Current karts and drivers are assembled from basic procedural Three.js primitives. Phase 2–4 will introduce high-definition, legally clean stylized GLB models sourced online or processed via cloud.
 2. **Dynamic Lighting:** Real-time shadow maps are disabled on mobile by default to preserve battery and frame rate; future phases can leverage optimized baked lightmaps and mobile-friendly vertex lighting.

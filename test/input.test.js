@@ -58,24 +58,40 @@ test("Gamepad button polling clears upon release (no stuck buttons)", () => {
     ],
   };
 
-  Object.defineProperty(globalThis.navigator, "getGamepads", {
-    value: () => [mockGamepad],
-    configurable: true,
-  });
+  // Mock navigator.getGamepads compatible with both Node 20 (navigator is undefined) and Node 21+ (global navigator object)
+  const hasGlobalNav = typeof globalThis.navigator !== "undefined" && globalThis.navigator !== null;
+  if (hasGlobalNav) {
+    Object.defineProperty(globalThis.navigator, "getGamepads", {
+      value: () => [mockGamepad],
+      configurable: true,
+    });
+  } else {
+    Object.defineProperty(globalThis, "navigator", {
+      value: { getGamepads: () => [mockGamepad] },
+      configurable: true,
+      writable: true,
+    });
+  }
 
-  let state = wheel.read(0);
-  assert.equal(state.gas, true);
-  assert.equal(state.drift, true);
+  try {
+    let state = wheel.read(0);
+    assert.equal(state.gas, true);
+    assert.equal(state.drift, true);
 
-  // Release gamepad buttons
-  mockGamepad.buttons[0] = { pressed: false, value: 0 };
-  mockGamepad.buttons[5] = { pressed: false, value: 0 };
+    // Release gamepad buttons
+    mockGamepad.buttons[0] = { pressed: false, value: 0 };
+    mockGamepad.buttons[5] = { pressed: false, value: 0 };
 
-  state = wheel.read(16);
-  assert.equal(state.gas, false, "Gas should be false after releasing button");
-  assert.equal(state.drift, false, "Drift should be false after releasing button");
-
-  delete globalThis.navigator.getGamepads;
+    state = wheel.read(16);
+    assert.equal(state.gas, false, "Gas should be false after releasing button");
+    assert.equal(state.drift, false, "Drift should be false after releasing button");
+  } finally {
+    if (hasGlobalNav) {
+      delete globalThis.navigator.getGamepads;
+    } else {
+      delete globalThis.navigator;
+    }
+  }
 });
 
 test("Native bridge inputs integrate with composite state", () => {

@@ -100,14 +100,13 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
             settings.apply {
                 javaScriptEnabled = true
                 domStorageEnabled = true
-                databaseEnabled = true
                 mediaPlaybackRequiresUserGesture = false
                 allowFileAccess = true
                 allowContentAccess = true
                 useWideViewPort = true
                 loadWithOverviewMode = true
                 cacheMode = WebSettings.LOAD_DEFAULT
-                mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
             }
 
             addJavascriptInterface(AndroidGameBridge(), "AndroidBridge")
@@ -186,8 +185,8 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         if (event == null || event.sensor.type != Sensor.TYPE_ACCELEROMETER) return
         if (isFinishing || isDestroyed) return
         // In landscape, event.values[1] represents sideways tilt roll
-        val roll = event.values[1] * 9.0f // convert to degrees approximately
-        val pitch = event.values[0] * 9.0f
+        val roll = InputBridgeUtils.computeRollDegrees(event.values[1])
+        val pitch = InputBridgeUtils.computePitchDegrees(event.values[0])
         webView.post {
             if (!isFinishing && !isDestroyed) {
                 webView.evaluateJavascript("window.onNativeSensorOrientation?.($roll, $pitch);", null)
@@ -290,15 +289,13 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
 
     private fun dispatchGamepadState() {
         if (isFinishing || isDestroyed) return
-        val json = """
-            {
-                "steer": $lastSteer,
-                "gas": $gasPressed,
-                "brake": $brakePressed,
-                "drift": $driftPressed,
-                "item": $itemPressed
-            }
-        """.trimIndent()
+        val json = InputBridgeUtils.formatGamepadJson(
+            steer = lastSteer,
+            gas = gasPressed,
+            brake = brakePressed,
+            drift = driftPressed,
+            item = itemPressed
+        )
         webView.post {
             if (!isFinishing && !isDestroyed) {
                 webView.evaluateJavascript("window.onNativeGamepadInput?.($json);", null)
@@ -328,8 +325,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         @JavascriptInterface
         fun vibratePattern(patternJson: String) {
             try {
-                val array = JSONArray(patternJson)
-                val timings = LongArray(array.length()) { i -> array.getLong(i) }
+                val timings = InputBridgeUtils.parseVibrationPattern(patternJson)
                 vibrator?.vibrate(
                     VibrationEffect.createWaveform(timings, -1)
                 )
@@ -344,5 +340,43 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
                 finish()
             }
         }
+    }
+}
+
+/**
+ * Utility functions for input formatting, sensor math, and bridge message serialization.
+ * Extracted for clean testability and production robustness.
+ */
+object InputBridgeUtils {
+
+    fun formatGamepadJson(
+        steer: Float,
+        gas: Boolean,
+        brake: Boolean,
+        drift: Boolean,
+        item: Boolean
+    ): String {
+        return """
+            {
+                "steer": $steer,
+                "gas": $gas,
+                "brake": $brake,
+                "drift": $drift,
+                "item": $item
+            }
+        """.trimIndent()
+    }
+
+    fun parseVibrationPattern(patternJson: String): LongArray {
+        val array = JSONArray(patternJson)
+        return LongArray(array.length()) { i -> array.getLong(i) }
+    }
+
+    fun computeRollDegrees(accelerometerY: Float): Float {
+        return accelerometerY * 9.0f
+    }
+
+    fun computePitchDegrees(accelerometerX: Float): Float {
+        return accelerometerX * 9.0f
     }
 }

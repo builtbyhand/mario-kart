@@ -1,63 +1,86 @@
 package com.mizan.mariokart
 
-import org.json.JSONArray
+import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Unit tests for native input serialization, sensor conversion, and bridge utilities.
+ * Unit tests for production bridge utilities (InputBridgeUtils).
+ * Tests actual production serialization, parsing, and sensor math.
  */
 class NativeBridgeTest {
 
     @Test
-    fun testGamepadStateJsonGeneration() {
-        val steer = -0.75f
-        val gas = true
-        val brake = false
-        val drift = true
-        val item = false
+    fun testGamepadStateJsonFormatting() {
+        val json = InputBridgeUtils.formatGamepadJson(
+            steer = -0.75f,
+            gas = true,
+            brake = false,
+            drift = true,
+            item = false
+        )
 
-        val json = """
-            {
-                "steer": $steer,
-                "gas": $gas,
-                "brake": $brake,
-                "drift": $drift,
-                "item": $item
-            }
-        """.trimIndent()
-
-        assertTrue(json.contains("\"steer\": -0.75"))
-        assertTrue(json.contains("\"gas\": true"))
-        assertTrue(json.contains("\"brake\": false"))
-        assertTrue(json.contains("\"drift\": true"))
-        assertTrue(json.contains("\"item\": false"))
+        // Parse with JSONObject to verify valid JSON syntax and exact schema
+        val parsed = JSONObject(json)
+        assertEquals(-0.75, parsed.getDouble("steer"), 0.001)
+        assertTrue(parsed.getBoolean("gas"))
+        assertFalse(parsed.getBoolean("brake"))
+        assertTrue(parsed.getBoolean("drift"))
+        assertFalse(parsed.getBoolean("item"))
     }
 
     @Test
-    fun testSensorOrientationMath() {
-        // Landscape accelerometer: value[1] is roll, multiplied by 9.0f approximately
-        val rawRoll = 2.5f
-        val calculatedRoll = rawRoll * 9.0f
-        assertEquals(22.5f, calculatedRoll, 0.001f)
+    fun testGamepadStateAllReleased() {
+        val json = InputBridgeUtils.formatGamepadJson(
+            steer = 0.0f,
+            gas = false,
+            brake = false,
+            drift = false,
+            item = false
+        )
 
-        val rawPitch = -1.2f
-        val calculatedPitch = rawPitch * 9.0f
-        assertEquals(-10.8f, calculatedPitch, 0.001f)
+        val parsed = JSONObject(json)
+        assertEquals(0.0, parsed.getDouble("steer"), 0.001)
+        assertFalse(parsed.getBoolean("gas"))
+        assertFalse(parsed.getBoolean("brake"))
+        assertFalse(parsed.getBoolean("drift"))
+        assertFalse(parsed.getBoolean("item"))
+    }
+
+    @Test
+    fun testSensorRollAndPitchMath() {
+        // Landscape accelerometer conversion (9.0f multiplier)
+        val rollZero = InputBridgeUtils.computeRollDegrees(0.0f)
+        assertEquals(0.0f, rollZero, 0.001f)
+
+        val rollRight = InputBridgeUtils.computeRollDegrees(2.5f)
+        assertEquals(22.5f, rollRight, 0.001f)
+
+        val rollLeft = InputBridgeUtils.computeRollDegrees(-3.0f)
+        assertEquals(-27.0f, rollLeft, 0.001f)
+
+        val pitchForward = InputBridgeUtils.computePitchDegrees(-1.2f)
+        assertEquals(-10.8f, pitchForward, 0.001f)
     }
 
     @Test
     fun testVibrationPatternJsonParsing() {
         val patternJson = "[0, 50, 100, 150]"
-        val array = JSONArray(patternJson)
-        val timings = LongArray(array.length()) { i -> array.getLong(i) }
+        val timings = InputBridgeUtils.parseVibrationPattern(patternJson)
 
         assertEquals(4, timings.size)
         assertEquals(0L, timings[0])
         assertEquals(50L, timings[1])
         assertEquals(100L, timings[2])
         assertEquals(150L, timings[3])
+    }
+
+    @Test
+    fun testEmptyVibrationPattern() {
+        val emptyJson = "[]"
+        val timings = InputBridgeUtils.parseVibrationPattern(emptyJson)
+        assertEquals(0, timings.size)
     }
 }
