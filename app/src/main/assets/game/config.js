@@ -1,12 +1,13 @@
 /**
  * Centralized Game Configuration and Architecture Foundation for Mario Kart Android.
  *
- * Operational Status (Phase 1 Baseline):
- * - Active / Wired: Device profiling, RENDER_CONFIG (pixelRatio clamping, antialias, powerPreference,
- *   toneMappingExposure, clearColor, fog parameters, camera FOV/clipping, shadowMap toggle).
- * - Architectural Targets (Deferred to later visual/asset phases): particleLimit (Phase 6 VFX),
- *   dynamic bloom pass activation (Phase 6), per-preset shadowMap resolution (Phase 6),
- *   and ASSET_REGISTRY external asset loading (Phases 2-4).
+ * Operational Status (Phase 2 Visual Foundation):
+ * - Active / Wired: Device profiling, WebGL capability detection, scalable QUALITY_PRESETS
+ *   (low, medium, high, ultra) with resolution scaling, soft shadow map resolution,
+ *   texture anisotropy, AgX tone mapping & exposure, and post-processing flags (Bloom + FXAA).
+ * - Centralized LIGHTING_PRESETS (stadium_night, sunset_gold, sunny_day) coordinating key light,
+ *   fill light, hemisphere ambient, fog density/color, clear color, and sky dome uniforms.
+ * - Dynamic quality switching with graceful degradation and WebGL context safety.
  */
 
 // Device profiling
@@ -15,86 +16,284 @@ export const isTv = typeof window !== "undefined" && Boolean(window.AndroidBridg
 export const isMobile = (typeof navigator !== "undefined" && /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)) || (typeof window !== "undefined" && Boolean(window.AndroidBridge));
 
 /**
+ * WebGL Capability Detection
+ * Probes hardware limits to validate preset applicability without crashing.
+ */
+export function detectCapabilities(gl) {
+  if (!gl) {
+    return {
+      webgl2: false,
+      maxTextureSize: 2048,
+      maxAnisotropy: 1,
+      floatTextures: false,
+      rendererName: "unknown",
+    };
+  }
+
+  const isWebGL2 = typeof WebGL2RenderingContext !== "undefined" && gl instanceof WebGL2RenderingContext;
+  const maxTextureSize = gl.getParameter(gl.MAX_TEXTURE_SIZE) || 2048;
+
+  const extAniso = gl.getExtension("EXT_texture_filter_anisotropic") ||
+                   gl.getExtension("WEBKIT_EXT_texture_filter_anisotropic") ||
+                   gl.getExtension("MOZ_EXT_texture_filter_anisotropic");
+  const maxAnisotropy = extAniso ? gl.getParameter(extAniso.MAX_TEXTURE_MAX_ANISOTROPY_EXT) : 1;
+
+  const floatTextures = isWebGL2 || Boolean(gl.getExtension("OES_texture_float"));
+
+  let rendererName = "unknown";
+  const debugInfo = gl.getExtension("WEBGL_debug_renderer_info");
+  if (debugInfo) {
+    rendererName = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) || "unknown";
+  }
+
+  return {
+    webgl2: isWebGL2,
+    maxTextureSize,
+    maxAnisotropy,
+    floatTextures,
+    rendererName,
+  };
+}
+
+/**
  * Quality Presets.
- * Note: Clamping pixelRatio and disabling dynamic shadow maps reduces GPU shading
- * and fillrate pressure on mobile SoCs, but does not guarantee a fixed 60 FPS across
- * all Android hardware variants (which depends on GPU capabilities, WebView rendering
- * overhead, and thermal throttling).
+ * Clamping pixelRatio, resolutionScale, and shadowMapSize balances fillrate and geometry
+ * throughput across diverse Android chipsets.
  */
 export const QUALITY_PRESETS = {
   low: {
     name: "low",
+    displayName: "Low (Performance)",
     maxPixelRatio: 1.0,
+    resolutionScale: 0.85,
     shadows: false,
-    shadowMapSize: 512,       // Architectural target: to be wired into directional light in VFX phase
+    shadowMapSize: 512,
+    shadowMapType: "basic",
     antialias: false,
-    useBloom: false,          // Architectural target: to be wired to post-processing pipeline
-    particleLimit: 300,       // Architectural target: to be wired to race-effects pool
-    anisotropy: 1,            // Architectural target: to be wired to texture loader
+    useBloom: false,
+    useFXAA: false,
+    particleLimit: 300,
+    anisotropy: 1,
+    toneMapping: "agx",
+    toneMappingExposure: 1.10,
   },
   medium: {
     name: "medium",
+    displayName: "Medium (Balanced Mobile/TV)",
     maxPixelRatio: 1.3,
-    shadows: false,
+    resolutionScale: 1.0,
+    shadows: true,
     shadowMapSize: 1024,
+    shadowMapType: "pcfsoft",
     antialias: true,
     useBloom: false,
+    useFXAA: false,
     particleLimit: 600,
     anisotropy: 4,
+    toneMapping: "agx",
+    toneMappingExposure: 1.15,
   },
   high: {
     name: "high",
+    displayName: "High (High Definition)",
     maxPixelRatio: 1.6,
+    resolutionScale: 1.0,
     shadows: true,
     shadowMapSize: 1024,
+    shadowMapType: "pcfsoft",
     antialias: true,
-    useBloom: false,
+    useBloom: true,
+    useFXAA: true,
     particleLimit: 1200,
     anisotropy: 8,
+    toneMapping: "agx",
+    toneMappingExposure: 1.18,
   },
   ultra: {
     name: "ultra",
+    displayName: "Ultra (Maximum Quality)",
     maxPixelRatio: 2.0,
+    resolutionScale: 1.0,
     shadows: true,
     shadowMapSize: 2048,
+    shadowMapType: "pcfsoft",
     antialias: true,
     useBloom: true,
+    useFXAA: true,
     particleLimit: 1800,
     anisotropy: 16,
+    toneMapping: "agx",
+    toneMappingExposure: 1.20,
   },
 };
 
 /**
- * Determine default quality preset based on device environment.
- * Mobile phones and Android TV default to medium to prioritize rendering stability.
+ * Atmospheric & Environmental Lighting Presets
+ * Reusable lighting setups for stadium night, warm sunset gold, and bright sunny daytime.
+ */
+export const LIGHTING_PRESETS = {
+  stadium_night: {
+    name: "stadium_night",
+    displayName: "Stadium Night",
+    keyColor: "#fff3dd",
+    keyIntensity: 1.8,
+    fillColor: "#77baff",
+    fillIntensity: 0.35,
+    hemiSkyColor: "#a5c8f4",
+    hemiGroundColor: "#34384a",
+    hemiIntensity: 0.32,
+    fogColor: "#111c30",
+    fogDensity: 0.0011,
+    clearColor: "#081325",
+    skyTop: [0.002, 0.004, 0.012],
+    skyBottom: [0.008, 0.018, 0.030],
+    cloudColor: [0.030, 0.036, 0.045],
+    beamIntensity: 0.065,
+    beamColor: [0.55, 0.8, 1.0],
+  },
+  sunset_gold: {
+    name: "sunset_gold",
+    displayName: "Sunset Gold",
+    keyColor: "#ffaa55",
+    keyIntensity: 2.1,
+    fillColor: "#9a52cc",
+    fillIntensity: 0.45,
+    hemiSkyColor: "#ffb88c",
+    hemiGroundColor: "#3b1e2e",
+    hemiIntensity: 0.45,
+    fogColor: "#381a2b",
+    fogDensity: 0.0009,
+    clearColor: "#220d1c",
+    skyTop: [0.15, 0.04, 0.16],
+    skyBottom: [0.85, 0.38, 0.14],
+    cloudColor: [0.95, 0.52, 0.22],
+    beamIntensity: 0.04,
+    beamColor: [1.0, 0.7, 0.4],
+  },
+  sunny_day: {
+    name: "sunny_day",
+    displayName: "Sunny Day",
+    keyColor: "#fffbf2",
+    keyIntensity: 2.3,
+    fillColor: "#7ec8f8",
+    fillIntensity: 0.55,
+    hemiSkyColor: "#9be2ff",
+    hemiGroundColor: "#3e5234",
+    hemiIntensity: 0.55,
+    fogColor: "#76bbe8",
+    fogDensity: 0.0006,
+    clearColor: "#58a5dc",
+    skyTop: [0.12, 0.46, 0.86],
+    skyBottom: [0.55, 0.82, 0.98],
+    cloudColor: [0.98, 0.98, 1.0],
+    beamIntensity: 0.01,
+    beamColor: [0.8, 0.95, 1.0],
+  },
+};
+
+/**
+ * Resolve quality preset from URL query override or device environment.
  */
 export function getDefaultQualityPreset() {
+  if (typeof location !== "undefined") {
+    const param = new URLSearchParams(location.search).get("quality")?.toLowerCase();
+    if (param && QUALITY_PRESETS[param]) {
+      return QUALITY_PRESETS[param];
+    }
+  }
   if (isTv) return QUALITY_PRESETS.medium;
   if (isMobile) return QUALITY_PRESETS.medium;
   return QUALITY_PRESETS.high;
 }
 
-export const activeQuality = getDefaultQualityPreset();
+/**
+ * Resolve lighting preset from URL query override or default to stadium_night.
+ */
+export function getDefaultLightingPreset() {
+  if (typeof location !== "undefined") {
+    const param = new URLSearchParams(location.search).get("lighting")?.toLowerCase();
+    if (param) {
+      if (LIGHTING_PRESETS[param]) return LIGHTING_PRESETS[param];
+      if (param === "night") return LIGHTING_PRESETS.stadium_night;
+      if (param === "sunset") return LIGHTING_PRESETS.sunset_gold;
+      if (param === "day") return LIGHTING_PRESETS.sunny_day;
+    }
+  }
+  return LIGHTING_PRESETS.stadium_night;
+}
 
-// Centralized Renderer Configuration (Wired & Operational in Phase 1)
+export const activeQuality = { ...getDefaultQualityPreset() };
+export const activeLightingPreset = { ...getDefaultLightingPreset() };
+
+/**
+ * Dynamically updates the active quality preset and reconfigures active engine subsystems.
+ */
+export function setQualityPreset(presetKey, engine = {}) {
+  const target = QUALITY_PRESETS[presetKey?.toLowerCase()];
+  if (!target) {
+    logger.warn(`Unknown quality preset "${presetKey}". Ignoring.`);
+    return activeQuality;
+  }
+  Object.assign(activeQuality, target);
+
+  const { renderer, scene, keyLight, composer, atmosphere } = engine;
+
+  if (renderer) {
+    const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
+    const pixelRatio = Math.min(dpr, activeQuality.maxPixelRatio);
+    renderer.setPixelRatio(pixelRatio);
+
+    if (typeof innerWidth !== "undefined" && typeof innerHeight !== "undefined") {
+      const width = Math.floor(innerWidth * activeQuality.resolutionScale);
+      const height = Math.floor(innerHeight * activeQuality.resolutionScale);
+      renderer.setSize(width, height, false);
+      if (composer) composer.setSize(width, height);
+    }
+
+    renderer.toneMappingExposure = activeQuality.toneMappingExposure;
+
+    if (activeQuality.shadows) {
+      renderer.shadowMap.enabled = true;
+      if (keyLight) {
+        keyLight.castShadow = true;
+        keyLight.shadow.mapSize.set(activeQuality.shadowMapSize, activeQuality.shadowMapSize);
+        if (keyLight.shadow.map) {
+          keyLight.shadow.map.dispose();
+          keyLight.shadow.map = null;
+        }
+      }
+    } else {
+      renderer.shadowMap.enabled = false;
+      if (keyLight) keyLight.castShadow = false;
+    }
+  }
+
+  logger.info(`Quality preset switched to: ${activeQuality.displayName}`);
+  return activeQuality;
+}
+
+// Centralized Renderer Configuration (Wired & Operational in Phase 2)
 export const RENDER_CONFIG = {
   get pixelRatio() {
     const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
     return Math.min(dpr, activeQuality.maxPixelRatio);
   },
+  get resolutionScale() {
+    return activeQuality.resolutionScale;
+  },
   antialias: activeQuality.antialias,
   powerPreference: "high-performance",
-  toneMappingExposure: 1.05,
+  toneMappingExposure: activeQuality.toneMappingExposure,
   fog: {
-    color: "#111c30",
-    density: 0.0011,
+    color: activeLightingPreset.fogColor,
+    density: activeLightingPreset.fogDensity,
   },
   camera: {
     fov: 59,
     near: 0.2,
     far: 1100,
   },
-  clearColor: "#081325",
+  clearColor: activeLightingPreset.clearColor,
 };
 
 // Centralized Input Configuration (Baseline values)

@@ -60,7 +60,17 @@ import {
 } from "./models.js";
 import { buildWorld, canvasTexture } from "./world.js";
 import { ITEM_ICONS, portrait, loadSourcePortraits } from "./icons.js";
-import { RENDER_CONFIG, activeQuality, logger, isTv } from "./config.js";
+import {
+  RENDER_CONFIG,
+  activeQuality,
+  activeLightingPreset,
+  LIGHTING_PRESETS,
+  setQualityPreset,
+  detectCapabilities,
+  logger,
+  isTv,
+} from "./config.js";
+import { FXAAPass } from "./vendor/three-examples/postprocessing/FXAAPass.js";
 
 const $ = (id) => document.getElementById(id),
   canvas = $("game"),
@@ -95,18 +105,46 @@ const renderer = new THREE.WebGLRenderer({
   antialias: RENDER_CONFIG.antialias,
   powerPreference: RENDER_CONFIG.powerPreference,
 });
+renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.setPixelRatio(RENDER_CONFIG.pixelRatio);
-renderer.setSize(innerWidth, innerHeight);
+const initialWidth = Math.floor(innerWidth * (activeQuality.resolutionScale || 1.0));
+const initialHeight = Math.floor(innerHeight * (activeQuality.resolutionScale || 1.0));
+renderer.setSize(initialWidth, initialHeight, false);
+canvas.style.width = innerWidth + "px";
+canvas.style.height = innerHeight + "px";
+
 renderer.shadowMap.enabled = activeQuality.shadows;
 if (renderer.shadowMap.enabled) {
-  renderer.shadowMap.type = THREE.PCFShadowMap;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 }
-renderer.toneMapping = THREE.NeutralToneMapping;
-renderer.toneMappingExposure = RENDER_CONFIG.toneMappingExposure;
+renderer.toneMapping = THREE.AgXToneMapping;
+renderer.toneMappingExposure = activeQuality.toneMappingExposure || RENDER_CONFIG.toneMappingExposure;
+
+const capabilities = detectCapabilities(renderer.getContext());
+logger.info("WebGL Capabilities:", capabilities);
+
+let isContextLost = false;
+canvas.addEventListener("webglcontextlost", (e) => {
+  e.preventDefault();
+  isContextLost = true;
+  logger.warn("WebGL context lost! Rendering paused.");
+});
+canvas.addEventListener("webglcontextrestored", () => {
+  logger.info("WebGL context restored! Restoring renderer.");
+  isContextLost = false;
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.AgXToneMapping;
+  renderer.toneMappingExposure = activeQuality.toneMappingExposure;
+  if (renderer.shadowMap.enabled) {
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  }
+});
+
 const scene = new THREE.Scene();
-const effects=raceEffects(scene,seeded(8703));
-scene.background = new THREE.Color(RENDER_CONFIG.clearColor);
-scene.fog = new THREE.FogExp2(RENDER_CONFIG.fog.color, RENDER_CONFIG.fog.density);
+const effects = raceEffects(scene, seeded(8703));
+scene.background = new THREE.Color(activeLightingPreset.clearColor);
+scene.fog = new THREE.FogExp2(activeLightingPreset.fogColor, activeLightingPreset.fogDensity);
+
 const camera = new THREE.PerspectiveCamera(
   RENDER_CONFIG.camera.fov,
   innerWidth / innerHeight,
@@ -119,26 +157,35 @@ scene.environment = pmrem.fromScene(room, 0.04).texture;
 scene.environmentIntensity = 0.28;
 room.dispose();
 pmrem.dispose();
-scene.add(new THREE.HemisphereLight("#a5c8f4", "#34384a", 0.29));
-const key = new THREE.DirectionalLight("#fff3dd", 1.7);
+
+const hemi = new THREE.HemisphereLight(
+  activeLightingPreset.hemiSkyColor,
+  activeLightingPreset.hemiGroundColor,
+  activeLightingPreset.hemiIntensity,
+);
+scene.add(hemi);
+
+const key = new THREE.DirectionalLight(activeLightingPreset.keyColor, activeLightingPreset.keyIntensity);
 if (renderer.shadowMap.enabled) {
   key.castShadow = true;
-  key.shadow.mapSize.set(1024, 1024);
+  key.shadow.mapSize.set(activeQuality.shadowMapSize, activeQuality.shadowMapSize);
   Object.assign(key.shadow.camera, {
     left: -32,
     right: 32,
     top: 32,
     bottom: -32,
     near: 1,
-    far: 150,
+    far: 160,
   });
-  key.shadow.bias = -0.00035;
+  key.shadow.bias = -0.0002;
   key.shadow.normalBias = 0.025;
 }
 scene.add(key, key.target);
-const fill = new THREE.DirectionalLight("#77baff", 0.32);
+
+const fill = new THREE.DirectionalLight(activeLightingPreset.fillColor, activeLightingPreset.fillIntensity);
 fill.position.set(-80, 70, 20);
 scene.add(fill);
+
 const trackLights = [-2, -1, 0, 1, 2].map((side) => {
   const light = new THREE.SpotLight(
     side < 0 ? "#c0dbff" : "#fff0d9",
@@ -151,19 +198,24 @@ const trackLights = [-2, -1, 0, 1, 2].map((side) => {
   scene.add(light, light.target);
   return light;
 });
+
 let composer = null;
 let ambientOcclusion = null;
-const usePostprocessing = new URLSearchParams(location.search).get('post') === '1';
-if (usePostprocessing) {
-  const renderTarget = new THREE.WebGLRenderTarget(innerWidth, innerHeight, {
+let fxaaPass = null;
+const forcePost = new URLSearchParams(location.search).get("post") === "1";
+const shouldPostprocess = forcePost || activeQuality.useBloom || activeQuality.useFXAA;
+
+if (shouldPostprocess && capabilities.floatTextures) {
+  const renderTarget = new THREE.WebGLRenderTarget(initialWidth, initialHeight, {
     type: THREE.HalfFloatType,
-    samples: 4,
+    samples: activeQuality.antialias ? 4 : 0,
   });
   composer = new EffectComposer(renderer, renderTarget);
   composer.addPass(new RenderPass(scene, camera));
-  const enableGTAO = new URLSearchParams(location.search).get('gtao') === '1';
+
+  const enableGTAO = new URLSearchParams(location.search).get("gtao") === "1";
   if (enableGTAO) {
-    ambientOcclusion = new GTAOPass(scene, camera, innerWidth, innerHeight);
+    ambientOcclusion = new GTAOPass(scene, camera, initialWidth, initialHeight);
     ambientOcclusion.updateGtaoMaterial({
       radius: 2.2,
       thickness: 1.1,
@@ -179,13 +231,23 @@ if (usePostprocessing) {
     ambientOcclusion.blendIntensity = 0.6;
     composer.addPass(ambientOcclusion);
   }
-  const bloom = new UnrealBloomPass(
-    new THREE.Vector2(innerWidth, innerHeight),
-    0.18,
-    0.4,
-    2.1,
-  );
-  composer.addPass(bloom);
+
+  if (activeQuality.useBloom || forcePost) {
+    const bloom = new UnrealBloomPass(
+      new THREE.Vector2(initialWidth, initialHeight),
+      0.22,
+      0.45,
+      1.95,
+    );
+    composer.addPass(bloom);
+  }
+
+  if (activeQuality.useFXAA) {
+    fxaaPass = new FXAAPass();
+    fxaaPass.setSize(initialWidth, initialHeight);
+    composer.addPass(fxaaPass);
+  }
+
   const outputPass = new OutputPass();
   outputPass.material.fragmentShader = outputPass.material.fragmentShader.replace(
     "gl_FragColor = texture2D( tDiffuse, vUv );",
@@ -216,7 +278,7 @@ if (world.source) {
 // The source stadium has 16:9 panels; generated scenery uses 4:3 panels.
 const broadcast = stadiumBroadcast(renderer, scene, world.screenMaterials,
   world.source ? {width:768,height:432} : undefined);
-addAtmosphere(scene);
+const atmosphere = addAtmosphere(scene, activeLightingPreset);
 // Consolidate static scenery by material. No dynamic light/firework meshes are
 // included; source object transforms are baked, preserving exact geometry.
 const twoSidedBoards = [];
@@ -1038,6 +1100,7 @@ let previousDrawTime = 0;
 let initializedCamera = false;
 let lastFlightCamera = null, landingCamera = null;
 function draw(dt, now) {
+  if (isContextLost) return;
   const p = race.player,
     time = race.time;
   world.update(
@@ -1477,6 +1540,7 @@ function drawMap() {
 }
 function frame(now) {
   requestAnimationFrame(frame);
+  if (isContextLost) return;
   const dt = Math.max(0, Math.min((now - lastFrame) / 1000, 0.1));
   lastFrame = now;
   if (!debug.freeze && !paused) {
@@ -1688,13 +1752,45 @@ constructRace();
 syncPickupPools();
 audio.prepare();
 requestAnimationFrame(frame);
+if (new URLSearchParams(location.search).get("autoplay") === "1") {
+  setTimeout(begin, 100);
+}
 window.addEventListener("resize", () => {
-  renderer.setPixelRatio(RENDER_CONFIG.pixelRatio);
-  renderer.setSize(innerWidth, innerHeight);
-  if (composer) composer.setSize(innerWidth, innerHeight);
+  const width = Math.floor(innerWidth * (activeQuality.resolutionScale || 1.0));
+  const height = Math.floor(innerHeight * (activeQuality.resolutionScale || 1.0));
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
+  renderer.setPixelRatio(RENDER_CONFIG.pixelRatio);
+  renderer.setSize(width, height, false);
+  canvas.style.width = innerWidth + "px";
+  canvas.style.height = innerHeight + "px";
+  if (composer) {
+    composer.setSize(width, height);
+    if (fxaaPass) fxaaPass.setSize(width, height);
+  }
 });
+
+// Runtime visual debugging and verification helpers
+window.__setQualityPreset = (presetName) => {
+  return setQualityPreset(presetName, { renderer, scene, keyLight: key, composer, atmosphere });
+};
+window.__setLightingPreset = (presetName) => {
+  const p = LIGHTING_PRESETS[presetName];
+  if (!p) return;
+  Object.assign(activeLightingPreset, p);
+  key.color.set(p.keyColor);
+  key.intensity = p.keyIntensity;
+  fill.color.set(p.fillColor);
+  fill.intensity = p.fillIntensity;
+  hemi.color.set(p.hemiSkyColor);
+  hemi.groundColor.set(p.hemiGroundColor);
+  hemi.intensity = p.hemiIntensity;
+  scene.fog.color.set(p.fogColor);
+  scene.fog.density = p.fogDensity;
+  scene.background.set(p.clearColor);
+  if (atmosphere?.updatePreset) atmosphere.updatePreset(p);
+  return activeLightingPreset;
+};
 
 function toggleFullscreen() {
   if (document.fullscreenElement) document.exitFullscreen();

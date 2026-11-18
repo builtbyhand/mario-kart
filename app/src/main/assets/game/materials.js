@@ -1,8 +1,101 @@
 import * as THREE from "three";
-// Deterministic, local pavement maps. No remote asset request or random per frame.
-export function pavementMaps() {
-  const size = 512,
-    height = new Float32Array(size * size);
+import { activeQuality } from "./config.js";
+
+/**
+ * Texture and Resource Cache
+ * Tracks GPU textures and materials to prevent memory leaks and support clean WebGL context restoration.
+ */
+export class TextureCache {
+  constructor() {
+    this.textures = new Map();
+  }
+
+  get(id, factory) {
+    if (this.textures.has(id)) {
+      return this.textures.get(id);
+    }
+    if (typeof factory === "function") {
+      const tex = factory();
+      if (tex) this.textures.set(id, tex);
+      return tex;
+    }
+    return null;
+  }
+
+  register(id, texture) {
+    if (this.textures.has(id) && this.textures.get(id) !== texture) {
+      this.textures.get(id).dispose();
+    }
+    this.textures.set(id, texture);
+    return texture;
+  }
+
+  disposeAll() {
+    for (const tex of this.textures.values()) {
+      if (tex && typeof tex.dispose === "function") {
+        tex.dispose();
+      }
+    }
+    this.textures.clear();
+  }
+}
+
+export class MaterialCache {
+  constructor() {
+    this.materials = new Map();
+  }
+
+  get(id, factory) {
+    if (this.materials.has(id)) {
+      return this.materials.get(id);
+    }
+    if (typeof factory === "function") {
+      const mat = factory();
+      if (mat) this.materials.set(id, mat);
+      return mat;
+    }
+    return null;
+  }
+
+  register(id, material) {
+    if (this.materials.has(id) && this.materials.get(id) !== material) {
+      this.materials.get(id).dispose();
+    }
+    this.materials.set(id, material);
+    return material;
+  }
+
+  disposeAll() {
+    for (const mat of this.materials.values()) {
+      if (mat && typeof mat.dispose === "function") {
+        mat.dispose();
+      }
+    }
+    this.materials.clear();
+  }
+}
+
+export const textureCache = new TextureCache();
+export const materialCache = new MaterialCache();
+
+/**
+ * Deterministic, local pavement maps with accurate sRGB color-space configuration.
+ * Enhanced for crisp surface micro-details and proper specular response.
+ */
+export function pavementMaps(options = {}) {
+  const size = options.size || 512;
+  const anisotropy = options.anisotropy || activeQuality?.anisotropy || 8;
+  const cacheKey = `pavement_${size}_${anisotropy}`;
+
+  if (textureCache.textures.has(cacheKey + "_diffuse")) {
+    return {
+      map: textureCache.textures.get(cacheKey + "_diffuse"),
+      normalMap: textureCache.textures.get(cacheKey + "_normal"),
+      roughnessMap: textureCache.textures.get(cacheKey + "_roughness"),
+    };
+  }
+
+  const height = new Float32Array(size * size);
   let seed = 28971;
   const random = () => {
     seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
@@ -19,7 +112,6 @@ export function pavementMaps() {
     ni = nc.createImageData(size, size),
     ri = rc.createImageData(size, size);
   // Periodic cellular aggregate: neighbouring pixels belong to the same stone.
-  // Independent white noise looked like video grain rather than physical asphalt.
   const cells = 256,
     cell = size / cells,
     stones = Array.from({ length: cells * cells }, () => ({
@@ -88,17 +180,29 @@ export function pavementMaps() {
   dc.putImageData(di, 0, 0);
   nc.putImageData(ni, 0, 0);
   rc.putImageData(ri, 0, 0);
+
   const map = new THREE.CanvasTexture(diffuse),
     normalMap = new THREE.CanvasTexture(normal),
     roughnessMap = new THREE.CanvasTexture(rough);
+
+  // Set explicit color spaces for physically accurate rendering
   map.colorSpace = THREE.SRGBColorSpace;
+  normalMap.colorSpace = THREE.NoColorSpace;
+  roughnessMap.colorSpace = THREE.NoColorSpace;
+
   for (const t of [map, normalMap, roughnessMap]) {
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
-    t.anisotropy = 16;
+    t.anisotropy = anisotropy;
     t.repeat.set(3, 1.5);
   }
+
+  textureCache.register(cacheKey + "_diffuse", map);
+  textureCache.register(cacheKey + "_normal", normalMap);
+  textureCache.register(cacheKey + "_roughness", roughnessMap);
+
   return { map, normalMap, roughnessMap };
 }
+
 export function roadMaterial(maps, color = "#838482", paint = false) {
   const mat = new THREE.MeshStandardMaterial({
     color,
@@ -121,5 +225,89 @@ export function roadMaterial(maps, color = "#838482", paint = false) {
   `,
     );
   };
+  return mat;
+}
+
+/**
+ * PBR Material Pipeline
+ * Stylized automotive, metallic, rubber, and racetrack barrier materials inspired by Mario Kart Tour.
+ */
+
+export function createKartPaintMaterial(options = {}) {
+  const {
+    color = "#e52521",
+    roughness = 0.32,
+    metalness = 0.25,
+    clearcoat = 0.8,
+    clearcoatRoughness = 0.12,
+  } = options;
+
+  return new THREE.MeshPhysicalMaterial({
+    color,
+    roughness,
+    metalness,
+    clearcoat,
+    clearcoatRoughness,
+    reflectivity: 0.85,
+  });
+}
+
+export function createKartMetalMaterial(options = {}) {
+  const {
+    color = "#d6dbe0",
+    roughness = 0.28,
+    metalness = 0.88,
+  } = options;
+
+  return new THREE.MeshStandardMaterial({
+    color,
+    roughness,
+    metalness,
+  });
+}
+
+export function createKartRubberMaterial(options = {}) {
+  const {
+    color = "#191c20",
+    roughness = 0.82,
+    metalness = 0.04,
+  } = options;
+
+  return new THREE.MeshStandardMaterial({
+    color,
+    roughness,
+    metalness,
+  });
+}
+
+export function createBarrierMaterial(options = {}) {
+  const {
+    primaryColor = "#e02626",
+    secondaryColor = "#ffffff",
+    roughness = 0.45,
+    metalness = 0.15,
+  } = options;
+
+  return new THREE.MeshStandardMaterial({
+    color: primaryColor,
+    roughness,
+    metalness,
+  });
+}
+
+export function createGrassMaterial(options = {}) {
+  const {
+    color = "#3d852a",
+    roughness = 0.92,
+    metalness = 0.0,
+    map = null,
+  } = options;
+
+  const mat = new THREE.MeshStandardMaterial({
+    color,
+    roughness,
+    metalness,
+  });
+  if (map) mat.map = map;
   return mat;
 }
