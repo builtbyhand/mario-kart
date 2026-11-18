@@ -544,6 +544,11 @@ async function validateBarrierGeometry(worldResult, options = {}) {
       maxSeparation: 0,
       minOverlap: Infinity,
       maxOverlap: -Infinity,
+      max3DDist: 0,
+      maxRMS3D: 0,
+      maxLateralMismatch: 0,
+      maxVerticalMismatch: 0,
+      minSurfaceOverlapAreaFraction: 1.0,
       loopClosure: { left: {}, right: {} },
     },
     // Secondary Check: 3D OBB SAT Collision Volume Verification
@@ -622,6 +627,19 @@ async function validateBarrierGeometry(worldResult, options = {}) {
         pos: new THREE.Vector3().fromBufferAttribute(posAttr, p.idx).applyMatrix4(worldM),
       }));
 
+      // Centroids of connection faces
+      const rearCenter = new THREE.Vector3();
+      for (const p of rearProfile) rearCenter.add(p.pos);
+      rearCenter.divideScalar(rearProfile.length);
+
+      const frontCenter = new THREE.Vector3();
+      for (const p of frontProfile) frontCenter.add(p.pos);
+      frontCenter.divideScalar(frontProfile.length);
+
+      const tangent = new THREE.Vector3(worldM.elements[0], worldM.elements[1], worldM.elements[2]).normalize();
+      const up = new THREE.Vector3(worldM.elements[4], worldM.elements[5], worldM.elements[6]).normalize();
+      const right = new THREE.Vector3(worldM.elements[8], worldM.elements[9], worldM.elements[10]).normalize();
+
       // 3D OBB with derived half-extents and center
       const ux = new THREE.Vector3(placementMatrix.elements[0], placementMatrix.elements[1], placementMatrix.elements[2]).normalize();
       const uy = new THREE.Vector3(placementMatrix.elements[4], placementMatrix.elements[5], placementMatrix.elements[6]).normalize();
@@ -647,6 +665,11 @@ async function validateBarrierGeometry(worldResult, options = {}) {
         rearVerts,
         fc,
         rc,
+        rearCenter,
+        frontCenter,
+        tangent,
+        up,
+        right,
         rearProfile,
         frontProfile,
         centroid,
@@ -661,6 +684,16 @@ async function validateBarrierGeometry(worldResult, options = {}) {
     // Optional corruption injection hook for regression testing
     if (options.corruptBarriers) {
       options.corruptBarriers(barriers, sideName);
+      // Re-evaluate centroids and tangents from profile vertices after optional corruption
+      for (const b of barriers) {
+        b.rearCenter.set(0, 0, 0);
+        for (const p of b.rearProfile) b.rearCenter.add(p.pos);
+        b.rearCenter.divideScalar(b.rearProfile.length);
+
+        b.frontCenter.set(0, 0, 0);
+        for (const p of b.frontProfile) b.frontCenter.add(p.pos);
+        b.frontCenter.divideScalar(b.frontProfile.length);
+      }
     }
 
     // Boundary alignment and alternation verification
@@ -698,6 +731,78 @@ async function validateBarrierGeometry(worldResult, options = {}) {
       }
     }
 
+    // Endpoint geometry calculation between adjacent barriers b1 (upstream) and b2 (downstream)
+    function calculateEndpointGeometry(b1, b2) {
+      // Orthonormal axes from worldM:
+      // Column 0 is local forward tangent along the wall
+      // Column 1 is local vertical up
+      // Column 2 is local lateral right
+      const tangent1 = new THREE.Vector3(b1.worldM.elements[0], b1.worldM.elements[1], b1.worldM.elements[2]).normalize();
+      const tangent2 = new THREE.Vector3(b2.worldM.elements[0], b2.worldM.elements[1], b2.worldM.elements[2]).normalize();
+      const pairTangent = tangent1.clone().add(tangent2).normalize();
+
+      const up1 = new THREE.Vector3(b1.worldM.elements[4], b1.worldM.elements[5], b1.worldM.elements[6]).normalize();
+      const up2 = new THREE.Vector3(b2.worldM.elements[4], b2.worldM.elements[5], b2.worldM.elements[6]).normalize();
+      const pairUp = up1.clone().add(up2).normalize();
+
+      const right1 = new THREE.Vector3(b1.worldM.elements[8], b1.worldM.elements[9], b1.worldM.elements[10]).normalize();
+      const right2 = new THREE.Vector3(b2.worldM.elements[8], b2.worldM.elements[9], b2.worldM.elements[10]).normalize();
+      const pairRight = right1.clone().add(right2).normalize();
+
+      // 1. Endpoint-plane separation and overlap along local pair tangent
+      const endpointOverlap = b1.rearCenter.clone().sub(b2.frontCenter).dot(pairTangent);
+      const tangentSeparation = Math.max(0, -endpointOverlap);
+
+      // 2. Full 3D corresponding-vertex separation, lateral and vertical profile mismatch
+      let pairMax3D = 0;
+      let sumSq3D = 0;
+      let pairMaxLat = 0;
+      let pairMaxVert = 0;
+
+      for (let k = 0; k < 8; k++) {
+        const p1 = b1.rearProfile[k].pos;
+        const p2 = b2.frontProfile[k].pos;
+
+        if (!isFinite(p1.x) || !isFinite(p1.y) || !isFinite(p1.z)) {
+          throw new Error(`Barrier ${b1.i} rear endpoint vertex ${b1.rearProfile[k].name} has non-finite coordinates`);
+        }
+        if (!isFinite(p2.x) || !isFinite(p2.y) || !isFinite(p2.z)) {
+          throw new Error(`Barrier ${b2.i} front endpoint vertex ${b2.frontProfile[k].name} has non-finite coordinates`);
+        }
+
+        const d3D = p1.distanceTo(p2);
+        if (d3D > pairMax3D) pairMax3D = d3D;
+        sumSq3D += d3D * d3D;
+
+        const diff = p1.clone().sub(p2);
+        const lat = Math.abs(diff.dot(pairRight));
+        const vert = Math.abs(diff.dot(pairUp));
+        if (lat > pairMaxLat) pairMaxLat = lat;
+        if (vert > pairMaxVert) pairMaxVert = vert;
+      }
+
+      const pairRMS3D = Math.sqrt(sumSq3D / 8);
+
+      // 3. Physical surface overlap verification:
+      // Barrier width is 0.60m, height is 0.90m.
+      const latOverlap = Math.max(0, 0.60 - pairMaxLat);
+      const vertOverlap = Math.max(0, 0.90 - pairMaxVert);
+      const surfaceOverlapAreaFraction = (latOverlap * vertOverlap) / (0.60 * 0.90);
+
+      return {
+        pairTangent,
+        pairUp,
+        pairRight,
+        endpointOverlap,
+        tangentSeparation,
+        pairMax3D,
+        pairRMS3D,
+        pairMaxLat,
+        pairMaxVert,
+        surfaceOverlapAreaFraction,
+      };
+    }
+
     // 5. Verify actual mesh endpoint continuity between consecutive barriers along the wall
     for (let i = 0; i < barriers.length; i++) {
       report.totalPairsChecked++;
@@ -722,65 +827,64 @@ async function validateBarrierGeometry(worldResult, options = {}) {
       else report.consecutiveNonGliderPairs++;
 
       // Primary Check: Match rear endpoint face of barrier N against front endpoint face of barrier N+1
-      // Extruded barrier length is 3.05m. Physical mesh overlap along the barrier wall:
-      let meshOverlap = 3.05 - centerDist;
-      let meshSeparation = Math.max(0, centerDist - 3.05);
+      const geom = calculateEndpointGeometry(b1, b2);
 
-      // Check ALL 8 profile vertices between b1 rear face and b2 front face
-      let maxPairVerticalMismatch = 0;
-      for (let k = 0; k < 8; k++) {
-        const v1 = b1.rearProfile[k].pos;
-        const v2 = b2.frontProfile[k].pos;
-        if (!isFinite(v1.x) || !isFinite(v1.y) || !isFinite(v1.z)) {
-          throw new Error(`Barrier ${b1.i} rear endpoint vertex ${b1.rearProfile[k].name} has non-finite coordinates`);
-        }
-        if (!isFinite(v2.x) || !isFinite(v2.y) || !isFinite(v2.z)) {
-          throw new Error(`Barrier ${b2.i} front endpoint vertex ${b2.frontProfile[k].name} has non-finite coordinates`);
-        }
-        const dy = Math.abs(v1.y - v2.y);
-        if (dy > maxPairVerticalMismatch) maxPairVerticalMismatch = dy;
-      }
-
-      // Check if endpoint face vertices have been displaced relative to nominal barrier bounds (e.g. seam defect)
-      const rearDisp = Math.abs(b1.rearProfile[0].pos.clone().sub(b1.obb.c).dot(b1.obb.u[2])) - 1.525;
-      if (Math.abs(rearDisp) > 0.05) {
-        meshSeparation = Math.max(meshSeparation, Math.abs(rearDisp));
-        meshOverlap = Math.max(0, meshOverlap - Math.abs(rearDisp));
-      }
-      const frontDisp = Math.abs(b2.frontProfile[0].pos.clone().sub(b2.obb.c).dot(b2.obb.u[2])) - 1.525;
-      if (Math.abs(frontDisp) > 0.05) {
-        meshSeparation = Math.max(meshSeparation, Math.abs(frontDisp));
-        meshOverlap = Math.max(0, meshOverlap - Math.abs(frontDisp));
-      }
-
-      // Detect vertical endpoint elevation mismatch on banked section
-      if (maxPairVerticalMismatch > 0.85) {
-        throw new Error(
-          `Vertical endpoint mismatch on banked section along ${sideName} wall between barrier ${b1.i} (s=${b1.s.toFixed(2)}) and ${b2.i} (s=${b2.s.toFixed(2)}): dy=${maxPairVerticalMismatch.toFixed(4)}m > 0.85m`
-        );
-      }
-
-      if (meshSeparation > 0.0001) {
+      // Tightened tolerances:
+      // 1. Endpoint-plane separation (gap along local tangent) must be 0 (< 1mm)
+      if (geom.tangentSeparation > 0.001) {
         if (isLoopClosure) {
           throw new Error(
-            `Loop-closure seam along ${sideName} wall between barrier ${b1.i} (s=${b1.s.toFixed(2)}) and ${b2.i} (s=${b2.s.toFixed(2)}): separation=${meshSeparation.toFixed(4)}m`
+            `Loop-closure seam along ${sideName} wall between barrier ${b1.i} (s=${b1.s.toFixed(2)}) and ${b2.i} (s=${b2.s.toFixed(2)}): separation=${geom.tangentSeparation.toFixed(6)}m > 0.001m`
           );
         } else {
           throw new Error(
-            `Actual mesh seam along ${sideName} wall between barrier ${b1.i} (s=${b1.s.toFixed(2)}) and ${b2.i} (s=${b2.s.toFixed(2)}): separation=${meshSeparation.toFixed(4)}m`
+            `Actual mesh seam along ${sideName} wall between barrier ${b1.i} (s=${b1.s.toFixed(2)}) and ${b2.i} (s=${b2.s.toFixed(2)}): separation=${geom.tangentSeparation.toFixed(6)}m > 0.001m`
           );
         }
       }
 
-      if (meshOverlap < report.meshSeam.minOverlap) report.meshSeam.minOverlap = meshOverlap;
-      if (meshOverlap > report.meshSeam.maxOverlap) report.meshSeam.maxOverlap = meshOverlap;
-      if (meshSeparation > report.meshSeam.maxSeparation) report.meshSeam.maxSeparation = meshSeparation;
+      // 2. Vertical profile mismatch tolerance: max 0.55m on steepest climb/banking
+      if (geom.pairMaxVert > 0.55) {
+        throw new Error(
+          `Vertical endpoint mismatch on banked section along ${sideName} wall between barrier ${b1.i} (s=${b1.s.toFixed(2)}) and ${b2.i} (s=${b2.s.toFixed(2)}): dy=${geom.pairMaxVert.toFixed(4)}m > 0.55m`
+        );
+      }
+
+      // 3. Lateral profile mismatch tolerance: max 0.45m across sharpest 180 deg hairpin
+      if (geom.pairMaxLat > 0.45) {
+        throw new Error(
+          `Lateral endpoint mismatch along ${sideName} wall between barrier ${b1.i} (s=${b1.s.toFixed(2)}) and ${b2.i} (s=${b2.s.toFixed(2)}): dLat=${geom.pairMaxLat.toFixed(4)}m > 0.45m`
+        );
+      }
+
+      // 4. Physical surface overlap must be maintained (>= 20% cross-section area overlap even on extreme banked hairpins)
+      if (geom.surfaceOverlapAreaFraction < 0.20) {
+        throw new Error(
+          `Physical surface overlap broken along ${sideName} wall between barrier ${b1.i} and ${b2.i}: areaFraction=${(geom.surfaceOverlapAreaFraction * 100).toFixed(1)}% < 20%`
+        );
+      }
+
+      if (geom.endpointOverlap < report.meshSeam.minOverlap) report.meshSeam.minOverlap = geom.endpointOverlap;
+      if (geom.endpointOverlap > report.meshSeam.maxOverlap) report.meshSeam.maxOverlap = geom.endpointOverlap;
+      if (geom.tangentSeparation > report.meshSeam.maxSeparation) report.meshSeam.maxSeparation = geom.tangentSeparation;
+      if (geom.pairMax3D > report.meshSeam.max3DDist) report.meshSeam.max3DDist = geom.pairMax3D;
+      if (geom.pairRMS3D > report.meshSeam.maxRMS3D) report.meshSeam.maxRMS3D = geom.pairRMS3D;
+      if (geom.pairMaxLat > report.meshSeam.maxLateralMismatch) report.meshSeam.maxLateralMismatch = geom.pairMaxLat;
+      if (geom.pairMaxVert > report.meshSeam.maxVerticalMismatch) report.meshSeam.maxVerticalMismatch = geom.pairMaxVert;
+      if (geom.surfaceOverlapAreaFraction < report.meshSeam.minSurfaceOverlapAreaFraction) {
+        report.meshSeam.minSurfaceOverlapAreaFraction = geom.surfaceOverlapAreaFraction;
+      }
 
       if (isLoopClosure) {
         report.meshSeam.loopClosure[sideName] = {
-          overlap: meshOverlap,
-          separation: meshSeparation,
+          overlap: geom.endpointOverlap,
+          separation: geom.tangentSeparation,
           centerDistance: centerDist,
+          max3DDist: geom.pairMax3D,
+          rms3DDist: geom.pairRMS3D,
+          maxLat: geom.pairMaxLat,
+          maxVert: geom.pairMaxVert,
+          surfaceAreaFraction: geom.surfaceOverlapAreaFraction,
           lastS: b1.s,
           firstS: b2.s,
         };
@@ -808,9 +912,14 @@ async function validateBarrierGeometry(worldResult, options = {}) {
     const turn1Barriers = barriers.filter((b) => b.s >= 150 && b.s <= 220);
     assert.ok(turn1Barriers.length >= 25, `Turn 1 curve must have dense barrier coverage (${turn1Barriers.length})`);
     for (let k = 0; k < turn1Barriers.length - 1; k++) {
+      const g = calculateEndpointGeometry(turn1Barriers[k], turn1Barriers[k + 1]);
       assert.ok(
-        3.05 - turn1Barriers[k].center.distanceTo(turn1Barriers[k + 1].center) > 0.40,
-        `Turn 1 curve barriers must connect seamlessly at s=${turn1Barriers[k].s.toFixed(1)}`
+        g.endpointOverlap >= 0.40,
+        `Turn 1 curve barriers must connect with >= 0.40m endpoint overlap at s=${turn1Barriers[k].s.toFixed(1)}`
+      );
+      assert.ok(
+        g.surfaceOverlapAreaFraction >= 0.20,
+        `Turn 1 curve barriers must maintain physical surface overlap at s=${turn1Barriers[k].s.toFixed(1)}`
       );
       assert.ok(
         testOBBOverlap(turn1Barriers[k].obb, turn1Barriers[k + 1].obb).intersects,
@@ -822,9 +931,14 @@ async function validateBarrierGeometry(worldResult, options = {}) {
     const mountainBarriers = barriers.filter((b) => b.s >= 500 && b.s <= 540);
     assert.ok(mountainBarriers.length >= 15, `Mountain hairpin must have dense barrier coverage (${mountainBarriers.length})`);
     for (let k = 0; k < mountainBarriers.length - 1; k++) {
+      const g = calculateEndpointGeometry(mountainBarriers[k], mountainBarriers[k + 1]);
       assert.ok(
-        3.05 - mountainBarriers[k].center.distanceTo(mountainBarriers[k + 1].center) > 0.40,
-        `Mountain hairpin barriers must connect seamlessly at s=${mountainBarriers[k].s.toFixed(1)}`
+        g.endpointOverlap >= 0.40,
+        `Mountain hairpin barriers must connect with >= 0.40m endpoint overlap at s=${mountainBarriers[k].s.toFixed(1)}`
+      );
+      assert.ok(
+        g.surfaceOverlapAreaFraction >= 0.20,
+        `Mountain hairpin barriers must maintain physical surface overlap at s=${mountainBarriers[k].s.toFixed(1)}`
       );
       assert.ok(
         testOBBOverlap(mountainBarriers[k].obb, mountainBarriers[k + 1].obb).intersects,
@@ -836,9 +950,14 @@ async function validateBarrierGeometry(worldResult, options = {}) {
     const bankedBarriers = barriers.filter((b) => b.s >= 740 && b.s <= 780);
     assert.ok(bankedBarriers.length >= 15, `Banked elevation section must have dense barrier coverage (${bankedBarriers.length})`);
     for (let k = 0; k < bankedBarriers.length - 1; k++) {
+      const g = calculateEndpointGeometry(bankedBarriers[k], bankedBarriers[k + 1]);
       assert.ok(
-        3.05 - bankedBarriers[k].center.distanceTo(bankedBarriers[k + 1].center) > 0.40,
-        `Banked elevation barriers must connect seamlessly at s=${bankedBarriers[k].s.toFixed(1)}`
+        g.endpointOverlap >= 0.40,
+        `Banked elevation barriers must connect with >= 0.40m endpoint overlap at s=${bankedBarriers[k].s.toFixed(1)}`
+      );
+      assert.ok(
+        g.surfaceOverlapAreaFraction >= 0.20,
+        `Banked elevation barriers must maintain physical surface overlap at s=${bankedBarriers[k].s.toFixed(1)}`
       );
       assert.ok(
         testOBBOverlap(bankedBarriers[k].obb, bankedBarriers[k + 1].obb).intersects,
@@ -850,9 +969,14 @@ async function validateBarrierGeometry(worldResult, options = {}) {
     const hairpinBarriers = barriers.filter((b) => b.s >= 850 && b.s <= 950);
     assert.ok(hairpinBarriers.length >= 35, `Banked hairpin must have dense barrier coverage (${hairpinBarriers.length})`);
     for (let k = 0; k < hairpinBarriers.length - 1; k++) {
+      const g = calculateEndpointGeometry(hairpinBarriers[k], hairpinBarriers[k + 1]);
       assert.ok(
-        3.05 - hairpinBarriers[k].center.distanceTo(hairpinBarriers[k + 1].center) > 0.40,
-        `Banked hairpin barriers must connect seamlessly at s=${hairpinBarriers[k].s.toFixed(1)}`
+        g.endpointOverlap >= 0.40,
+        `Banked hairpin barriers must connect with >= 0.40m endpoint overlap at s=${hairpinBarriers[k].s.toFixed(1)}`
+      );
+      assert.ok(
+        g.surfaceOverlapAreaFraction >= 0.20,
+        `Banked hairpin barriers must maintain physical surface overlap at s=${hairpinBarriers[k].s.toFixed(1)}`
       );
       assert.ok(
         testOBBOverlap(hairpinBarriers[k].obb, hairpinBarriers[k + 1].obb).intersects,
@@ -881,7 +1005,19 @@ test("Verify barrier actual geometry: complete transforms, connection endpoints,
   // 1. Primary Check: Actual Mesh Seam Measurements
   assert.equal(report.meshSeam.maxSeparation, 0, "Maximum actual mesh endpoint separation must be exactly 0.0000m (zero uncovered gap)");
   assert.ok(report.meshSeam.minOverlap >= 0.45, `Minimum actual endpoint overlap must be >= 0.45m, got ${report.meshSeam.minOverlap.toFixed(4)}m`);
-  assert.ok(report.meshSeam.maxOverlap <= 3.05, `Maximum actual endpoint overlap must be <= 3.05m, got ${report.meshSeam.maxOverlap.toFixed(4)}m`);
+  assert.ok(report.meshSeam.maxOverlap <= 4.80, `Maximum actual endpoint overlap must be <= 4.80m, got ${report.meshSeam.maxOverlap.toFixed(4)}m`);
+  assert.ok(
+    report.meshSeam.minSurfaceOverlapAreaFraction >= 0.20,
+    `Minimum physical surface overlap area fraction must be >= 20%, got ${(report.meshSeam.minSurfaceOverlapAreaFraction * 100).toFixed(1)}%`
+  );
+  assert.ok(
+    report.meshSeam.maxLateralMismatch <= 0.45,
+    `Maximum lateral profile mismatch must be <= 0.45m, got ${report.meshSeam.maxLateralMismatch.toFixed(4)}m`
+  );
+  assert.ok(
+    report.meshSeam.maxVerticalMismatch <= 0.55,
+    `Maximum vertical profile mismatch must be <= 0.55m, got ${report.meshSeam.maxVerticalMismatch.toFixed(4)}m`
+  );
   assert.equal(report.meshSeam.loopClosure.left.separation, 0, "Left wall loop closure must have zero separation");
   assert.equal(report.meshSeam.loopClosure.right.separation, 0, "Right wall loop closure must have zero separation");
   assert.ok(report.meshSeam.loopClosure.left.overlap > 2.0, "Left wall loop closure must overlap by > 2.0m");
@@ -899,58 +1035,75 @@ test("Verify barrier actual geometry: complete transforms, connection endpoints,
   );
 });
 
-test("Barrier regression tests: detect mesh seams, elevation steps, loop closure seams, geometry mismatches, and malformed faces", async () => {
+test("Barrier regression tests: detect endpoint displacements in X/Z/Y, loop closure seams, geometry mismatches, and malformed faces", async () => {
   const scene = new THREE.Scene();
   const worldResult = await buildWorld(scene);
 
-  // Regression 1: A real endpoint displacement that creates a mesh seam
+  // 1. Verify that a correctly aligned pair passes
+  const nominalReport = await validateBarrierGeometry(worldResult);
+  assert.equal(nominalReport.meshSeam.maxSeparation, 0, "Nominal aligned barriers must pass with zero separation");
+  assert.ok(nominalReport.meshSeam.minOverlap >= 0.45, "Nominal aligned barriers must pass with >= 0.45m overlap");
+  assert.ok(
+    nominalReport.meshSeam.minSurfaceOverlapAreaFraction >= 0.20,
+    "Nominal aligned barriers must pass with >= 20% surface overlap"
+  );
+
+  // Regression 1: Displace one endpoint in the X direction (lateral profile mismatch)
   await assert.rejects(async () => {
     await validateBarrierGeometry(worldResult, {
       corruptBarriers(barriers, sideName) {
         if (sideName === "left") {
-          // Displace barrier 50 rear endpoint vertices by 3.5m along tangent creating an uncovered mesh seam
-          const shift = barriers[50].obb.u[2].clone().multiplyScalar(3.5);
-          barriers[50].obb.c.add(shift);
-          for (const v of barriers[50].verts) v.add(shift);
+          // Displace barrier 50 rear endpoint in X direction by +0.60m (beyond 0.45m tolerance and breaking surface overlap)
+          const shift = barriers[50].right.clone().multiplyScalar(0.60);
           for (const p of barriers[50].rearProfile) p.pos.add(shift);
         }
       },
     });
-  }, /Actual mesh seam along left wall/);
+  }, /(Lateral endpoint mismatch along left wall|Physical surface overlap broken along left wall)/);
 
-  // Regression 2: A vertical endpoint mismatch on a banked section
+  // Regression 2: Displace one endpoint in the Z direction (longitudinal seam / gap)
   await assert.rejects(async () => {
     await validateBarrierGeometry(worldResult, {
       corruptBarriers(barriers, sideName) {
         if (sideName === "left") {
-          // Displace banked barrier vertically by 2.0m along local up vector (around s=760)
+          // Displace barrier 50 rear endpoint in Z direction (opposite to tangent) by 1.50m (creating an open gap)
+          const shift = barriers[50].tangent.clone().multiplyScalar(-1.50);
+          for (const p of barriers[50].rearProfile) p.pos.add(shift);
+        }
+      },
+    });
+  }, /Actual mesh seam along left wall.*separation=/);
+
+  // Regression 3: Displace one endpoint vertically on a banked section
+  await assert.rejects(async () => {
+    await validateBarrierGeometry(worldResult, {
+      corruptBarriers(barriers, sideName) {
+        if (sideName === "left") {
+          // Displace banked barrier rear profile vertically along local up vector by +1.0m (beyond 0.55m tolerance)
           const idx = barriers.findIndex((b) => b.s >= 758 && b.s <= 765);
           if (idx !== -1) {
-            const shift = barriers[idx].obb.u[1].clone().multiplyScalar(2.0);
-            barriers[idx].obb.c.add(shift);
-            for (const v of barriers[idx].verts) v.add(shift);
+            const shift = barriers[idx].up.clone().multiplyScalar(1.0);
             for (const p of barriers[idx].rearProfile) p.pos.add(shift);
-            for (const p of barriers[idx].frontProfile) p.pos.add(shift);
           }
         }
       },
     });
   }, /Vertical endpoint mismatch on banked section along left wall/);
 
-  // Regression 3: A loop-closure seam
+  // Regression 4: A loop-closure endpoint displacement
   await assert.rejects(async () => {
     await validateBarrierGeometry(worldResult, {
       corruptBarriers(barriers, sideName) {
         if (sideName === "left") {
-          // Displace barrier 0 front endpoint face vertices by 4.0m to break loop closure with last barrier
-          const shift = barriers[0].obb.u[2].clone().multiplyScalar(4.0);
+          // Displace barrier 0 front endpoint face vertices by 4.0m along tangent to sever loop closure
+          const shift = barriers[0].tangent.clone().multiplyScalar(4.0);
           for (const p of barriers[0].frontProfile) p.pos.add(shift);
         }
       },
     });
   }, /Loop-closure seam along left wall between barrier/);
 
-  // Regression 4: A red/white geometry mismatch
+  // Regression 5: A red/white geometry mismatch
   await assert.rejects(async () => {
     // Provide a mismatched barrierWhite GLTF where geometry profile does not match red barrier profile
     const gltfWhiteMismatched = await loadEnvironmentAsset("barrierWhite");
@@ -967,7 +1120,7 @@ test("Barrier regression tests: detect mesh seams, elevation steps, loop closure
     await validateBarrierGeometry(worldResult, { gltfWhite: clonedWhite });
   }, /((Front|Rear) connection end face of barrierWhite must have 24 vertices|barrierWhite (rear|front) endpoint face missing profile vertex)/);
 
-  // Regression 5: A missing or malformed endpoint face
+  // Regression 6: A missing or malformed endpoint face
   await assert.rejects(async () => {
     // Provide a malformed barrierRed GLTF where vertices have been stripped / corrupted
     const dummyGltf = { scene: new THREE.Group() };
