@@ -83,10 +83,10 @@ All humanoid driver models are created by **Kenney** (Kenney Vleugels — [kenne
 3. **Instance Isolation & Safe Cache Lifecycle:**
    - Geometries and materials are cloned per racer instance from the master cached GLTF, protecting master cached assets from being disposed during race teardown.
    - Master assets registered in `assetCache` are safeguarded; active instances are tracked via `activeInstances` and `clearAssetCache` blocks accidental destruction of in-use master resources.
-4. **Complete MatrixWorld Axle Alignment & Seating Calibration:**
+4. **Complete MatrixWorld Axle Alignment & Driver Placement Calibration:**
    - Wheel axle centers and orientations are derived from the complete source GLTF hierarchy using updated `matrixWorld` transformations, preserving parent translations, rotations, and scales.
-   - Each wheel's local matrix inside the unscaled `rolling` group is converted from `matrixWorld` so that the rotation axis coincides exactly with the geometric axle center ($< 10^{-5}\text{ m}$) with zero eccentric wobble, preserving original source mesh geometry without destructive centering.
-   - Posed driver seating positions place the pelvis bone and contact plane directly at the cockpit seat floor ($0.21\text{m} - 0.31\text{m}$) and head clearance at $0.75\text{m} - 0.91\text{m}$ world $Y$ without chassis penetration.
+   - Each wheel's local matrix inside the unscaled `rolling` group is converted from `matrixWorld` so that the rotation axis coincides exactly with the geometric axle center ($< 10^{-5}\text{ m}$) with zero eccentric wobble, preserving original source mesh geometry and affine transforms including shear without destructive centering.
+   - Because source GLTF assets lack discrete physical seat-cushion and steering-wheel submesh nodes, physical seat contact and steering grip are not claimed. Instead, documented approximate geometric proxies calibrate driver placement within the cockpit bounding volume: the lowest transformed vertex of the root/torso bone region serves as an approximate vertical pelvis proxy clearing the underbody floor ($> 0.15\text{m}$ clearance), the distal arm extremity cluster centroids serve as forward reach proxies into the cockpit steering zone, and head top sightlines clear the upper chassis ($1.35\text{m} - 1.70\text{m}$).
 
 ---
 
