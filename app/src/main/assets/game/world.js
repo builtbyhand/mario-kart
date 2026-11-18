@@ -132,10 +132,10 @@ function ribbon(start, end, left, right, mat, height = 0.03, step = 2) {
   m.receiveShadow = true;
   return m;
 }
-export function buildWorld(scene) {
+export function buildWorld(scene, capabilities = null) {
   const world = new THREE.Group();
   scene.add(world);
-  const pavement = pavementMaps();
+  const pavement = pavementMaps({}, capabilities);
   const roadTex = pavement.map;
   roadTex.wrapS = roadTex.wrapT = THREE.RepeatWrapping;
   const grassTex = grass();
@@ -158,7 +158,9 @@ export function buildWorld(scene) {
       turf.colorSpace = THREE.SRGBColorSpace;
       turf.wrapS = turf.wrapT = THREE.RepeatWrapping;
       turf.repeat.copy(grassTex.repeat);
-      turf.anisotropy = 16;
+      turf.anisotropy = capabilities?.clampAnisotropy
+        ? capabilities.clampAnisotropy(16)
+        : Math.min(16, capabilities?.maxAnisotropy || 16);
       turf.needsUpdate = true;
       lawnMaterial.map = turf;
       lawnMaterial.needsUpdate = true;
@@ -173,7 +175,9 @@ export function buildWorld(scene) {
     undefined,
     () => {},
   );
-  grassTex.anisotropy = 16;
+  grassTex.anisotropy = capabilities?.clampAnisotropy
+    ? capabilities.clampAnisotropy(16)
+    : Math.min(16, capabilities?.maxAnisotropy || 16);
   const lawn = mesh(
     new THREE.PlaneGeometry(760, 760),
     lawnMaterial,
@@ -409,7 +413,9 @@ export function buildWorld(scene) {
   });
   checkerMap.wrapS = checkerMap.wrapT = THREE.RepeatWrapping;
   checkerMap.repeat.set(1, 8);
-  checkerMap.anisotropy = 16;
+  checkerMap.anisotropy = capabilities?.clampAnisotropy
+    ? capabilities.clampAnisotropy(16)
+    : Math.min(16, capabilities?.maxAnisotropy || 16);
   // Reference playback at 00:34 shows weathered center checks on ordinary
   // tarmac too. Reserve cyan emission for anti-gravity, not the markings.
   for (const [a, b] of [
@@ -721,6 +727,7 @@ export function buildWorld(scene) {
     fireworks,
     statue: architecture.statue,
     screenMaterials: architecture.screenMaterials,
+    pavement,
     update(time, count) {
       lights.forEach((l, i) =>
         l.material.color.set(

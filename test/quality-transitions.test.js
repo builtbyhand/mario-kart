@@ -5,6 +5,24 @@ import assert from "node:assert/strict";
 globalThis.window = globalThis;
 globalThis.innerWidth = 1920;
 globalThis.innerHeight = 1080;
+if (typeof globalThis.document === "undefined") {
+  globalThis.document = {
+    createElement(tag) {
+      return {
+        width: 512,
+        height: 512,
+        getContext() {
+          return {
+            createImageData(w, h) {
+              return { data: new Uint8ClampedArray(w * h * 4) };
+            },
+            putImageData() {},
+          };
+        },
+      };
+    },
+  };
+}
 
 import * as THREE from "three";
 import {
@@ -15,6 +33,7 @@ import {
 } from "../app/src/main/assets/game/config.js";
 import { PostProcessingPipeline } from "../app/src/main/assets/game/postprocessing.js";
 import { raceEffects } from "../app/src/main/assets/game/race-effects.js";
+import { pavementMaps, textureCache } from "../app/src/main/assets/game/materials.js";
 
 test("detectCapabilities accurately identifies float textures vs float render targets", () => {
   // Device A: Modern WebGL 2 with full float support
@@ -86,6 +105,34 @@ test("Anisotropy and texture dimensions clamp against device maximums", () => {
   // Requested 4096 texture on a device supporting at most 2048 -> clamped to 2048
   assert.equal(caps.clampTextureSize(4096), 2048);
   assert.equal(caps.clampTextureSize(512), 512);
+});
+
+test("Real pavement texture creation path clamps against detected 4x capabilities", () => {
+  textureCache.disposeAll();
+  const mockGl = {
+    MAX_TEXTURE_SIZE: 3379,
+    getParameter(param) {
+      if (param === 3379) return 2048;
+      return 4; // Max anisotropy = 4
+    },
+    getExtension(name) {
+      if (name.includes("texture_filter_anisotropic")) return { MAX_TEXTURE_MAX_ANISOTROPY_EXT: 34047 };
+      return null;
+    },
+  };
+  const caps = detectCapabilities(mockGl);
+  assert.equal(caps.maxAnisotropy, 4);
+
+  // Switch to Ultra preset (which configures 16x anisotropy)
+  setQualityPreset("ultra");
+  assert.equal(activeQuality.anisotropy, 16);
+
+  // Generate pavement textures passing detected capabilities
+  const maps = pavementMaps({ size: 64 }, caps);
+  assert.equal(maps.map.anisotropy, 4);
+  assert.equal(maps.normalMap.anisotropy, 4);
+  assert.equal(maps.roughnessMap.anisotropy, 4);
+  assert.ok(maps.map.anisotropy <= 4, "Texture anisotropy must not exceed 4x on simulated 4x device");
 });
 
 test("PostProcessingPipeline gracefully falls back when capabilities are unsupported", () => {

@@ -59,6 +59,7 @@ import {
   disposeModel,
 } from "./models.js";
 import { buildWorld, canvasTexture } from "./world.js";
+import { setMaterialCapabilities } from "./materials.js";
 import { ITEM_ICONS, portrait, loadSourcePortraits } from "./icons.js";
 import {
   RENDER_CONFIG,
@@ -123,6 +124,7 @@ renderer.toneMappingExposure = activeQuality.toneMappingExposure || RENDER_CONFI
 
 const capabilities = detectCapabilities(renderer.getContext());
 logger.info("WebGL Capabilities:", capabilities);
+setMaterialCapabilities(capabilities);
 
 let isContextLost = false;
 canvas.addEventListener("webglcontextlost", (e) => {
@@ -216,7 +218,7 @@ if (courseDescriptor) {
   try { world = await loadSourceWorld(scene, courseDescriptor); }
   catch (error) { console.warn('Local course pack unavailable; using built-in course:', error.message); }
 }
-if (!world) world = buildWorld(scene);
+if (!world) world = buildWorld(scene, capabilities);
 if (world.source) {
   useSourceTrack(world.route);
   camera.far = 2500;

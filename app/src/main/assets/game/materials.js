@@ -78,16 +78,32 @@ export class MaterialCache {
 export const textureCache = new TextureCache();
 export const materialCache = new MaterialCache();
 
+let activeCapabilities = null;
+
+export function setMaterialCapabilities(capabilities) {
+  activeCapabilities = capabilities;
+}
+
+export function getMaterialCapabilities() {
+  return activeCapabilities;
+}
+
 /**
  * Deterministic, local pavement maps with accurate sRGB color-space configuration.
  * Enhanced for crisp surface micro-details, clamped against device capabilities.
  */
 export function pavementMaps(options = {}, capabilities = null) {
-  const maxSize = capabilities?.maxTextureSize || 4096;
-  const maxAniso = capabilities?.maxAnisotropy || 16;
-  const size = Math.min(options.size || 512, maxSize);
+  const caps = capabilities || activeCapabilities;
+  const maxSize = caps?.maxTextureSize || 4096;
+  const maxAniso = caps?.maxAnisotropy !== undefined ? caps.maxAnisotropy : 16;
+  const requestedSize = options.size || 512;
+  const size = caps?.clampTextureSize
+    ? caps.clampTextureSize(requestedSize)
+    : Math.min(requestedSize, maxSize);
   const requestedAniso = options.anisotropy || activeQuality?.anisotropy || 8;
-  const anisotropy = Math.max(1, Math.min(requestedAniso, maxAniso));
+  const anisotropy = caps?.clampAnisotropy
+    ? caps.clampAnisotropy(requestedAniso)
+    : Math.max(1, Math.min(requestedAniso, maxAniso));
   const cacheKey = `pavement_${size}_${anisotropy}`;
 
   if (textureCache.textures.has(cacheKey + "_diffuse")) {

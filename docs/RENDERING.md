@@ -71,7 +71,7 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
 ### 3.2 Procedural Pavement & Road Shaders
 - **Color Spaces:** The diffuse asphalt texture is tagged with `THREE.SRGBColorSpace`, while tangent normal maps and roughness maps use `THREE.NoColorSpace` (linear) to prevent unwanted gamma curves from distorting surface slope calculations.
-- **Anisotropy Clamping:** Dynamically wired to `activeQuality.anisotropy` (`1x` on Low, `4x` on Medium, `8x` on High, `16x` on Ultra), clamped against `capabilities.clampAnisotropy()` to respect hardware limits.
+- **Anisotropy Clamping:** Dynamically wired to `activeQuality.anisotropy` (`1x` on Low, `4x` on Medium, `8x` on High, `16x` on Ultra), clamped against `capabilities.clampAnisotropy()` to respect hardware limits. Passed directly into `pavementMaps({}, capabilities)` in `world.js` and registered with `setMaterialCapabilities(capabilities)` during initialization, ensuring devices with lower hardware limits (e.g. 4x max) never receive an anisotropy request above their physical limit.
 - **Surface Wear Shader Hook:** `roadMaterial` injects custom GLSL into `#include <map_fragment>` calculating tyre grooves, lane wear, and resurfacing patches via physical ribbon UVs without requiring heavy external image maps.
 
 ### 3.3 TextureCache & MaterialCache

@@ -34,6 +34,8 @@ import {
   createBarrierMaterial,
   createGrassMaterial,
   pavementMaps,
+  setMaterialCapabilities,
+  getMaterialCapabilities,
 } from "../app/src/main/assets/game/materials.js";
 
 test("TextureCache manages lifecycle and disposal cleanly", () => {
@@ -109,4 +111,62 @@ test("pavementMaps generates textures with proper color spaces", () => {
   assert.ok(maps.roughnessMap);
   assert.equal(maps.map.colorSpace, THREE.SRGBColorSpace);
   assert.equal(maps.normalMap.colorSpace, THREE.NoColorSpace);
+});
+
+test("pavementMaps respects hardware limits and ensures simulated 4x device never receives anisotropy above 4x", () => {
+  textureCache.disposeAll();
+  const simulated4xCaps = {
+    maxAnisotropy: 4,
+    maxTextureSize: 2048,
+    clampAnisotropy: (req) => Math.max(1, Math.min(req || 1, 4)),
+    clampTextureSize: (sz) => Math.min(sz || 512, 2048),
+  };
+
+  // 1. Explicit capabilities argument with 16x requested -> clamped to 4x
+  const mapsExplicit = pavementMaps({ size: 64, anisotropy: 16 }, simulated4xCaps);
+  assert.equal(mapsExplicit.map.anisotropy, 4);
+  assert.equal(mapsExplicit.normalMap.anisotropy, 4);
+  assert.equal(mapsExplicit.roughnessMap.anisotropy, 4);
+  assert.ok(mapsExplicit.map.anisotropy <= 4);
+
+  // 2. Monitored texture property assignment proving simulated 4x device never receives an anisotropy request above 4x
+  textureCache.disposeAll();
+  let maxAssignedAnisotropy = 0;
+  const originalAnisotropyDesc = Object.getOwnPropertyDescriptor(THREE.Texture.prototype, "anisotropy");
+
+  try {
+    Object.defineProperty(THREE.Texture.prototype, "anisotropy", {
+      set(val) {
+        if (val > maxAssignedAnisotropy) maxAssignedAnisotropy = val;
+        this._anisoVal = val;
+      },
+      get() {
+        return this._anisoVal ?? 1;
+      },
+      configurable: true,
+    });
+
+    // Request 16x anisotropy
+    const trackedMaps = pavementMaps({ size: 64, anisotropy: 16 }, simulated4xCaps);
+    assert.equal(maxAssignedAnisotropy, 4, "Max assigned anisotropy must be exactly 4x");
+    assert.ok(maxAssignedAnisotropy <= 4, "Simulated 4x device never receives an anisotropy request above 4x");
+    assert.equal(trackedMaps.map.anisotropy, 4);
+  } finally {
+    if (originalAnisotropyDesc) {
+      Object.defineProperty(THREE.Texture.prototype, "anisotropy", originalAnisotropyDesc);
+    } else {
+      delete THREE.Texture.prototype.anisotropy;
+    }
+  }
+
+  // 3. Global material capabilities path (setMaterialCapabilities)
+  textureCache.disposeAll();
+  setMaterialCapabilities(simulated4xCaps);
+  try {
+    const mapsGlobal = pavementMaps({ size: 64, anisotropy: 16 });
+    assert.equal(mapsGlobal.map.anisotropy, 4);
+    assert.ok(mapsGlobal.map.anisotropy <= 4);
+  } finally {
+    setMaterialCapabilities(null);
+  }
 });
