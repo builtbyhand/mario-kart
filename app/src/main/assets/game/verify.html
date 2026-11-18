@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Phase 3 3D Asset Visual Verification</title>
+  <style>
+    body { margin: 0; background: #141b26; overflow: hidden; }
+    canvas { width: 100vw; height: 100vh; display: block; }
+  </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "./vendor/three/three.module.js",
+        "/vendor/three-examples/": "./vendor/three-examples/",
+        "./vendor/three-examples/": "./vendor/three-examples/"
+      }
+    }
+  </script>
+</head>
+<body>
+<canvas id="view" width="1280" height="720"></canvas>
+<script type="module">
+import * as THREE from 'three';
+import { KART_SPECS, loadGLB, buildGLBKart } from './models.js';
+
+const params = new URLSearchParams(window.location.search);
+const racerId = params.get('racer') || 'mario';
+const viewType = params.get('view') || 'three_quarter';
+
+const canvas = document.getElementById('view');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+renderer.setSize(1280, 720);
+renderer.setPixelRatio(1);
+renderer.toneMapping = THREE.AgXToneMapping;
+renderer.toneMappingExposure = 1.15;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFShadowMap;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#141e2e');
+
+const camera = new THREE.PerspectiveCamera(38, 1280 / 720, 0.1, 100);
+
+// Camera view presets
+if (viewType === 'three_quarter') {
+  camera.position.set(2.8, 1.9, -3.4);
+  camera.lookAt(0, 0.65, 0);
+} else if (viewType === 'side') {
+  camera.position.set(4.4, 0.9, 0);
+  camera.lookAt(0, 0.65, 0);
+} else if (viewType === 'rear') {
+  camera.position.set(0, 1.7, 3.8);
+  camera.lookAt(0, 0.65, 0);
+} else if (viewType === 'cockpit') {
+  camera.position.set(1.1, 1.5, -0.9);
+  camera.lookAt(0, 0.52, 0.12);
+} else {
+  camera.position.set(2.8, 1.9, -3.4);
+  camera.lookAt(0, 0.65, 0);
+}
+
+// Studio Lighting
+const keyLight = new THREE.DirectionalLight('#fff8f0', 3.0);
+keyLight.position.set(6, 12, -8);
+keyLight.castShadow = true;
+keyLight.shadow.mapSize.width = 1024;
+keyLight.shadow.mapSize.height = 1024;
+scene.add(keyLight);
+
+const fillLight = new THREE.DirectionalLight('#a6d4ff', 1.4);
+fillLight.position.set(-8, 6, 6);
+scene.add(fillLight);
+
+const rimLight = new THREE.DirectionalLight('#ffd494', 2.0);
+rimLight.position.set(-6, 8, -10);
+scene.add(rimLight);
+
+const hemi = new THREE.HemisphereLight('#cce2ff', '#243447', 1.0);
+scene.add(hemi);
+
+// Checker Ground Plane for contact shadow and ground alignment
+const groundGeo = new THREE.PlaneGeometry(24, 24);
+const groundMat = new THREE.MeshStandardMaterial({
+  color: '#1a2436',
+  roughness: 0.85,
+  metalness: 0.05
+});
+const ground = new THREE.Mesh(groundGeo, groundMat);
+ground.rotation.x = -Math.PI / 2;
+ground.receiveShadow = true;
+scene.add(ground);
+
+// Grid lines on ground
+const grid = new THREE.GridHelper(20, 20, '#3a5070', '#24344a');
+grid.position.y = 0.001;
+scene.add(grid);
+
+async function init() {
+  const spec = KART_SPECS[racerId] || KART_SPECS.mario;
+  const kartGltf = await loadGLB(spec.kart);
+  const charGltf = await loadGLB(spec.character);
+  const result = buildGLBKart(racerId, kartGltf, charGltf);
+
+  scene.add(result.model);
+
+  // Advance animation 1 step into drive pose
+  if (result.mixer) {
+    result.mixer.update(0.016);
+  }
+
+  renderer.render(scene, camera);
+  window.__RENDER_DONE = true;
+}
+
+init();
+</script>
+</body>
+</html>

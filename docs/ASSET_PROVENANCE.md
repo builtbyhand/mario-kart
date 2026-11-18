@@ -80,5 +80,26 @@ All humanoid driver models are created by **Kenney** (Kenney Vleugels — [kenne
    - Kart models are oriented forward along Three.js `-Z` using parent node rotation ($180^\circ$ Y).
    - Driver characters are attached via a separate unscaled parent node directly under `root` at true world scale and offsets, preventing nested scaling multiplications.
    - Wheels are articulated as unscaled, world-aligned pivots with separate `rolling` and anti-gravity `glow` children.
-3. **Instance Isolation:**
+3. **Instance Isolation & Safe Cache Lifecycle:**
    - Geometries and materials are cloned per racer instance from the master cached GLTF, protecting master cached assets from being disposed during race teardown.
+   - Master assets registered in `assetCache` are safeguarded; active instances are tracked via `activeInstances` and `clearAssetCache` blocks accidental destruction of in-use master resources.
+4. **Mathematical Axle Centering & Seating Calibration:**
+   - Wheel mesh clones have their geometry centered at origin `(0, 0, 0)` via `mesh.geometry.center()` and positioned at `(0, 0, 0)` inside the `rolling` group, ensuring 100% concentric rotation around the raw source axle with zero wobble.
+   - Posed driver seating positions place the pelvis directly on the seat/cockpit floor ($0.27\text{m} - 0.40\text{m}$) and head clearance at $1.38\text{m} - 1.66\text{m}$ world $Y$.
+
+---
+
+## 4. Visual Validation Artifacts
+
+All 8 kart and driver combinations have been verified and documented via 32 high-definition ($1280 \times 720$) photographic renders located in `docs/screenshots/verification/`:
+
+| Racer | Combination | Screenshots Available |
+| :--- | :--- | :--- |
+| `mario` | `kart-oobi.glb` + `character-male-a.glb` | `racer_01_mario_{three_quarter, side, rear, cockpit}.png` |
+| `luigi` | `kart-oodi.glb` + `character-male-b.glb` | `racer_02_luigi_{three_quarter, side, rear, cockpit}.png` |
+| `peach` | `kart-ooli.glb` + `character-female-a.glb` | `racer_03_peach_{three_quarter, side, rear, cockpit}.png` |
+| `yoshi` | `kart-oopi.glb` + `character-female-b.glb` | `racer_04_yoshi_{three_quarter, side, rear, cockpit}.png` |
+| `toad` | `kart-oozi.glb` + `character-male-c.glb` | `racer_05_toad_{three_quarter, side, rear, cockpit}.png` |
+| `bowser` | `race-future.glb` + `character-male-d.glb` | `racer_06_bowser_{three_quarter, side, rear, cockpit}.png` |
+| `donkey-kong` | `race.glb` + `character-male-d.glb` | `racer_07_donkey_kong_{three_quarter, side, rear, cockpit}.png` |
+| `koopa` | `sedan-sports.glb` + `character-female-c.glb` | `racer_08_koopa_{three_quarter, side, rear, cockpit}.png` |

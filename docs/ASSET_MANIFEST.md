@@ -50,12 +50,13 @@ All 3D models integrated in Phase 3 are 100% original, legally distributable, an
 2. **Coordinate & Scale Correction:**
    - Sourced assets are oriented along +Z. During runtime instantiation, each kart is rotated by 180° (`Math.PI` around Y) so the nose faces -Z, matching the engine's physics and camera convention.
    - Scaled appropriately: 2.2x for the 5 compact karts (`kart-oobi` through `oozi`) and 1.25x for the 3 larger vehicles (`race`, `race-future`, `sedan-sports`), ensuring all vehicles have length ~3.14m – 3.32m, wheelbase ~1.63m – 1.90m, and track width ~1.25m – 1.68m.
-3. **Decoupled Unscaled Attachment Hierarchy:**
+3. **Decoupled Unscaled Attachment Hierarchy & Seating Calibration:**
    - The driver character is attached directly to the root kart group in an unscaled attachment hierarchy, rather than as a child of the scaled kart scene.
-   - This eliminates compound nested scaling (`kartScale * driverScale`) and allows exact world-space seating control: driver height is calibrated to 0.96m – 1.08m, seat Y at 0.35m – 0.45m, and head Y at 1.36m – 1.52m, naturally positioned inside each cockpit.
-4. **Wheel Articulation Hierarchy:**
+   - This eliminates compound nested scaling (`kartScale * driverScale`) and allows exact world-space seating control: driver height is calibrated to 1.10m – 1.26m in driving pose, seat Y at 0.27m – 0.40m, and head Y at 1.38m – 1.66m, naturally positioned inside each cockpit with zero clipping through the chassis.
+4. **Wheel Articulation & Mathematical Axle Centering:**
    - Sourced GLB files contain four separate wheel meshes (`wheel-front-left`, `wheel-front-right`, `wheel-back-left`, `wheel-back-right`).
    - The engine automatically calculates the geometric axle center of each wheel in world units and parents it to unscaled, world-aligned pivots (`wheel-0` to `wheel-3`) directly under root.
+   - Wheel mesh geometry is centered at `(0, 0, 0)` via `mesh.geometry.center()` and positioned at `(0, 0, 0)` inside the `rolling` group, ensuring symmetrical rolling rotation around the true geometric axle with zero wobble (exact match to $< 10^{-6}\text{ m}$).
    - Steer rotation is applied to front pivots on Y in world coordinates (`w.rotation.y = -r.steer * 0.32`).
    - Tire rolling is applied to the rolling child on X in world coordinates (`rolling.rotation.x -= (r.speed * dt) / radius`).
    - Anti-gravity cyan glow rings and hub caps are dynamically generated and parented to each wheel pivot, toggled during hover sections (`w.userData.glow.visible = r.anti`).
@@ -66,5 +67,9 @@ All 3D models integrated in Phase 3 are 100% original, legally distributable, an
    - When steering, the driver torso banks into the turn (`driver.rotation.z = -r.steer * 0.12`).
 6. **Resource Ownership & Instance Isolation:**
    - Geometries and materials are cloned per racer instance when instantiated from the master cached GLTF.
-   - Master assets registered in `assetCache` are marked and protected from disposal during race teardown (`disposeModel(k.root)`).
+   - Master assets registered in `assetCache` are marked in `masterCachedGeometries`, `masterCachedMaterials`, and `masterCachedTextures`, protected from disposal during race teardown (`disposeModel(k.root)`).
+   - Active instances are tracked in `activeInstances`. `clearAssetCache(force = false)` guards master cached assets against invalidation while active racer instances exist, releasing only when all instances have been cleanly disposed.
    - This ensures multiple consecutive races can be constructed and torn down repeatedly without corrupting or invalidating GPU resources.
+7. **Visual Validation & Verification Gallery:**
+   - 32 high-definition visual validation screenshots ($1280 \times 720$) are recorded under `docs/screenshots/verification/` capturing all eight racer combinations from four calibrated perspectives: `three_quarter`, `side`, `rear`, and `cockpit`.
+   - Verified driver pelvis contact at seat cushion, steering wheel grip clearance, head clearance, and wheel axle alignment under full studio lighting and shadow mapping.

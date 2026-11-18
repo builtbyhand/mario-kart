@@ -131,6 +131,7 @@ test("buildGLBKart constructs fully articulated kart with wheels, animated drive
 
   // Step animation mixer
   result.mixer.update(0.016);
+  disposeModel(result.model);
 });
 
 test("loadKartPack upgrades procedural karts to high-definition GLB models", async () => {
@@ -161,6 +162,7 @@ test("loadKartPack upgrades procedural karts to high-definition GLB models", asy
   assert.notEqual(kartObject.model, procedural, "Procedural model must be replaced");
   assert.equal(kartObject.wheels.length, 4, "Must have 4 rigged wheels");
   assert.ok(kartObject.mixer, "Mixer must be present on kart");
+  disposeModel(kartObject.root);
 });
 
 test("loadKartPack gracefully falls back when an asset cannot be loaded", async () => {
@@ -282,6 +284,7 @@ test("All eight driver/kart combinations have valid world dimensions and seating
     const cGltf = await loadGLB(spec.character);
     const built = buildGLBKart(id, kGltf, cGltf);
 
+    if (built.mixer) built.mixer.update(0.016);
     built.model.updateMatrixWorld(true);
 
     // Measure kart body bounds (excluding driver)
@@ -295,7 +298,7 @@ test("All eight driver/kart combinations have valid world dimensions and seating
       `${id} kart length (${kartLength.toFixed(2)}m) must be in valid vehicle range [2.5, 4.0]`
     );
 
-    // Measure driver bounds
+    // Measure driver bounds in seated drive pose
     assert.ok(built.driver, `${id} must have driverScene`);
     const dBox = new THREE.Box3().setFromObject(built.driver);
     const driverHeight = dBox.max.y - dBox.min.y;
@@ -303,16 +306,16 @@ test("All eight driver/kart combinations have valid world dimensions and seating
     const driverHeadY = dBox.max.y;
 
     assert.ok(
-      driverHeight >= 0.85 && driverHeight <= 1.30,
-      `${id} driver height (${driverHeight.toFixed(2)}m) must be stylized humanoid proportion [0.85, 1.30]`
+      driverHeight >= 1.00 && driverHeight <= 1.30,
+      `${id} driver height (${driverHeight.toFixed(2)}m) must be stylized humanoid proportion [1.00, 1.30]`
     );
     assert.ok(
-      driverSeatY >= 0.25 && driverSeatY <= 0.60,
-      `${id} driver seat Y (${driverSeatY.toFixed(2)}m) must sit in cockpit floor/seat [0.25, 0.60]`
+      driverSeatY >= 0.25 && driverSeatY <= 0.42,
+      `${id} driver seat Y (${driverSeatY.toFixed(2)}m) must sit in cockpit floor/seat [0.25, 0.42]`
     );
     assert.ok(
-      driverHeadY >= 1.25 && driverHeadY <= 1.70,
-      `${id} driver head Y (${driverHeadY.toFixed(2)}m) must be visible above cockpit [1.25, 1.70]`
+      driverHeadY >= 1.35 && driverHeadY <= 1.70,
+      `${id} driver head Y (${driverHeadY.toFixed(2)}m) must be visible above cockpit [1.35, 1.70]`
     );
 
     // Verify 4 wheels
@@ -365,4 +368,81 @@ test("Driver animation and wheel motion behavior remain functional across frame 
   assert.ok(built.driverHead.userData.lookRestQuaternion, "Driver head must cache rest quaternion");
 
   disposeModel(built.model);
+});
+
+test("All 32 wheels across all eight karts have mathematically exact axle alignment with zero wobble", async () => {
+  const wheelAliases = [
+    ["wheel-front-left", "wheel-0"],
+    ["wheel-front-right", "wheel-1"],
+    ["wheel-back-left", "wheel-2"],
+    ["wheel-back-right", "wheel-3"],
+  ];
+
+  for (const [id, spec] of Object.entries(KART_SPECS)) {
+    const rawGltf = await loadGLB(spec.kart);
+    const charGltf = await loadGLB(spec.character);
+    const built = buildGLBKart(id, rawGltf, charGltf);
+
+    built.model.updateMatrixWorld(true);
+
+    for (let i = 0; i < 4; i++) {
+      const [name, alias] = wheelAliases[i];
+      const origMesh = rawGltf.scene.getObjectByName(name) || rawGltf.scene.getObjectByName(alias);
+      assert.ok(origMesh, `${id} ${name} must exist in source GLTF`);
+
+      // 1. Raw source GLTF axle in world space
+      origMesh.geometry.computeBoundingBox();
+      const rawCenter = origMesh.geometry.boundingBox.getCenter(new THREE.Vector3());
+      const rawAxle = origMesh.position.clone().add(rawCenter);
+      const expectedWorldAxle = rawAxle.clone()
+        .applyAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI)
+        .multiplyScalar(spec.scale);
+
+      // 2. Built wheel pivot in world space
+      const pivot = built.wheels[i];
+      const pivotWorldPos = new THREE.Vector3();
+      pivot.getWorldPosition(pivotWorldPos);
+
+      const diff = pivotWorldPos.distanceTo(expectedWorldAxle);
+      assert.ok(
+        diff < 1e-4,
+        `${id} wheel-${i} pivot (${pivotWorldPos.x.toFixed(4)}, ${pivotWorldPos.y.toFixed(4)}, ${pivotWorldPos.z.toFixed(4)}) ` +
+        `must match raw source axle (${expectedWorldAxle.x.toFixed(4)}, ${expectedWorldAxle.y.toFixed(4)}, ${expectedWorldAxle.z.toFixed(4)}) ` +
+        `within 0.1mm (diff was ${diff.toFixed(6)})`
+      );
+
+      // 3. Verify wheel mesh geometry is centered at origin (0, 0, 0)
+      const rolling = pivot.userData.rolling;
+      const mesh = rolling.children.find((c) => c.isMesh);
+      assert.ok(mesh, `${id} wheel-${i} rolling group must contain wheel mesh`);
+      mesh.geometry.computeBoundingBox();
+      const meshCenter = mesh.geometry.boundingBox.getCenter(new THREE.Vector3());
+      assert.ok(
+        meshCenter.length() < 1e-5,
+        `${id} wheel-${i} mesh geometry must be centered at (0, 0, 0) to rotate with zero wobble (got ${meshCenter.length().toFixed(6)})`
+      );
+    }
+
+    disposeModel(built.model);
+  }
+});
+
+test("clearAssetCache refuses to clear while active kart instances exist unless forced", async () => {
+  const kGltf = await loadGLB(KART_SPECS.mario.kart);
+  const cGltf = await loadGLB(KART_SPECS.mario.character);
+
+  const kart = buildGLBKart("mario", kGltf, cGltf);
+
+  // Attempt to clear without force while active instance is alive
+  const clearResultBlocked = clearAssetCache(false);
+  assert.equal(clearResultBlocked, false, "clearAssetCache must return false when active instances exist");
+  assert.ok(assetCache.size > 0, "assetCache must not be emptied while active instances exist");
+
+  // Dispose active instance
+  disposeModel(kart.model);
+
+  // Now clear should succeed
+  const clearResultSuccess = clearAssetCache(false);
+  assert.equal(clearResultSuccess, true, "clearAssetCache must succeed once all instances are disposed");
+  assert.equal(assetCache.size, 0, "assetCache must be empty after successful clear");
 });

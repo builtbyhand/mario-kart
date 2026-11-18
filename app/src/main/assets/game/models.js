@@ -151,9 +151,17 @@ export function proceduralKart(id) {
 export const masterCachedGeometries = new WeakSet();
 export const masterCachedMaterials = new WeakSet();
 export const masterCachedTextures = new WeakSet();
+export const activeInstances = new Set();
 
 export function disposeModel(root) {
   if (!root) return;
+
+  activeInstances.delete(root);
+  root.traverse((o) => {
+    if (activeInstances.has(o)) {
+      activeInstances.delete(o);
+    }
+  });
 
   // Cleanly stop and unbind animation mixer from Three.js runtime
   if (root.userData?.mixer) {
@@ -195,71 +203,75 @@ export const KART_SPECS = {
     character: "models/character-male-a.glb",
     name: "Red Speedster",
     scale: 2.2,
-    driverOffset: [0, 0.45, 0.12],
-    driverScale: 1.45,
+    driverOffset: [0, 0.56, 0.14],
+    driverScale: 1.80,
   },
   luigi: {
     kart: "models/kart-oodi.glb",
     character: "models/character-male-b.glb",
     name: "Green Aero",
     scale: 2.2,
-    driverOffset: [0, 0.45, 0.12],
-    driverScale: 1.45,
+    driverOffset: [0, 0.56, 0.14],
+    driverScale: 1.80,
   },
   peach: {
     kart: "models/kart-ooli.glb",
     character: "models/character-female-a.glb",
     name: "Pink Sport",
     scale: 2.2,
-    driverOffset: [0, 0.45, 0.12],
-    driverScale: 1.35,
+    driverOffset: [0, 0.54, 0.08],
+    driverScale: 1.55,
   },
   yoshi: {
     kart: "models/kart-oopi.glb",
     character: "models/character-female-b.glb",
     name: "Lime Turbo",
     scale: 2.2,
-    driverOffset: [0, 0.45, 0.12],
-    driverScale: 1.40,
+    driverOffset: [0, 0.56, 0.14],
+    driverScale: 1.75,
   },
   toad: {
     kart: "models/kart-oozi.glb",
     character: "models/character-male-c.glb",
     name: "Blue Comet",
     scale: 2.2,
-    driverOffset: [0, 0.45, 0.12],
-    driverScale: 1.35,
+    driverOffset: [0, 0.56, 0.14],
+    driverScale: 1.70,
   },
   bowser: {
     kart: "models/race-future.glb",
     character: "models/character-male-d.glb",
     name: "Cyber Beast",
     scale: 1.25,
-    driverOffset: [0, 0.38, -0.18],
-    driverScale: 1.50,
+    driverOffset: [0, 0.46, -0.18],
+    driverScale: 1.65,
   },
   "donkey-kong": {
     kart: "models/race.glb",
     character: "models/character-male-d.glb",
     name: "Classic GT",
     scale: 1.25,
-    driverOffset: [0, 0.35, -0.38],
-    driverScale: 1.50,
+    driverOffset: [0, 0.44, -0.38],
+    driverScale: 1.65,
   },
   koopa: {
     kart: "models/sedan-sports.glb",
     character: "models/character-female-c.glb",
     name: "Yellow Sprint",
     scale: 1.25,
-    driverOffset: [0, 0.35, -0.15],
-    driverScale: 1.30,
+    driverOffset: [0, 0.42, -0.15],
+    driverScale: 1.55,
   },
 };
 
 const gltfLoader = new GLTFLoader();
 export const assetCache = new Map();
 
-export function clearAssetCache() {
+export function clearAssetCache(force = false) {
+  if (activeInstances.size > 0 && !force) {
+    console.warn(`[clearAssetCache] Cannot clear cache while ${activeInstances.size} active kart instance(s) exist. Pass force=true to override.`);
+    return false;
+  }
   for (const gltf of assetCache.values()) {
     gltf.scene?.traverse((o) => {
       if (o.geometry) o.geometry.dispose();
@@ -272,6 +284,7 @@ export function clearAssetCache() {
     });
   }
   assetCache.clear();
+  return true;
 }
 
 export async function loadGLB(pathUrl) {
@@ -324,6 +337,7 @@ export function buildGLBKart(id, kartGltf, charGltf) {
   const root = new THREE.Group();
   root.name = "glb-kart";
   root.userData.isGLB = true;
+  activeInstances.add(root);
 
   // Clone kart hierarchy with cloned geometry and materials for full instance isolation
   const kartScene = cloneSkeleton(kartGltf.scene);
@@ -374,9 +388,10 @@ export function buildGLBKart(id, kartGltf, charGltf) {
     wheelPivot.userData.hubCenter = [0, 0, 0];
     wheelPivot.userData.hubRadius = radius;
 
-    // Reparent mesh inside rolling group, scaled and oriented with kart forward (-Z)
+    // Reparent mesh inside rolling group, centered so pivot is exact axle center
     mesh.removeFromParent();
-    mesh.position.sub(rawAxle);
+    mesh.geometry.center();
+    mesh.position.set(0, 0, 0);
     mesh.scale.setScalar(spec.scale);
     mesh.rotation.y = Math.PI;
     rolling.add(mesh);
