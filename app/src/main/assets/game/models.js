@@ -376,14 +376,32 @@ export function buildGLBKart(id, kartGltf, charGltf) {
     const mesh = kartScene.getObjectByName(name) || kartScene.getObjectByName(alias);
     if (!mesh) return null;
 
-    // 1. Calculate axle center using complete source GLTF hierarchy and its updated matrixWorld
+    // 1. Calculate axle center and direction using complete source GLTF hierarchy and its updated matrixWorld
     mesh.geometry.computeBoundingBox();
     const localBox = mesh.geometry.boundingBox;
     const localCenter = localBox.getCenter(new THREE.Vector3());
     const localExtent = localBox.getSize(new THREE.Vector3());
 
+    // Identify geometric axle line in local mesh coordinates (minimum dimension axis)
+    let localAxle = new THREE.Vector3(1, 0, 0);
+    if (localExtent.y < localExtent.x && localExtent.y < localExtent.z) {
+      localAxle.set(0, 1, 0);
+    } else if (localExtent.z < localExtent.x && localExtent.z < localExtent.y) {
+      localAxle.set(0, 0, 1);
+    }
+
     const origWorldMatrix = mesh.matrixWorld.clone();
     const worldAxle = localCenter.clone().applyMatrix4(origWorldMatrix);
+
+    // Transform local axle direction to world space
+    const sourceAxleWorld = localAxle.clone().transformDirection(origWorldMatrix).normalize();
+
+    // Vehicle lateral (rightward) axis in world space: kart forward is -Z, up is +Y, right is +X
+    const rootRight = new THREE.Vector3(1, 0, 0).transformDirection(root.matrixWorld).normalize();
+    const worldAxleDir = sourceAxleWorld.clone();
+    if (worldAxleDir.dot(rootRight) < 0) {
+      worldAxleDir.negate();
+    }
 
     const worldScale = new THREE.Vector3();
     const worldQuat = new THREE.Quaternion();
@@ -399,12 +417,20 @@ export function buildGLBKart(id, kartGltf, charGltf) {
     root.add(wheelPivot);
     root.updateMatrixWorld(true);
 
-    // 3. Create rolling group under wheelPivot for pitch rotation around axle
+    // 3. Create rolling group under wheelPivot:
+    // Orient rolling group so its local rolling axis (+X) corresponds to the actual transformed axle
+    const pivotInv = wheelPivot.matrixWorld.clone().invert();
+    const axleInPivot = worldAxleDir.clone().transformDirection(pivotInv).normalize();
+
     const rolling = new THREE.Group();
+    const rotQ = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(1, 0, 0), axleInPivot);
+    rolling.quaternion.copy(rotQ);
+
     wheelPivot.add(rolling);
     wheelPivot.userData.rolling = rolling;
     wheelPivot.userData.hubCenter = [0, 0, 0];
     wheelPivot.userData.hubRadius = radius;
+    wheelPivot.userData.axleWorldDir = worldAxleDir.clone();
     root.updateMatrixWorld(true);
 
     // 4. Convert mesh world transform into rolling group local coordinate system:

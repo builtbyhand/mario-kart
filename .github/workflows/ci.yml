@@ -32,6 +32,10 @@ jobs:
           npm test
           npm run check
 
+      - name: Run Headless Verification Screenshots
+        run: |
+          node scripts/capture-verification-screenshots.js
+
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 

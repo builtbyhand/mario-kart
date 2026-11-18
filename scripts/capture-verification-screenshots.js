@@ -3,6 +3,7 @@
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
+import zlib from "node:zlib";
 import { spawn } from "node:child_process";
 
 const RACERS = [
@@ -23,24 +24,106 @@ if (!fs.existsSync(OUT_DIR)) {
   fs.mkdirSync(OUT_DIR, { recursive: true });
 }
 
-// Helper to validate PNG binary content
+// Helper to validate PNG binary and rendered visual content
 function validatePNGImage(buffer, expectedWidth = 1280, expectedHeight = 720) {
   if (!buffer || buffer.length < 50000) {
     return { valid: false, reason: `File size too small (${buffer?.length || 0} bytes)` };
   }
-  // Check PNG signature
+
+  // 1. Check PNG signature
   const pngSig = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
   for (let i = 0; i < pngSig.length; i++) {
     if (buffer[i] !== pngSig[i]) {
       return { valid: false, reason: "Invalid PNG signature header" };
     }
   }
-  // Read width and height from IHDR chunk (offset 16 and 20)
-  const width = buffer.readUInt32BE(16);
-  const height = buffer.readUInt32BE(20);
-  if (width !== expectedWidth || height !== expectedHeight) {
-    return { valid: false, reason: `Dimension mismatch: got ${width}x${height}, expected ${expectedWidth}x${expectedHeight}` };
+
+  // 2. Parse chunks to extract dimensions and image data
+  let offset = 8;
+  const idatChunks = [];
+  let width = 0;
+  let height = 0;
+  let colorType = 0;
+
+  while (offset < buffer.length) {
+    if (offset + 8 > buffer.length) break;
+    const length = buffer.readUInt32BE(offset);
+    const type = buffer.toString("ascii", offset + 4, offset + 8);
+
+    if (type === "IHDR") {
+      width = buffer.readUInt32BE(offset + 8);
+      height = buffer.readUInt32BE(offset + 12);
+      colorType = buffer.readUInt8(offset + 17);
+    } else if (type === "IDAT") {
+      idatChunks.push(buffer.subarray(offset + 8, offset + 8 + length));
+    } else if (type === "IEND") {
+      break;
+    }
+    offset += 12 + length;
   }
+
+  if (width !== expectedWidth || height !== expectedHeight) {
+    return {
+      valid: false,
+      reason: `Dimension mismatch: got ${width}x${height}, expected ${expectedWidth}x${expectedHeight}`,
+    };
+  }
+
+  // 3. Decompress IDAT chunks to validate actual pixel content (non-blank check)
+  try {
+    const uncompressed = zlib.inflateSync(Buffer.concat(idatChunks));
+    const bytesPerPixel = colorType === 6 ? 4 : colorType === 2 ? 3 : 4;
+    const stride = 1 + width * bytesPerPixel;
+    const expectedUncompressedLength = height * stride;
+
+    if (uncompressed.length !== expectedUncompressedLength) {
+      return {
+        valid: false,
+        reason: `Corrupted scanline data: expected ${expectedUncompressedLength} bytes, got ${uncompressed.length}`,
+      };
+    }
+
+    // Sample pixels across a 10x10 grid to verify color variance and foreground 3D geometry
+    const colorSet = new Set();
+    let nonBgPixels = 0;
+
+    // Corner pixel as background reference
+    const bgR = uncompressed[1];
+    const bgG = uncompressed[2];
+    const bgB = uncompressed[3];
+
+    for (let y = 0; y < height; y += 10) {
+      const rowOffset = y * stride + 1;
+      for (let x = 0; x < width; x += 10) {
+        const p = rowOffset + x * bytesPerPixel;
+        const r = uncompressed[p];
+        const g = uncompressed[p + 1];
+        const b = uncompressed[p + 2];
+        colorSet.add((r << 16) | (g << 8) | b);
+        if (Math.abs(r - bgR) > 15 || Math.abs(g - bgG) > 15 || Math.abs(b - bgB) > 15) {
+          nonBgPixels++;
+        }
+      }
+    }
+
+    // A real 3D render with shading, lighting and textures has hundreds of colors and prominent foreground geometry
+    if (colorSet.size < 100) {
+      return {
+        valid: false,
+        reason: `Render content lacks visual complexity (only ${colorSet.size} distinct colors sampled; appears blank/flat)`,
+      };
+    }
+
+    if (nonBgPixels < 500) {
+      return {
+        valid: false,
+        reason: `Render content appears mostly empty (only ${nonBgPixels} foreground pixels detected)`,
+      };
+    }
+  } catch (err) {
+    return { valid: false, reason: `Failed to decompress and inspect PNG image data: ${err.message}` };
+  }
+
   return { valid: true, width, height };
 }
 
@@ -70,10 +153,19 @@ const server = http.createServer((req, res) => {
 server.listen(8888, "127.0.0.1", async () => {
   console.log("Static verification server running on http://127.0.0.1:8888");
 
-  const chrome = spawn("google-chrome", [
+  const chromeBin =
+    process.env.CHROME_BIN ||
+    (fs.existsSync("/usr/bin/google-chrome")
+      ? "/usr/bin/google-chrome"
+      : fs.existsSync("/usr/bin/chromium-browser")
+      ? "/usr/bin/chromium-browser"
+      : "google-chrome");
+
+  const chrome = spawn(chromeBin, [
     "--headless=new",
     "--no-sandbox",
     "--disable-gpu-sandbox",
+    "--disable-dev-shm-usage",
     "--use-gl=angle",
     "--use-angle=swiftshader",
     "--enable-webgl",
