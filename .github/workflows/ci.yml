@@ -25,7 +25,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Run JavaScript Unit Tests
         run: |
@@ -34,7 +34,7 @@ jobs:
 
       - name: Run Headless Verification Screenshots
         run: |
-          node scripts/capture-verification-screenshots.js
+          node --experimental-websocket scripts/capture-verification-screenshots.js
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
