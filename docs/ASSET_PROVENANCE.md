@@ -143,12 +143,12 @@ All 28 environment 3D assets are created by **Kenney** (Kenney Vleugels — [ken
 | `treeSmall.glb` | Racing Kit | CC0 1.0 | 6,960 B (6.8 KB) | `151d1556b762768433ed9610589650ae8110cac2ed99a3fe1e4da53e1335be23` | Decorative shrubs along outer barrier margins |
 | `tree_default.glb` | Nature Kit | CC0 1.0 | 9,428 B (9.2 KB) | `562d29638c902de3c7bee465d3a53bb77117efbc392ae04ed894faf6b5dc691d` | Stylized parkway trees in lower infield |
 | `tree_oak.glb` | Nature Kit | CC0 1.0 | 14,644 B (14.3 KB) | `d7fd8773674928c50c11b66d12c636d49bdcc15a8b1c7fbb98e6f63a3439a3f3` | Large mature oak trees framing backstretch |
-| `tree_pineRoundA.glb` | Nature Kit | CC0 1.0 | 14,488 B (14.1 KB) | `7dc9711f5ab372cef0e1083b83dc270c03f32bfa0dbc3978c40206faf5608b89` | Mountain pine trees along climbing elevation ridge |
+| `tree_pineRoundA.glb` | Nature Kit | CC0 1.0 | 14,488 B (14.1 KB) | `7dc9711f31585eafdcb965d0649c30af5e19f2def1955f7a915081d30759ef8e` | Mountain pine trees along climbing elevation ridge |
 | `tree_pineTallA.glb` | Nature Kit | CC0 1.0 | 7,200 B (7.0 KB) | `e0a56eb196d8a64ba86c7304d607136e17e6f9ad748dffcf86bd53b18b91b196` | Tall alpine pines on mountain crest and elevated hairpin |
 | `building-skyscraper-a.glb` | City Commercial | CC0 1.0 | 123,744 B (120.8 KB) | `7a8968eb10aa71bee4a51cae95c21425a4d9ced7c949dac447b1e494535e6b6c` | Modern office skyscraper in stadium skyline arc (Tower A) |
 | `building-skyscraper-b.glb` | City Commercial | CC0 1.0 | 150,892 B (147.4 KB) | `52fe191d8401c39db4cd2b7902c37dce09608eeb3fd379b38aefc5ed658512ba` | Stepped corporate skyscraper in stadium skyline arc (Tower B) |
 | `building-skyscraper-c.glb` | City Commercial | CC0 1.0 | 161,932 B (158.1 KB) | `d3d5d2b281eddda1ba19eaaf2115c6166f1fc8f6dbafc91ac04969bbd3d4b0a6` | High-rise commercial tower in stadium skyline arc (Tower C) |
-| `building-skyscraper-d.glb` | City Commercial | CC0 1.0 | 179,556 B (175.4 KB) | `8718578123f49d39862d608efa7d717a7a72571517dce9a23211ffd6fde94aba` | Spire architectural skyscraper in stadium skyline arc (Tower D) |
+| `building-skyscraper-d.glb` | City Commercial | CC0 1.0 | 179,556 B (175.3 KB) | `8718578123f49d39862d608efa7d717a7a72571517dce9a23211ffd6fde94aba` | Spire architectural skyscraper in stadium skyline arc (Tower D) |
 
 ---
 

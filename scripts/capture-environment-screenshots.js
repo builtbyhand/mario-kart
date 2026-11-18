@@ -314,7 +314,50 @@ server.listen(8889, "127.0.0.1", async () => {
       expression: "window.__RENDER_METADATA",
       returnByValue: true,
     });
-    const metadata = metaRes?.result?.value || {};
+    const metadata = metaRes?.result?.value;
+
+    if (!metadata || typeof metadata !== "object") {
+      console.error(`[FAIL] No render metadata returned for view '${view.id}'`);
+      chrome.kill();
+      server.close();
+      process.exit(1);
+    }
+
+    // Verify requested view matches actual rendered view
+    if (metadata.viewType !== view.id) {
+      console.error(
+        `[FAIL] Render metadata viewType mismatch for '${view.id}': requested '${view.id}', rendered '${metadata.viewType}'`
+      );
+      chrome.kill();
+      server.close();
+      process.exit(1);
+    }
+
+    // Verify meaningful renderer stats exist
+    if (!metadata.environmentLoaded) {
+      console.error(`[FAIL] Environment pack failed to load for view '${view.id}'`);
+      chrome.kill();
+      server.close();
+      process.exit(1);
+    }
+
+    if (!metadata.drawCalls || metadata.drawCalls < 100) {
+      console.error(
+        `[FAIL] Meaningless renderer draw calls for '${view.id}': expected >= 100, got ${metadata.drawCalls}`
+      );
+      chrome.kill();
+      server.close();
+      process.exit(1);
+    }
+
+    if (!metadata.triangles || metadata.triangles < 50000) {
+      console.error(
+        `[FAIL] Meaningless renderer triangle count for '${view.id}': expected >= 50,000, got ${metadata.triangles}`
+      );
+      chrome.kill();
+      server.close();
+      process.exit(1);
+    }
 
     const ss = await send("Page.captureScreenshot", { format: "png" });
     const imgBuf = Buffer.from(ss.data, "base64");

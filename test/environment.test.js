@@ -113,6 +113,38 @@ const ASSET_SPECIFICATIONS = {
   skyscraperD: { size: new THREE.Vector3(35, 160, 35), rotY: 0, role: "skyline tower D" },
 };
 
+// Independently justified expectations for raw source assets (unnormalized GLB)
+const RAW_ASSET_EXPECTATIONS = {
+  barrierRed: { size: [0.250, 0.131, 0.123], meshCount: 1, minVerts: 48 },
+  barrierWhite: { size: [0.250, 0.131, 0.123], meshCount: 1, minVerts: 48 },
+  fenceStraight: { size: [1.000, 0.500, 0.034], meshCount: 2, minVerts: 24 },
+  pylon: { size: [0.120, 0.132, 0.120], meshCount: 1, minVerts: 60 },
+  grandStand: { size: [1.000, 0.896, 1.000], meshCount: 4, minVerts: 80 },
+  grandStandCovered: { size: [1.000, 1.186, 1.020], meshCount: 5, minVerts: 100 },
+  grandStandRound: { size: [1.637, 0.896, 1.637], meshCount: 4, minVerts: 500 },
+  overheadLights: { size: [1.260, 0.694, 0.190], meshCount: 3, minVerts: 200 },
+  overhead: { size: [1.260, 0.668, 0.190], meshCount: 1, minVerts: 60 },
+  billboard: { size: [1.000, 1.000, 0.476], meshCount: 4, minVerts: 80 },
+  billboardLow: { size: [1.000, 0.690, 0.476], meshCount: 4, minVerts: 80 },
+  bannerTowerRed: { size: [0.385, 1.246, 0.385], meshCount: 3, minVerts: 200 },
+  flagCheckers: { size: [0.197, 1.250, 0.035], meshCount: 4, minVerts: 90 },
+  flagRed: { size: [0.197, 1.250, 0.035], meshCount: 4, minVerts: 90 },
+  pitsGarage: { size: [1.000, 0.700, 1.090], meshCount: 4, minVerts: 50 },
+  pitsOffice: { size: [1.000, 0.510, 1.040], meshCount: 4, minVerts: 50 },
+  tent: { size: [1.000, 0.700, 1.000], meshCount: 2, minVerts: 40 },
+  lightPostModern: { size: [0.049, 0.781, 0.178], meshCount: 2, minVerts: 100 },
+  treeLarge: { size: [0.357, 1.507, 0.412], meshCount: 2, minVerts: 40 },
+  treeSmall: { size: [0.253, 1.070, 0.292], meshCount: 2, minVerts: 40 },
+  tree_default: { size: [0.755, 1.708, 0.654], meshCount: 2, minVerts: 60 },
+  tree_oak: { size: [0.641, 1.226, 0.740], meshCount: 2, minVerts: 100 },
+  tree_pineRoundA: { size: [0.617, 1.366, 0.712], meshCount: 2, minVerts: 100 },
+  tree_pineTallA: { size: [0.386, 1.530, 0.392], meshCount: 2, minVerts: 40 },
+  skyscraperA: { size: [1.360, 2.880, 1.360], meshCount: 1, minVerts: 600 },
+  skyscraperB: { size: [1.360, 4.480, 1.360], meshCount: 1, minVerts: 700 },
+  skyscraperC: { size: [1.280, 4.080, 1.388], meshCount: 1, minVerts: 800 },
+  skyscraperD: { size: [1.280, 5.470, 1.388], meshCount: 1, minVerts: 900 },
+};
+
 test("Validate all 28 environment assets: load, finite coordinates, grounding, dimensions, orientation, and self-contained packaging", async () => {
   const assetKeys = Object.keys(ENVIRONMENT_ASSETS);
   assert.equal(assetKeys.length, 28, "Expected exactly 28 registered environment assets");
@@ -154,34 +186,46 @@ test("Validate all 28 environment assets: load, finite coordinates, grounding, d
     assert.ok(gltf, `Asset ${key} must parse successfully`);
     assert.ok(gltf.scene, `Asset ${key} must contain a valid scene`);
 
-    const spec = ASSET_SPECIFICATIONS[key];
-    assert.ok(spec, `Asset ${key} must have defined specification`);
+    const rawSpec = RAW_ASSET_EXPECTATIONS[key];
+    assert.ok(rawSpec, `Asset ${key} must have defined raw source expectations`);
 
-    const normM = getNormalizedLocalTransform(gltf.scene, spec.size, { rotateY: spec.rotY });
-    const box = new THREE.Box3();
-    let meshCount = 0;
-    let vertexCount = 0;
+    const spec = ASSET_SPECIFICATIONS[key];
+    assert.ok(spec, `Asset ${key} must have defined normalized specification`);
+
+    // =========================================================================
+    // 1. INDEPENDENT RAW SOURCE ASSET VALIDATION (Before any normalization)
+    // =========================================================================
+    gltf.scene.updateMatrixWorld(true);
+    const rawBox = new THREE.Box3().setFromObject(gltf.scene);
+    const rawSize = rawBox.getSize(new THREE.Vector3());
+
+    let rawMeshCount = 0;
+    let rawVertexCount = 0;
 
     gltf.scene.traverse((o) => {
-      if (o.isMesh) {
-        meshCount++;
-        const pos = o.geometry.attributes.position;
-        vertexCount += pos.count;
-        const totalM = normM.clone().multiply(o.matrixWorld);
-        const v = new THREE.Vector3();
+      // Verify node transform elements are all finite
+      for (let e = 0; e < 16; e++) {
+        assert.ok(
+          Number.isFinite(o.matrix.elements[e]),
+          `Asset ${key} node '${o.name}' matrix element ${e} must be finite`
+        );
+      }
 
+      if (o.isMesh) {
+        rawMeshCount++;
+        const pos = o.geometry?.attributes?.position;
+        assert.ok(pos && pos.count > 0, `Asset ${key} mesh '${o.name}' must have non-empty position attribute`);
+        rawVertexCount += pos.count;
+
+        const v = new THREE.Vector3();
         for (let i = 0; i < pos.count; i++) {
           v.fromBufferAttribute(pos, i);
-          // Verify finite coordinates
           assert.ok(
             Number.isFinite(v.x) && Number.isFinite(v.y) && Number.isFinite(v.z),
-            `Asset ${key} contains non-finite vertex coordinates at index ${i}`
+            `Asset ${key} raw vertex at ${i} has non-finite coordinates`
           );
-          v.applyMatrix4(totalM);
-          box.expandByPoint(v);
         }
 
-        // Verify valid material
         const mats = Array.isArray(o.material) ? o.material : [o.material];
         for (const m of mats) {
           assert.ok(m, `Asset ${key} mesh '${o.name}' must have valid material`);
@@ -189,22 +233,61 @@ test("Validate all 28 environment assets: load, finite coordinates, grounding, d
       }
     });
 
-    assert.ok(meshCount > 0, `Asset ${key} must contain at least one mesh`);
-    assert.ok(vertexCount > 0, `Asset ${key} must contain vertices`);
+    assert.equal(
+      rawMeshCount,
+      rawSpec.meshCount,
+      `Asset ${key} raw mesh count mismatch: expected ${rawSpec.meshCount}, got ${rawMeshCount}`
+    );
+    assert.ok(
+      rawVertexCount >= rawSpec.minVerts,
+      `Asset ${key} vertex count too low: expected >= ${rawSpec.minVerts}, got ${rawVertexCount}`
+    );
+
+    // Verify non-zero raw source volume
+    assert.ok(rawSize.x > 0.01, `Asset ${key} raw width must be > 0.01`);
+    assert.ok(rawSize.y > 0.01, `Asset ${key} raw height must be > 0.01`);
+    assert.ok(rawSize.z > 0.01, `Asset ${key} raw depth must be > 0.01`);
+
+    // Verify raw source dimensions match independently derived expected source bounds within 3cm
+    assert.ok(
+      Math.abs(rawSize.x - rawSpec.size[0]) < 0.03,
+      `Asset ${key} raw width mismatch: got ${rawSize.x.toFixed(3)}, expected ${rawSpec.size[0]}`
+    );
+    assert.ok(
+      Math.abs(rawSize.y - rawSpec.size[1]) < 0.03,
+      `Asset ${key} raw height mismatch: got ${rawSize.y.toFixed(3)}, expected ${rawSpec.size[1]}`
+    );
+    assert.ok(
+      Math.abs(rawSize.z - rawSpec.size[2]) < 0.03,
+      `Asset ${key} raw depth mismatch: got ${rawSize.z.toFixed(3)}, expected ${rawSpec.size[2]}`
+    );
+
+    // =========================================================================
+    // 2. NORMALIZED OUTPUT TRANSFORMATION VALIDATION (Grounding & In-Game Target)
+    // =========================================================================
+    const normM = getNormalizedLocalTransform(gltf.scene, spec.size, { rotateY: spec.rotY });
+    const normBox = new THREE.Box3();
+
+    gltf.scene.traverse((o) => {
+      if (o.isMesh) {
+        const pos = o.geometry.attributes.position;
+        const totalM = normM.clone().multiply(o.matrixWorld);
+        const v = new THREE.Vector3();
+        for (let i = 0; i < pos.count; i++) {
+          v.fromBufferAttribute(pos, i).applyMatrix4(totalM);
+          normBox.expandByPoint(v);
+        }
+      }
+    });
 
     // Verify grounding at Y = 0 (bottom plane contacts ground)
     assert.ok(
-      Math.abs(box.min.y) < 1e-4,
-      `Asset ${key} must be grounded at y=0, got min.y=${box.min.y}`
+      Math.abs(normBox.min.y) < 1e-4,
+      `Asset ${key} must be grounded at y=0, got min.y=${normBox.min.y}`
     );
 
-    // Verify non-zero volume
-    const measuredSize = box.getSize(new THREE.Vector3());
-    assert.ok(measuredSize.x > 0.1, `Asset ${key} width must be non-zero`);
-    assert.ok(measuredSize.y > 0.1, `Asset ${key} height must be non-zero`);
-    assert.ok(measuredSize.z > 0.1, `Asset ${key} length must be non-zero`);
-
-    // Verify normalized model matches expected per-asset target dimensions
+    // Verify normalized model matches circuit design target specifications
+    const measuredSize = normBox.getSize(new THREE.Vector3());
     assert.ok(
       Math.abs(measuredSize.x - spec.size.x) < 0.05,
       `Asset ${key} width mismatch: measured ${measuredSize.x.toFixed(2)}, expected ${spec.size.x}`
@@ -371,7 +454,32 @@ async function validateBarrierGeometry(worldResult, options = {}) {
   assert.equal(facesW.frontIndices.length, 24, "Front connection end face of barrierWhite must have 24 vertices");
   assert.equal(facesW.rearIndices.length, 24, "Rear connection end face of barrierWhite must have 24 vertices");
 
-  // 3. Locate InstancedMesh objects in scene
+  // 3. Dynamically derive exact enclosing OBB dimensions and local centers from transformed source geometry
+  function deriveEnclosingOBB(posAttr, baseM) {
+    const box = new THREE.Box3();
+    const v = new THREE.Vector3();
+    for (let j = 0; j < posAttr.count; j++) {
+      v.fromBufferAttribute(posAttr, j).applyMatrix4(baseM);
+      box.expandByPoint(v);
+    }
+    const size = box.getSize(new THREE.Vector3());
+    const halfExtents = size.clone().multiplyScalar(0.5);
+    const localCenter = box.getCenter(new THREE.Vector3());
+    return { halfExtents, localCenter, min: box.min, max: box.max };
+  }
+
+  const obbSpecR = deriveEnclosingOBB(posAttrR, baseMeshMatrixR);
+  const obbSpecW = deriveEnclosingOBB(posAttrW, baseMeshMatrixW);
+
+  // Validate that derived half-extents tightly and accurately enclose the source meshes within 1e-4m
+  assert.ok(Math.abs(obbSpecR.halfExtents.x - 0.30) < 1e-4, "barrierRed derived half-extent X must be 0.30m");
+  assert.ok(Math.abs(obbSpecR.halfExtents.y - 0.45) < 1e-4, "barrierRed derived half-extent Y must be 0.45m");
+  assert.ok(Math.abs(obbSpecR.halfExtents.z - 1.525) < 1e-4, "barrierRed derived half-extent Z must be 1.525m");
+  assert.ok(Math.abs(obbSpecW.halfExtents.x - 0.30) < 1e-4, "barrierWhite derived half-extent X must be 0.30m");
+  assert.ok(Math.abs(obbSpecW.halfExtents.y - 0.45) < 1e-4, "barrierWhite derived half-extent Y must be 0.45m");
+  assert.ok(Math.abs(obbSpecW.halfExtents.z - 1.525) < 1e-4, "barrierWhite derived half-extent Z must be 1.525m");
+
+  // 4. Locate InstancedMesh objects in scene
   let redIM = null;
   let whiteIM = null;
   world.traverse((o) => {
@@ -392,7 +500,6 @@ async function validateBarrierGeometry(worldResult, options = {}) {
   assert.equal(counts.rightWhite, 290, "Right wall must have 290 white barriers");
 
   const mat = new THREE.Matrix4();
-  const halfExtents = new THREE.Vector3(0.30, 0.45, 1.525);
 
   const report = {
     totalInstances: 0,
@@ -406,7 +513,7 @@ async function validateBarrierGeometry(worldResult, options = {}) {
     maxBoundaryDeviation: 0,
   };
 
-  // 4. Verify every barrier instance on both sides of the track
+  // 5. Verify every barrier instance on both sides of the track
   for (const side of [-1, 1]) {
     const sideName = side === -1 ? "left" : "right";
     const totalCount = side === -1 ? counts.left : counts.right;
@@ -428,6 +535,7 @@ async function validateBarrierGeometry(worldResult, options = {}) {
       const baseM = isRed ? baseMeshMatrixR : baseMeshMatrixW;
       const posAttr = isRed ? posAttrR : posAttrW;
       const faces = isRed ? facesR : facesW;
+      const obbSpec = isRed ? obbSpecR : obbSpecW;
 
       // Complete mesh world transform (instance matrix incorporates baseMeshMatrix = normTransform * origMesh.matrixWorld)
       const worldM = world.matrixWorld.clone().multiply(im.matrixWorld).multiply(mat);
@@ -461,17 +569,17 @@ async function validateBarrierGeometry(worldResult, options = {}) {
       rc.divideScalar(faces.rearIndices.length);
       centroid.divideScalar(posAttr.count);
 
-      // 3D OBB
+      // 3D OBB with derived half-extents and center
       const ux = new THREE.Vector3(placementMatrix.elements[0], placementMatrix.elements[1], placementMatrix.elements[2]).normalize();
       const uy = new THREE.Vector3(placementMatrix.elements[4], placementMatrix.elements[5], placementMatrix.elements[6]).normalize();
       const uz = new THREE.Vector3(placementMatrix.elements[8], placementMatrix.elements[9], placementMatrix.elements[10]).normalize();
       const origin = new THREE.Vector3().setFromMatrixPosition(placementMatrix);
-      const obbCenter = origin.clone().addScaledVector(uy, 0.45);
+      const obbCenter = origin.clone().addScaledVector(uy, obbSpec.localCenter.y);
 
       const obb = {
         c: obbCenter,
         u: [ux, uy, uz],
-        e: halfExtents,
+        e: obbSpec.halfExtents.clone(),
       };
 
       barriers.push({
@@ -676,8 +784,12 @@ test("Barrier regression tests: detect missing mesh components, gaps, boundary d
     await validateBarrierGeometry(worldResult, {
       corruptBarriers(barriers, sideName) {
         if (sideName === "left") {
-          // Displace barrier 50 OBB along track tangent by 3.5m creating an uncovered gap
-          barriers[50].obb.c.addScaledVector(barriers[50].obb.u[2], 3.5);
+          // Displace barrier 50 OBB and transformed vertices along track tangent by 3.5m creating an uncovered gap
+          const shift = barriers[50].obb.u[2].clone().multiplyScalar(3.5);
+          barriers[50].obb.c.add(shift);
+          for (const v of barriers[50].verts) v.add(shift);
+          barriers[50].fc.add(shift);
+          barriers[50].rc.add(shift);
         }
       },
     });
@@ -688,8 +800,12 @@ test("Barrier regression tests: detect missing mesh components, gaps, boundary d
     await validateBarrierGeometry(worldResult, {
       corruptBarriers(barriers, sideName) {
         if (sideName === "left") {
-          // Displace barrier 20 centroid laterally by 1.5m
-          barriers[20].centroid.x += 1.5;
+          // Displace barrier 20 centroid and vertices laterally by 1.5m
+          const shift = new THREE.Vector3(1.5, 0, 0);
+          barriers[20].centroid.add(shift);
+          for (const v of barriers[20].verts) v.add(shift);
+          barriers[20].obb.c.add(shift);
+          barriers[20].center.add(shift);
         }
       },
     });
@@ -715,7 +831,11 @@ test("Barrier regression tests: detect missing mesh components, gaps, boundary d
           // Displace banked barrier vertically by 2.0m along local up vector (around s=760)
           const idx = barriers.findIndex((b) => b.s >= 758 && b.s <= 765);
           if (idx !== -1) {
-            barriers[idx].obb.c.addScaledVector(barriers[idx].obb.u[1], 2.0);
+            const shift = barriers[idx].obb.u[1].clone().multiplyScalar(2.0);
+            barriers[idx].obb.c.add(shift);
+            for (const v of barriers[idx].verts) v.add(shift);
+            barriers[idx].fc.add(shift);
+            barriers[idx].rc.add(shift);
           }
         }
       },

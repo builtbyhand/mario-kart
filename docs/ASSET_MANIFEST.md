@@ -40,34 +40,34 @@ All environment models are located in `app/src/main/assets/game/models/environme
 
 | Asset File | Creator | Source Pack | License | Processed Format | Polygon Count | File Size | Circuit Role & Placement |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| `barrierRed.glb` | Kenney | Racing Kit | CC0 1.0 | Self-contained GLB | 96 tris | 3.2 KB | Continuous outer/inner track barrier at `WALL_HALF` (red segment) |
-| `barrierWhite.glb` | Kenney | Racing Kit | CC0 1.0 | Self-contained GLB | 96 tris | 3.2 KB | Continuous outer/inner track barrier at `WALL_HALF` (white segment) |
-| `fenceStraight.glb` | Kenney | Racing Kit | CC0 1.0 | Self-contained GLB | 128 tris | 7.7 KB | Steel safety catch fence behind barriers along spectator areas |
-| `pylon.glb` | Kenney | Racing Kit | CC0 1.0 | Self-contained GLB | 168 tris | 8.0 KB | Racing apex clipping cones on sharp turns (Turns 1, 2, Hairpin, Chicane) |
-| `grandStand.glb` | Kenney | Racing Kit | CC0 1.0 | Self-contained GLB | 480 tris | 12.4 KB | Open-air spectator grandstand on final pre-finish straight |
-| `grandStandCovered.glb` | Kenney | Racing Kit | CC0 1.0 | Self-contained GLB | 640 tris | 15.2 KB | Covered multi-tier spectator grandstands along main straight |
-| `grandStandRound.glb` | Kenney | Racing Kit | CC0 1.0 | Self-contained GLB | 560 tris | 13.8 KB | Curved spectator grandstands hugging outside bank of Turn 1 |
-| `overheadLights.glb` | Kenney | Racing Kit | CC0 1.0 | Self-contained GLB | 720 tris | 26.0 KB | Start/finish gantry straddling the circuit with countdown light pods |
-| `overhead.glb` | Kenney | Racing Kit | CC0 1.0 | Self-contained GLB | 420 tris | 11.5 KB | Overhead trackside archway spanning the backstretch |
-| `billboard.glb` | Kenney | Racing Kit | CC0 1.0 | Self-contained GLB | 340 tris | 14.5 KB | Large trackside advertising billboard on high-visibility corner exits |
-| `billboardLow.glb` | Kenney | Racing Kit | CC0 1.0 | Self-contained GLB | 310 tris | 14.5 KB | Low-profile advertising billboard along sweeping curves |
-| `bannerTowerRed.glb` | Kenney | Racing Kit | CC0 1.0 | Self-contained GLB | 820 tris | 33.9 KB | Vertical sponsor banner tower at circuit entrance and pit entry |
-| `flagCheckers.glb` | Kenney | Racing Kit | CC0 1.0 | Self-contained GLB | 480 tris | 15.1 KB | Waving checkered racing flag on pit wall gantry |
-| `flagRed.glb` | Kenney | Racing Kit | CC0 1.0 | Self-contained GLB | 480 tris | 17.1 KB | Waving red racing flag along pit lane entrance |
-| `pitsGarage.glb` | Kenney | Racing Kit | CC0 1.0 | Self-contained GLB | 520 tris | 13.0 KB | Team service garages along working pit lane straight |
-| `pitsOffice.glb` | Kenney | Racing Kit | CC0 1.0 | Self-contained GLB | 380 tris | 8.1 KB | Race control and timekeeping building on pit straight |
-| `tent.glb` | Kenney | Racing Kit | CC0 1.0 | Self-contained GLB | 280 tris | 6.9 KB | Team hospitality and technical tents in paddock area |
-| `lightPostModern.glb` | Kenney | Racing Kit | CC0 1.0 | Self-contained GLB | 772 tris | 16.5 KB | Modern curved floodlight towers around stadium perimeter |
-| `treeLarge.glb` | Kenney | Racing Kit | CC0 1.0 | Self-contained GLB | 264 tris | 6.9 KB | Stylized broadleaf trees on infield grass lawn |
-| `treeSmall.glb` | Kenney | Racing Kit | CC0 1.0 | Self-contained GLB | 264 tris | 6.9 KB | Small decorative trees and shrubs along outer barrier margins |
-| `tree_default.glb` | Kenney | Nature Kit | CC0 1.0 | Self-contained GLB | 420 tris | 9.4 KB | Organic stylized parkway trees in lower stadium infield |
-| `tree_oak.glb` | Kenney | Nature Kit | CC0 1.0 | Self-contained GLB | 648 tris | 14.6 KB | Large mature oak trees providing roadside framing |
-| `tree_pineRoundA.glb` | Kenney | Nature Kit | CC0 1.0 | Self-contained GLB | 632 tris | 14.4 KB | Mountain pine trees clustered along the climbing anti-gravity ridge |
-| `tree_pineTallA.glb` | Kenney | Nature Kit | CC0 1.0 | Self-contained GLB | 680 tris | 15.2 KB | Tall alpine pine trees on mountain crest and elevated hairpin |
-| `building-skyscraper-a.glb` | Kenney | City Commercial | CC0 1.0 | Self-contained GLB | 1,420 tris | 123.7 KB | Modern office skyscraper in stadium skyline arc (Tower A) |
-| `building-skyscraper-b.glb` | Kenney | City Commercial | CC0 1.0 | Self-contained GLB | 1,640 tris | 148.2 KB | Stepped corporate skyscraper in stadium skyline arc (Tower B) |
-| `building-skyscraper-c.glb` | Kenney | City Commercial | CC0 1.0 | Self-contained GLB | 1,810 tris | 159.1 KB | High-rise commercial tower in stadium skyline arc (Tower C) |
-| `building-skyscraper-d.glb` | Kenney | City Commercial | CC0 1.0 | Self-contained GLB | 1,590 tris | 138.8 KB | Spire architectural skyscraper in stadium skyline arc (Tower D) |
+| `barrierRed.glb` | Kenney | Racing Kit | CC0 1.0 | Self-contained GLB | 28 tris | 3,244 B (3.2 KB) | Continuous outer/inner track barrier at `WALL_HALF` (red segment) |
+| `barrierWhite.glb` | Kenney | Racing Kit | CC0 1.0 | Self-contained GLB | 28 tris | 3,252 B (3.2 KB) | Continuous outer/inner track barrier at `WALL_HALF` (white segment) |
+| `fenceStraight.glb` | Kenney | Racing Kit | CC0 1.0 | Self-contained GLB | 36 tris | 7,756 B (7.6 KB) | Steel safety catch fence behind barriers along spectator areas |
+| `pylon.glb` | Kenney | Racing Kit | CC0 1.0 | Self-contained GLB | 108 tris | 8,088 B (7.9 KB) | Racing apex clipping cones on sharp turns (Turns 1, 2, Hairpin, Chicane) |
+| `grandStand.glb` | Kenney | Racing Kit | CC0 1.0 | Self-contained GLB | 128 tris | 12,484 B (12.2 KB) | Open-air spectator grandstand on final pre-finish straight |
+| `grandStandCovered.glb` | Kenney | Racing Kit | CC0 1.0 | Self-contained GLB | 168 tris | 15,200 B (14.8 KB) | Covered multi-tier spectator grandstands along main straight |
+| `grandStandRound.glb` | Kenney | Racing Kit | CC0 1.0 | Self-contained GLB | 1,022 tris | 71,100 B (69.4 KB) | Curved spectator grandstands hugging outside bank of Turn 1 |
+| `overheadLights.glb` | Kenney | Racing Kit | CC0 1.0 | Self-contained GLB | 432 tris | 26,068 B (25.5 KB) | Start/finish gantry straddling the circuit with countdown light pods |
+| `overhead.glb` | Kenney | Racing Kit | CC0 1.0 | Self-contained GLB | 124 tris | 9,188 B (9.0 KB) | Overhead trackside archway spanning the backstretch |
+| `billboard.glb` | Kenney | Racing Kit | CC0 1.0 | Self-contained GLB | 136 tris | 14,520 B (14.2 KB) | Large trackside advertising billboard on high-visibility corner exits |
+| `billboardLow.glb` | Kenney | Racing Kit | CC0 1.0 | Self-contained GLB | 136 tris | 14,528 B (14.2 KB) | Low-profile advertising billboard along sweeping curves |
+| `bannerTowerRed.glb` | Kenney | Racing Kit | CC0 1.0 | Self-contained GLB | 426 tris | 33,992 B (33.2 KB) | Vertical sponsor banner tower at circuit entrance and pit entry |
+| `flagCheckers.glb` | Kenney | Racing Kit | CC0 1.0 | Self-contained GLB | 184 tris | 15,188 B (14.8 KB) | Waving checkered racing flag on pit wall gantry |
+| `flagRed.glb` | Kenney | Racing Kit | CC0 1.0 | Self-contained GLB | 184 tris | 17,168 B (16.8 KB) | Waving red racing flag along pit lane entrance |
+| `pitsGarage.glb` | Kenney | Racing Kit | CC0 1.0 | Self-contained GLB | 96 tris | 13,028 B (12.7 KB) | Team service garages along working pit lane straight |
+| `pitsOffice.glb` | Kenney | Racing Kit | CC0 1.0 | Self-contained GLB | 88 tris | 8,184 B (8.0 KB) | Race control and timekeeping building on pit straight |
+| `tent.glb` | Kenney | Racing Kit | CC0 1.0 | Self-contained GLB | 86 tris | 6,948 B (6.8 KB) | Team hospitality and technical tents in paddock area |
+| `lightPostModern.glb` | Kenney | Racing Kit | CC0 1.0 | Self-contained GLB | 198 tris | 16,584 B (16.2 KB) | Modern curved floodlight towers around stadium perimeter |
+| `treeLarge.glb` | Kenney | Racing Kit | CC0 1.0 | Self-contained GLB | 72 tris | 6,964 B (6.8 KB) | Stylized broadleaf trees on infield grass lawn |
+| `treeSmall.glb` | Kenney | Racing Kit | CC0 1.0 | Self-contained GLB | 72 tris | 6,960 B (6.8 KB) | Small decorative trees and shrubs along outer barrier margins |
+| `tree_default.glb` | Kenney | Nature Kit | CC0 1.0 | Self-contained GLB | 114 tris | 9,428 B (9.2 KB) | Organic stylized parkway trees in lower stadium infield |
+| `tree_oak.glb` | Kenney | Nature Kit | CC0 1.0 | Self-contained GLB | 196 tris | 14,644 B (14.3 KB) | Large mature oak trees providing roadside framing |
+| `tree_pineRoundA.glb` | Kenney | Nature Kit | CC0 1.0 | Self-contained GLB | 204 tris | 14,488 B (14.1 KB) | Mountain pine trees clustered along the climbing anti-gravity ridge |
+| `tree_pineTallA.glb` | Kenney | Nature Kit | CC0 1.0 | Self-contained GLB | 78 tris | 7,200 B (7.0 KB) | Tall alpine pine trees on mountain crest and elevated hairpin |
+| `building-skyscraper-a.glb` | Kenney | City Commercial | CC0 1.0 | Self-contained GLB | 1,292 tris | 123,744 B (120.8 KB) | Modern office skyscraper in stadium skyline arc (Tower A) |
+| `building-skyscraper-b.glb` | Kenney | City Commercial | CC0 1.0 | Self-contained GLB | 1,592 tris | 150,892 B (147.4 KB) | Stepped corporate skyscraper in stadium skyline arc (Tower B) |
+| `building-skyscraper-c.glb` | Kenney | City Commercial | CC0 1.0 | Self-contained GLB | 1,704 tris | 161,932 B (158.1 KB) | High-rise commercial tower in stadium skyline arc (Tower C) |
+| `building-skyscraper-d.glb` | Kenney | City Commercial | CC0 1.0 | Self-contained GLB | 1,892 tris | 179,556 B (175.3 KB) | Spire architectural skyscraper in stadium skyline arc (Tower D) |
 
 ---
 
