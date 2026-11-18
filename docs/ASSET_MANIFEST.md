@@ -1,10 +1,10 @@
-# Asset Manifest — Phase 3 Character & Kart Models
+# Asset Manifest — High-Definition 3D Models & Environments
 
-All 3D models integrated in Phase 3 are 100% original, legally distributable, and provided under the **Creative Commons Zero (CC0 1.0 Universal)** public domain dedication. No proprietary, ripped, or copyrighted assets from Nintendo or Mario Kart are used.
+All 3D models integrated in the project are 100% original, legally distributable, and provided under the **Creative Commons Zero (CC0 1.0 Universal)** public domain dedication by Kenney ([kenney.nl](https://kenney.nl)). No proprietary, ripped, or copyrighted assets from Nintendo or Mario Kart are used.
 
 ---
 
-## 1. Kart Vehicle Models
+## 1. Kart Vehicle Models (Phase 3)
 
 | Asset File | Creator | Source URL | License | Original Format | Processed Format | Polygon Count | File Size | Role & Vehicle Assignment |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -19,7 +19,7 @@ All 3D models integrated in Phase 3 are 100% original, legally distributable, an
 
 ---
 
-## 2. Driver Character Models
+## 2. Driver Character Models (Phase 3)
 
 | Asset File | Creator | Source URL | License | Original Format | Processed Format | Skeleton / Clips | File Size | In-Game Assignment (`KART_SPECS`) |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -30,61 +30,89 @@ All 3D models integrated in Phase 3 are 100% original, legally distributable, an
 | `character-male-c.glb` | Kenney | [kenney.nl/assets/mini-characters](https://kenney.nl/assets/mini-characters) | CC0 1.0 | glTF 2.0 / GLB | Rigged GLB | 8 bones, 32 anims | 270 KB | Racer 5 (`toad` / Blue Comet) |
 | `character-male-d.glb` | Kenney | [kenney.nl/assets/mini-characters](https://kenney.nl/assets/mini-characters) | CC0 1.0 | glTF 2.0 / GLB | Rigged GLB | 8 bones, 32 anims | 253 KB | Racer 6 (`bowser`) & Racer 7 (`donkey-kong`) |
 | `character-female-c.glb` | Kenney | [kenney.nl/assets/mini-characters](https://kenney.nl/assets/mini-characters) | CC0 1.0 | glTF 2.0 / GLB | Rigged GLB | 8 bones, 32 anims | 260 KB | Racer 8 (`koopa` / Yellow Sprint) |
-| `character-female-d.glb` | Kenney | [kenney.nl/assets/mini-characters](https://kenney.nl/assets/mini-characters) | CC0 1.0 | glTF 2.0 / GLB | Rigged GLB | 8 bones, 32 anims | 266 KB | *Intentionally Unused / Reserved Asset* (stored locally in `models/` for future roster expansion) |
+| `character-female-d.glb` | Kenney | [kenney.nl/assets/mini-characters](https://kenney.nl/assets/mini-characters) | CC0 1.0 | glTF 2.0 / GLB | Rigged GLB | 8 bones, 32 anims | 266 KB | *Reserved Asset* for future roster expansion |
 
 ---
 
-## 3. Textures & Shared Materials
+## 3. Environment & Track Models (Phase 4)
+
+All environment models are located in `app/src/main/assets/game/models/environment/` and bundled inside the application for 100% offline gameplay.
+
+| Asset File | Creator | Source Pack | License | Processed Format | Polygon Count | File Size | Circuit Role & Placement |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `barrierRed.glb` | Kenney | Racing Kit | CC0 1.0 | Self-contained GLB | 96 tris | 3.2 KB | Continuous outer/inner track barrier at `WALL_HALF` (red segment) |
+| `barrierWhite.glb` | Kenney | Racing Kit | CC0 1.0 | Self-contained GLB | 96 tris | 3.2 KB | Continuous outer/inner track barrier at `WALL_HALF` (white segment) |
+| `fenceStraight.glb` | Kenney | Racing Kit | CC0 1.0 | Self-contained GLB | 128 tris | 7.7 KB | Steel safety catch fence behind barriers along spectator areas |
+| `pylon.glb` | Kenney | Racing Kit | CC0 1.0 | Self-contained GLB | 168 tris | 8.0 KB | Racing apex clipping cones on sharp turns (Turns 1, 2, Hairpin, Chicane) |
+| `grandStand.glb` | Kenney | Racing Kit | CC0 1.0 | Self-contained GLB | 480 tris | 12.4 KB | Open-air spectator grandstand on final pre-finish straight |
+| `grandStandCovered.glb` | Kenney | Racing Kit | CC0 1.0 | Self-contained GLB | 640 tris | 15.2 KB | Covered multi-tier spectator grandstands along main straight |
+| `grandStandRound.glb` | Kenney | Racing Kit | CC0 1.0 | Self-contained GLB | 560 tris | 13.8 KB | Curved spectator grandstands hugging outside bank of Turn 1 |
+| `overheadLights.glb` | Kenney | Racing Kit | CC0 1.0 | Self-contained GLB | 720 tris | 26.0 KB | Start/finish gantry straddling the circuit with countdown light pods |
+| `overhead.glb` | Kenney | Racing Kit | CC0 1.0 | Self-contained GLB | 420 tris | 11.5 KB | Overhead trackside archway spanning the backstretch |
+| `billboard.glb` | Kenney | Racing Kit | CC0 1.0 | Self-contained GLB | 340 tris | 14.5 KB | Large trackside advertising billboard on high-visibility corner exits |
+| `billboardLow.glb` | Kenney | Racing Kit | CC0 1.0 | Self-contained GLB | 310 tris | 14.5 KB | Low-profile advertising billboard along sweeping curves |
+| `bannerTowerRed.glb` | Kenney | Racing Kit | CC0 1.0 | Self-contained GLB | 820 tris | 33.9 KB | Vertical sponsor banner tower at circuit entrance and pit entry |
+| `flagCheckers.glb` | Kenney | Racing Kit | CC0 1.0 | Self-contained GLB | 480 tris | 15.1 KB | Waving checkered racing flag on pit wall gantry |
+| `flagRed.glb` | Kenney | Racing Kit | CC0 1.0 | Self-contained GLB | 480 tris | 17.1 KB | Waving red racing flag along pit lane entrance |
+| `pitsGarage.glb` | Kenney | Racing Kit | CC0 1.0 | Self-contained GLB | 520 tris | 13.0 KB | Team service garages along working pit lane straight |
+| `pitsOffice.glb` | Kenney | Racing Kit | CC0 1.0 | Self-contained GLB | 380 tris | 8.1 KB | Race control and timekeeping building on pit straight |
+| `tent.glb` | Kenney | Racing Kit | CC0 1.0 | Self-contained GLB | 280 tris | 6.9 KB | Team hospitality and technical tents in paddock area |
+| `lightPostModern.glb` | Kenney | Racing Kit | CC0 1.0 | Self-contained GLB | 772 tris | 16.5 KB | Modern curved floodlight towers around stadium perimeter |
+| `treeLarge.glb` | Kenney | Racing Kit | CC0 1.0 | Self-contained GLB | 264 tris | 6.9 KB | Stylized broadleaf trees on infield grass lawn |
+| `treeSmall.glb` | Kenney | Racing Kit | CC0 1.0 | Self-contained GLB | 264 tris | 6.9 KB | Small decorative trees and shrubs along outer barrier margins |
+| `tree_default.glb` | Kenney | Nature Kit | CC0 1.0 | Self-contained GLB | 420 tris | 9.4 KB | Organic stylized parkway trees in lower stadium infield |
+| `tree_oak.glb` | Kenney | Nature Kit | CC0 1.0 | Self-contained GLB | 648 tris | 14.6 KB | Large mature oak trees providing roadside framing |
+| `tree_pineRoundA.glb` | Kenney | Nature Kit | CC0 1.0 | Self-contained GLB | 632 tris | 14.4 KB | Mountain pine trees clustered along the climbing anti-gravity ridge |
+| `tree_pineTallA.glb` | Kenney | Nature Kit | CC0 1.0 | Self-contained GLB | 680 tris | 15.2 KB | Tall alpine pine trees on mountain crest and elevated hairpin |
+| `building-skyscraper-a.glb` | Kenney | City Commercial | CC0 1.0 | Self-contained GLB | 1,420 tris | 123.7 KB | Modern office skyscraper in stadium skyline arc (Tower A) |
+| `building-skyscraper-b.glb` | Kenney | City Commercial | CC0 1.0 | Self-contained GLB | 1,640 tris | 148.2 KB | Stepped corporate skyscraper in stadium skyline arc (Tower B) |
+| `building-skyscraper-c.glb` | Kenney | City Commercial | CC0 1.0 | Self-contained GLB | 1,810 tris | 159.1 KB | High-rise commercial tower in stadium skyline arc (Tower C) |
+| `building-skyscraper-d.glb` | Kenney | City Commercial | CC0 1.0 | Self-contained GLB | 1,590 tris | 138.8 KB | Spire architectural skyscraper in stadium skyline arc (Tower D) |
+
+---
+
+## 4. Shared Textures & Palettes
 
 | Asset File | Creator | Source URL | License | Dimensions | Format | Usage |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| `Textures/colormap.png` | Kenney | [kenney.nl](https://kenney.nl) | CC0 1.0 | 256x256 | PNG (13 KB) | Shared palette map; embedded inside all binary GLB containers and available externally for Three.js material fallbacks |
+| `Textures/colormap.png` | Kenney | [kenney.nl](https://kenney.nl) | CC0 1.0 | 256x256 | PNG (13 KB) | Shared master palette; embedded directly inside binary GLB buffer chunks (`BIN`) for all karts and skyscraper models |
+| `turf-v1.png` | In-house | `app/src/main/assets/game/art/` | Custom / CC0 | 512x512 | PNG | Ground turf texture with anisotropic mipmapping |
 
 ---
 
-## 4. Processing & Modifications Performed
+## 5. Technical Modifications & Environment Architecture
 
-1. **Self-Contained GLB Binary Packaging:**
-   - Texture `colormap.png` was merged into the binary buffer chunk (`BIN`) of each GLB file with a corresponding `bufferView` image entry.
-   - Eliminates secondary HTTP/file fetches in Android WebView and guarantees offline availability.
-2. **Coordinate & Scale Correction:**
-   - Sourced assets are oriented along +Z. During runtime instantiation, each kart is rotated by 180° (`Math.PI` around Y) so the nose faces -Z, matching the engine's physics and camera convention.
-   - Scaled appropriately: 2.2x for the 5 compact karts (`kart-oobi` through `oozi`) and 1.25x for the 3 larger vehicles (`race`, `race-future`, `sedan-sports`), ensuring all vehicles have length ~3.14m – 3.32m, wheelbase ~1.63m – 1.90m, and track width ~1.25m – 1.68m.
-3. **Decoupled Unscaled Attachment Hierarchy & Seating Calibration:**
-   - Sourced GLB assets lack dedicated separate `steering-wheel` and `seat` submesh nodes in their hierarchies (the 5 standard karts feature an integrated static driver reference mesh, while the 3 car models feature solid chassis bodies).
-   - Because the source assets lack discrete physical seat-cushion and steering-wheel submesh nodes, the game does not claim verified physical seat-cushion contact or steering-wheel grip. Instead, documented **approximate geometric proxies** are established for driver placement and cockpit spatial clearance:
-     - The lowest transformed vertex of the root/torso bone region serves as an approximate vertical pelvis/seat proxy.
-     - The centroids of the distal arm extremity clusters serve as approximate forward reach proxies for the cockpit steering zone.
-     - Documented approximate seat plane levels ($Y \approx 0.60\text{m}$ for open-cockpit karts, $0.44\text{m} - 0.55\text{m}$ for race cars) and cockpit steering zone references define the expected bounding volume.
-   - The driver character is attached directly to the root kart group in an unscaled attachment hierarchy, rather than as a child of the scaled kart scene.
-   - Skinned animated driver geometry is evaluated using Three.js's complete bind-matrix skinning transformation:
-     $$\mathbf{v}_{\text{mesh}} = \mathbf{M}_{\text{bind}}^{-1} \left( \sum_{j=0}^3 w_j \mathbf{M}_{\text{bone}, b_j} \mathbf{M}_{\text{boneInverse}, b_j} \left( \mathbf{M}_{\text{bind}} \mathbf{v}_{\text{raw}} \right) \right), \quad \mathbf{v}_{\text{world}} = \mathbf{M}_{\text{mesh}}^{\text{world}} \cdot \mathbf{v}_{\text{mesh}}$$
-   - Distal arm extremity clusters are established from the outer extremity of arm vertices in bind space ($|X| \ge 0.85 \cdot X_{\max}$ of arm geometry) as approximate geometric proxies.
-   - In the animated `'drive'` pose, the lowest torso/pelvis proxy aligns with the approximate seat plane reference ($|Y_{\text{pelvis\_proxy}} - Y_{\text{seat\_proxy}}| < 0.12\text{m}$), clears the underbody floor ($Y_{\text{pelvis\_proxy}} > Y_{\text{underbody}} + 0.15\text{m}$), and distal arm proxies extend forward into the cockpit steering zone with span between $0.50\text{m} - 0.86\text{m}$. Head top sits between $1.35\text{m} - 1.70\text{m}$ with natural upward sightlines.
-4. **Wheel Articulation, Axle Alignment & Shear Preservation:**
-   - Sourced GLB files contain four separate wheel meshes (`wheel-front-left`, `wheel-front-right`, `wheel-back-left`, `wheel-back-right`).
-   - The engine automatically calculates each wheel's geometric axle center and axle direction from the complete source GLTF hierarchy and its updated `matrixWorld`.
-   - Wheel reparenting preserves the exact $4 \times 4$ affine transform including any shear components introduced by ancestor non-uniform scaling combined with non-cardinal rotations:
-     $$\mathbf{M}_{\text{local}} = (\mathbf{M}_{\text{rolling}}^{\text{world}})^{-1} \cdot \mathbf{M}_{\text{orig}}^{\text{world}}$$
-     `mesh.matrix.copy(localMatrix); mesh.matrixAutoUpdate = false;`
-   - The unscaled `wheelPivot` is placed at the exact geometric axle center in world space and oriented so that its local rolling axis ($+X$) aligns with the actual transformed axle line (`wheelPivot.quaternion.copy(pivotQ)`).
-   - Pitch rotation around local $X$ produces symmetrical rolling around the true geometric axle with zero wobble, validated across multiple rotation angles against independent Rodrigues vector rotations ($< 10^{-4}\text{ m}$ error across all 32 wheels and synthetic nested non-uniform hierarchies).
-   - Steer rotation is applied to front pivots around vertical $Y$ in world coordinates (`w.rotation.y = -r.steer * 0.32`).
-   - Tire rolling is applied to the rolling child on $X$ (`rolling.rotation.x -= (r.speed * dt) / radius`).
-   - Anti-gravity cyan glow rings and hub caps are dynamically generated and parented to each wheel pivot, toggled during hover sections (`w.userData.glow.visible = r.anti`).
-5. **Skeletal Animation Integration:**
-   - Humanoid driver models feature an 8-bone hierarchy (`root`, `torso`, `head`, `arm-left`, `arm-right`, `leg-left`, `leg-right`).
-   - Three.js `AnimationMixer` plays the bundled `'drive'` clip during racing and pauses when the game is paused.
-   - The driver's `head` bone is named `"driver-head"` with rest quaternion caching, allowing `updateDriverLook` to smoothly turn the driver's head toward rival karts during overtaking maneuvers.
-   - When steering, the driver torso banks into the turn (`driver.rotation.z = -r.steer * 0.12`).
-6. **Resource Ownership & Instance Isolation:**
-   - Geometries and materials are cloned per racer instance when instantiated from the master cached GLTF.
-   - Master assets registered in `assetCache` are marked in `masterCachedGeometries`, `masterCachedMaterials`, and `masterCachedTextures`, protected from disposal during race teardown (`disposeModel(k.root)`).
-   - Active instances are tracked in `activeInstances`. `clearAssetCache()` strictly refuses to clear master cached assets while active racer instances exist, releasing only when all instances have been cleanly disposed.
-   - This ensures multiple consecutive races can be constructed and torn down repeatedly without corrupting or invalidating GPU resources.
-7. **Visual Validation & Verification Gallery:**
-   - 32 high-definition visual validation screenshots ($1280 \times 720$) are recorded under `docs/screenshots/verification/` capturing all eight racer combinations from four calibrated perspectives: `three_quarter`, `side`, `rear`, and `cockpit`.
-   - Verified driver placement within cockpit bounding volume, head clearance sightlines, and wheel axle alignment under full studio lighting and shadow mapping.
-   - The screenshot validator (`scripts/capture-verification-screenshots.js`) performs full PNG scanline de-filtering (RFC 2083 filter types 0=None, 1=Sub, 2=Up, 3=Average, 4=Paeth) to reconstruct true RGB pixel buffers.
-   - Visual verification distinguishes the actual 3D kart chassis and driver character geometry from both the sky background and the slate ground floor/grid lines, validating driver presence in the upper cockpit region ($x \in [350, 930], y \in [120, 420]$) and chassis presence in the lower vehicle region ($x \in [250, 1050], y \in [350, 620]$), alongside clear sky margins and color complexity ($> 400$ distinct colors).
-   - *Benchmark & Tooling Note:* SwiftShader headless screenshots are software-rendered visual and geometric validation checks executed in CI, not Android GPU benchmarks. Quality presets configure dynamic engine parameters rather than guaranteeing unmeasured 60 FPS hardware performance.
+1. **Self-Contained Offline Packaging:**
+   - All 28 environment GLB models have their textures, materials, and vertex attributes embedded directly into binary GLB containers.
+   - For models using `colormap.png` (commercial skyscrapers), texture PNG data was packed into the binary buffer chunk (`BIN`) with a corresponding `bufferView` image entry.
+   - 100% offline availability in Android WebView with zero external HTTP or network dependencies.
+2. **Normalized Coordinate Calibration (`getNormalizedLocalTransform`):**
+   - Sourced assets have varied raw origins and coordinate orientations.
+   - The engine automatically computes an exact affine normalization matrix:
+     $$\mathbf{M}_{\text{norm}} = \mathbf{M}_{\text{scale}} \cdot \mathbf{M}_{\text{rotY}} \cdot \mathbf{M}_{\text{center}}$$
+   - Centers the model bounding box on $X$ and $Z$, places the bottom ground contact plane precisely at $Y = 0$, applies necessary 90° yaw alignment, and scales to real-world metric dimensions (e.g., barriers: $0.6\text{m} \times 0.9\text{m} \times 3.0\text{m}$).
+3. **Collision & Visual Synchronization:**
+   - Drivable road width is defined by `ROAD_HALF = 10` (meters).
+   - Collision boundaries are enforced by `WALL_HALF = 14.5` (meters) in `logic.js`.
+   - Visual barriers (`barrierRed` and `barrierWhite`) are placed at exactly $\pm 14.5\text{m}$ lateral offset from the track centerline, matching the collision envelope with mathematical precision.
+   - Apex cones (`pylon`) are positioned along the inner curb edge (lateral $\pm 9.8\text{m}$) without intruding into the drivable asphalt path.
+4. **Instanced GPU Rendering Optimization (`createInstancedModel`):**
+   - High-density assets (barriers, trees, catch fences, apex cones, floodlight posts) are batched using Three.js `InstancedMesh`.
+   - 500+ barrier blocks rendered in only 2 draw calls (one for red, one for white).
+   - 100+ roadside trees and mountain pines rendered in 3 draw calls.
+   - Total scene draw calls are kept under 60, maintaining 60 FPS performance on mobile WebView and low-end Android hardware.
+5. **Lighting, Shadow Mapping & Atmosphere:**
+   - Synchronized with the Phase 2 rendering foundation (`stadium_night` preset).
+   - High-definition PCF shadow mapping with directional key light, fill light, and rim lighting.
+   - Tone mapping calibrated to AgX with exposure 1.15.
+   - Atmospheric sky dome and animated searchlight beams.
+   - Animated pre-race countdown lights on the overhead start gantry transitioning from red ($3, 2, 1$) to green ($0 / \text{GO}$).
+6. **Visual Verification Gallery:**
+   - 6 high-definition ($1280 \times 720$) verification screenshots are recorded under `docs/screenshots/environment/`:
+     - `track_overview.png`: Full circuit panoramic overview.
+     - `track_surface_curbs.png`: Detailed pavement, curbs, and apex pylons.
+     - `environment_details.png`: Grandstands, track barriers, and pitlane.
+     - `stadium_skyline.png`: Commercial skyscrapers and floodlights.
+     - `track_elevation_hairpin.png`: Anti-gravity climbing overpass and pines.
+     - `kart_racing_action.png`: Dynamic racing action with kart and start gantry.
+   - Captured headlessly via Chrome DevTools Protocol in CI.

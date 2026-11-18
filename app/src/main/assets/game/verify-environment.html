@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Phase 4 Environment Visual Verification</title>
+  <style>
+    body { margin: 0; background: #0c1420; overflow: hidden; }
+    canvas { width: 100vw; height: 100vh; display: block; }
+  </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "./vendor/three/three.module.js",
+        "/vendor/three-examples/": "./vendor/three-examples/",
+        "./vendor/three-examples/": "./vendor/three-examples/"
+      }
+    }
+  </script>
+</head>
+<body>
+<canvas id="view" width="1280" height="720"></canvas>
+<script type="module">
+import * as THREE from 'three';
+import { buildWorld } from './world.js';
+import { preloadEnvironmentPack } from './environment-loader.js';
+import { addAtmosphere } from './atmosphere.js';
+import { LIGHTING_PRESETS } from './config.js';
+import { loadKartPack, buildGLBKart, KART_SPECS } from './models.js';
+
+window.__RENDER_DONE = false;
+window.__RENDER_ERROR = null;
+window.__RENDER_METADATA = null;
+
+window.addEventListener('error', (e) => {
+  window.__RENDER_ERROR = e.message || String(e);
+  console.error('[verify-environment error]', e);
+});
+window.addEventListener('unhandledrejection', (e) => {
+  window.__RENDER_ERROR = e.reason?.message || String(e.reason);
+  console.error('[verify-environment rejection]', e.reason);
+});
+
+const params = new URLSearchParams(window.location.search);
+const viewType = params.get('view') || 'overview';
+
+const canvas = document.getElementById('view');
+canvas.addEventListener('webglcontextlost', (e) => {
+  e.preventDefault();
+  window.__RENDER_ERROR = 'WebGL context lost during render';
+  window.__RENDER_DONE = false;
+});
+
+let renderer;
+try {
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+  renderer.setSize(1280, 720);
+  renderer.setPixelRatio(1);
+  renderer.toneMapping = THREE.AgXToneMapping;
+  renderer.toneMappingExposure = 1.15;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFShadowMap;
+} catch (e) {
+  window.__RENDER_ERROR = 'WebGL renderer initialization failed: ' + (e?.message || e);
+}
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#0c1420');
+
+const camera = new THREE.PerspectiveCamera(48, 1280 / 720, 0.5, 3000);
+
+// Calibrated Camera Viewpoints for Environment Verification
+if (viewType === 'overview') {
+  // Panoramic stadium view showing full circuit, infield, bowl and skyline
+  camera.position.set(0, 160, -290);
+  camera.lookAt(0, 20, 50);
+} else if (viewType === 'surface') {
+  // Close-up track surface showing pavement texture, curbs, edge lines, apex pylon
+  camera.position.set(22, 2.4, -14);
+  camera.lookAt(12, 0.5, 10);
+} else if (viewType === 'details') {
+  // Grandstands, barriers, safety fences and pit lane buildings
+  camera.position.set(-38, 7.5, 12);
+  camera.lookAt(-10, 4.0, 45);
+} else if (viewType === 'skyline') {
+  // Stadium backdrop and commercial skyscrapers against night sky
+  camera.position.set(50, 18, 90);
+  camera.lookAt(220, 65, 240);
+} else if (viewType === 'elevation') {
+  // Elevated anti-gravity hairpin climb with piers and mountain pines
+  camera.position.set(-110, 45, -170);
+  camera.lookAt(-160, 28, -90);
+} else if (viewType === 'action') {
+  // Kart driving on the main straight under the start gantry
+  camera.position.set(2.5, 3.2, -14);
+  camera.lookAt(0, 1.2, 8);
+} else {
+  camera.position.set(0, 160, -290);
+  camera.lookAt(0, 20, 50);
+}
+
+// Lighting setup (matching production lighting preset)
+const preset = LIGHTING_PRESETS.stadium_night;
+const keyLight = new THREE.DirectionalLight(
+  preset.keyColor || '#fdf7eb',
+  preset.keyIntensity || 2.4
+);
+keyLight.position.set(120, 220, 140);
+keyLight.castShadow = true;
+keyLight.shadow.mapSize.width = 2048;
+keyLight.shadow.mapSize.height = 2048;
+keyLight.shadow.camera.near = 10;
+keyLight.shadow.camera.far = 600;
+keyLight.shadow.camera.left = -250;
+keyLight.shadow.camera.right = 250;
+keyLight.shadow.camera.top = 250;
+keyLight.shadow.camera.bottom = -250;
+scene.add(keyLight);
+
+const fillLight = new THREE.DirectionalLight(
+  preset.fillColor || '#4674aa',
+  preset.fillIntensity || 1.1
+);
+fillLight.position.set(-150, 140, -120);
+scene.add(fillLight);
+
+const rimLight = new THREE.DirectionalLight('#ffd59e', 1.4);
+rimLight.position.set(0, 90, -260);
+scene.add(rimLight);
+
+const hemiLight = new THREE.HemisphereLight(
+  preset.skyColor || '#1f3458',
+  preset.groundColor || '#0a101b',
+  preset.ambientIntensity || 0.65
+);
+scene.add(hemiLight);
+
+// Atmosphere sky dome
+addAtmosphere(scene, preset);
+
+async function init() {
+  try {
+    await preloadEnvironmentPack();
+    const worldResult = await buildWorld(scene);
+
+    // If action view, place kart on the start line
+    if (viewType === 'action') {
+      const racers = [{ id: 'mario' }];
+      await loadKartPack(racers, () => {});
+      const marioKart = racers[0].model;
+      if (marioKart) {
+        marioKart.position.set(0, 0.05, 0);
+        marioKart.rotation.y = Math.PI;
+        scene.add(marioKart);
+      }
+    }
+
+    worldResult.update(0.5, 3);
+
+    // Render multiple frames to ensure all shaders and shadow maps compile
+    for (let f = 0; f < 3; f++) {
+      renderer.render(scene, camera);
+      await new Promise((r) => requestAnimationFrame(r));
+    }
+
+    window.__RENDER_METADATA = {
+      viewType,
+      environmentLoaded: true,
+      childrenCount: scene.children.length,
+      timestamp: Date.now(),
+    };
+    window.__RENDER_DONE = true;
+  } catch (err) {
+    window.__RENDER_ERROR = err?.message || String(err);
+    console.error('[verify-environment failed]', err);
+  }
+}
+
+init();
+</script>
+</body>
+</html>

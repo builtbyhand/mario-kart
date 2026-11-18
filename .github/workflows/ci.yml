@@ -35,6 +35,7 @@ jobs:
       - name: Run Headless Verification Screenshots
         run: |
           node --experimental-websocket scripts/capture-verification-screenshots.js
+          node --experimental-websocket scripts/capture-environment-screenshots.js
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4

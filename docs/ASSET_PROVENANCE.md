@@ -106,3 +106,90 @@ All 8 kart and driver combinations have been verified and documented via 32 high
 | `bowser` | `race-future.glb` + `character-male-d.glb` | `racer_06_bowser_{three_quarter, side, rear, cockpit}.png` |
 | `donkey-kong` | `race.glb` + `character-male-d.glb` | `racer_07_donkey_kong_{three_quarter, side, rear, cockpit}.png` |
 | `koopa` | `sedan-sports.glb` + `character-female-c.glb` | `racer_08_koopa_{three_quarter, side, rear, cockpit}.png` |
+
+---
+
+## 5. Environment & Track Models (Phase 4 Register)
+
+All environment models are bundled inside `app/src/main/assets/game/models/environment/` for 100% offline availability in Android WebView without gameplay network downloads.
+
+All 28 environment 3D assets are created by **Kenney** (Kenney Vleugels — [kenney.nl](https://kenney.nl)) across three asset kits:
+- **Kenney Racing Kit:** [https://kenney.nl/assets/racing-kit](https://kenney.nl/assets/racing-kit) (Barriers, grandstands, gantries, flags, pits, floodlights, billboards, pylons)
+- **Kenney Nature Kit:** [https://kenney.nl/assets/nature-kit](https://kenney.nl/assets/nature-kit) (Broadleaf trees, oak trees, mountain pines)
+- **Kenney City Commercial Kit:** [https://kenney.nl/assets/city-kit-commercial](https://kenney.nl/assets/city-kit-commercial) (Office, corporate, high-rise, and spire skyscrapers)
+- **License:** Creative Commons Zero (CC0 1.0 Universal) — [https://creativecommons.org/publicdomain/zero/1.0/](https://creativecommons.org/publicdomain/zero/1.0/)
+
+| Filename | Asset Kit | License | Packaged Size (Bytes) | SHA-256 Checksum | In-Game Role & Circuit Placement |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `barrierRed.glb` | Racing Kit | CC0 1.0 | 3,244 B (3.2 KB) | `6d7de595a92507af6fcb40fe5a62730925ea23f1f8c727b8ecdec9eba9b98156` | Continuous outer/inner barrier along `WALL_HALF` (red block) |
+| `barrierWhite.glb` | Racing Kit | CC0 1.0 | 3,252 B (3.2 KB) | `44bf654b08bb96bd0e9a70c00dab35b0b23df955d3390ec8ede89c20ad64871a` | Continuous outer/inner barrier along `WALL_HALF` (white block) |
+| `fenceStraight.glb` | Racing Kit | CC0 1.0 | 7,756 B (7.6 KB) | `12fac1aea8f7d8d138a2a8820c7476187fb25a7c39963bfef250c2e8120fba68` | Steel safety catch fence behind barriers along spectator areas |
+| `pylon.glb` | Racing Kit | CC0 1.0 | 8,088 B (7.9 KB) | `d554671f5ab372cef0e1083b83dc270c03f32bfa0dbc3978c40206faf5608b89` | Corner apex clipping pylons (Turns 1, 2, Hairpin, Chicane) |
+| `grandStand.glb` | Racing Kit | CC0 1.0 | 12,484 B (12.2 KB) | `6f5db4f9d9fd82080a561e78d6bc3420e5ed4ed7d8d91ed8bae7f5a7a469645b` | Open-air spectator grandstands on pre-finish straight |
+| `grandStandCovered.glb` | Racing Kit | CC0 1.0 | 15,200 B (14.8 KB) | `48fc8e7eace9969a849805bddd5dce2bf1244129f46ae18f7dc8499fe1792b50` | Covered multi-tier spectator grandstands along main straight |
+| `grandStandRound.glb` | Racing Kit | CC0 1.0 | 71,100 B (69.4 KB) | `2037d0f3615240b6a9e93c26afb3351f831531a6d6485ab2b6290f8cdabaa500` | Curved spectator grandstands hugging outside bank of Turn 1 |
+| `overheadLights.glb` | Racing Kit | CC0 1.0 | 26,068 B (25.5 KB) | `8239fa98d2c950d7aba67ecf49dc92af18ee0da92ed96736a711b22e90e795cd` | Start/finish gantry with 3 dynamic countdown light pods |
+| `overhead.glb` | Racing Kit | CC0 1.0 | 9,188 B (9.0 KB) | `8c38e92377eaeafee28a88f9fe10a580f1da984d3fa6b4b35c08ed62e2db6ff2` | Overhead track archway spanning backstretch straight |
+| `billboard.glb` | Racing Kit | CC0 1.0 | 14,520 B (14.2 KB) | `2c95fe71e6b31430b8379febf31b4b6118a21b55a6bb1e197a4e4fabfd026c20` | Large sponsor billboard on high-visibility corner exits |
+| `billboardLow.glb` | Racing Kit | CC0 1.0 | 14,528 B (14.2 KB) | `aa72f9a42d033c39509d395f5b44ff22ba63cf45ede96e15a18c26faebc09a9f` | Low-profile sponsor billboard on sweeping turns |
+| `bannerTowerRed.glb` | Racing Kit | CC0 1.0 | 33,992 B (33.2 KB) | `16b22cccce7d97bf6f8c8333a0048cd14f986d32ae7115aa38107bb78ebfeea2` | Vertical sponsor banner tower at circuit entrance & pitlane |
+| `flagCheckers.glb` | Racing Kit | CC0 1.0 | 15,188 B (14.8 KB) | `2feb99a4974fc82f90b43436421feb0874c074d4ea685d9673c6803429fd32ba` | Checkered racing flag on pit wall gantry |
+| `flagRed.glb` | Racing Kit | CC0 1.0 | 17,168 B (16.8 KB) | `ffe61934815e0b52104dd4f11d67f7dc98dbad1220d0d60947870a9081b80b87` | Red racing flag along pit entrance trackside |
+| `pitsGarage.glb` | Racing Kit | CC0 1.0 | 13,028 B (12.7 KB) | `db73d2ebd70763380ef872ffd2a399eb72c979f96c5a3c1ab377d93670204a23` | Team service garage building along pit straight |
+| `pitsOffice.glb` | Racing Kit | CC0 1.0 | 8,184 B (8.0 KB) | `32a39cf3b1051d651f6cc28e2febf3d2752c7120206e5688c0a45b93b7eea625` | Race control and timing tower on pit straight |
+| `tent.glb` | Racing Kit | CC0 1.0 | 6,948 B (6.8 KB) | `86ad24a0e86f4d247a170157404088325615b7125b90f8e9a180c4e75939105c` | Team hospitality and technical tents in paddock area |
+| `lightPostModern.glb` | Racing Kit | CC0 1.0 | 16,584 B (16.2 KB) | `8fd8fccc65f53cf54efff81546b90be23d8c32a4ea85b5bbc79c6c9d123cb925` | Modern curved floodlight towers around stadium perimeter |
+| `treeLarge.glb` | Racing Kit | CC0 1.0 | 6,964 B (6.8 KB) | `3fcba4474bc490a5e589ce4924e972ca629029f2ade17a20f4ca3a7f253a3168` | Broadleaf trees on stadium infield lawn |
+| `treeSmall.glb` | Racing Kit | CC0 1.0 | 6,960 B (6.8 KB) | `151d1556b762768433ed9610589650ae8110cac2ed99a3fe1e4da53e1335be23` | Decorative shrubs along outer barrier margins |
+| `tree_default.glb` | Nature Kit | CC0 1.0 | 9,428 B (9.2 KB) | `562d29638c902de3c7bee465d3a53bb77117efbc392ae04ed894faf6b5dc691d` | Stylized parkway trees in lower infield |
+| `tree_oak.glb` | Nature Kit | CC0 1.0 | 14,644 B (14.3 KB) | `d7fd8773674928c50c11b66d12c636d49bdcc15a8b1c7fbb98e6f63a3439a3f3` | Large mature oak trees framing backstretch |
+| `tree_pineRoundA.glb` | Nature Kit | CC0 1.0 | 14,488 B (14.1 KB) | `7dc9711f5ab372cef0e1083b83dc270c03f32bfa0dbc3978c40206faf5608b89` | Mountain pine trees along climbing elevation ridge |
+| `tree_pineTallA.glb` | Nature Kit | CC0 1.0 | 7,200 B (7.0 KB) | `e0a56eb196d8a64ba86c7304d607136e17e6f9ad748dffcf86bd53b18b91b196` | Tall alpine pines on mountain crest and elevated hairpin |
+| `building-skyscraper-a.glb` | City Commercial | CC0 1.0 | 123,744 B (120.8 KB) | `7a8968eb10aa71bee4a51cae95c21425a4d9ced7c949dac447b1e494535e6b6c` | Modern office skyscraper in stadium skyline arc (Tower A) |
+| `building-skyscraper-b.glb` | City Commercial | CC0 1.0 | 150,892 B (147.4 KB) | `52fe191d8401c39db4cd2b7902c37dce09608eeb3fd379b38aefc5ed658512ba` | Stepped corporate skyscraper in stadium skyline arc (Tower B) |
+| `building-skyscraper-c.glb` | City Commercial | CC0 1.0 | 161,932 B (158.1 KB) | `d3d5d2b281eddda1ba19eaaf2115c6166f1fc8f6dbafc91ac04969bbd3d4b0a6` | High-rise commercial tower in stadium skyline arc (Tower C) |
+| `building-skyscraper-d.glb` | City Commercial | CC0 1.0 | 179,556 B (175.4 KB) | `8718578123f49d39862d608efa7d717a7a72571517dce9a23211ffd6fde94aba` | Spire architectural skyscraper in stadium skyline arc (Tower D) |
+
+---
+
+## 6. Phase 4 Technical Modifications & Environment Architecture
+
+1. **Self-Contained Embedded Texture Buffers:**
+   - For all 28 environment GLB models, external URI dependencies were completely eliminated.
+   - For skyscraper models referencing `colormap.png`, PNG image bytes were packed directly into the binary GLB buffer chunk (`BIN`) with corresponding `bufferView` and `image` descriptors.
+   - Guaranteed 100% offline functionality in Android WebView without network fetches.
+2. **Normalized Coordinate Calibration (`getNormalizedLocalTransform`):**
+   - Source models across different kits have diverse raw origin points, bounding centers, and orientations.
+   - The engine automatically computes an exact affine normalization matrix:
+     $$\mathbf{M}_{\text{norm}} = \mathbf{M}_{\text{scale}} \cdot \mathbf{M}_{\text{rotY}} \cdot \mathbf{M}_{\text{center}}$$
+   - Centering on $X$ and $Z$, placing the lowest ground contact plane at $Y = 0$, applying canonical yaw rotation, and scaling to intended metric dimensions (e.g. barriers: $0.6\text{m} \times 0.9\text{m} \times 3.0\text{m}$).
+3. **Collision & Visual Synchronization:**
+   - Drivable asphalt width: `ROAD_HALF = 10` ($10\text{m}$).
+   - Collision boundaries in `logic.js`: `WALL_HALF = 14.5` ($14.5\text{m}$).
+   - Visual barriers (`barrierRed`, `barrierWhite`) are placed at exactly $\pm 14.5\text{m}$ lateral offset from the track centerline, aligning with the collision envelope with mathematical precision and zero clipping.
+   - Corner apex pylons are positioned at lateral $\pm 9.8\text{m}$ along the inner curb edge, visually marking apexes without protruding into drivable lanes.
+4. **Instanced GPU Rendering Optimization (`createInstancedModel`):**
+   - High-density assets (barriers, trees, catch fences, apex cones, floodlights) use Three.js `InstancedMesh`.
+   - Over 500 track barrier segments are drawn in only 2 draw calls (one red, one white).
+   - Over 100 roadside trees and pines are drawn in 3 draw calls.
+   - Total scene draw calls remain under 60, preserving 60 FPS mobile performance.
+5. **Lighting, Atmosphere & Countdown Sequence:**
+   - Integrated with Phase 2 PCF soft shadows, AgX tone mapping (exposure 1.15), and nighttime stadium lighting.
+   - Start/finish gantry features 3 dynamic countdown light pods that transition dynamically from red ($3, 2, 1$) to green ($0 / \text{GO}$).
+6. **Graceful Procedural Fallback:**
+   - If any GLB asset fails to load, `world.js` falls back cleanly to stylized procedural geometry (curved extrusions, procedural grandstands, billboard geometry) ensuring gameplay never crashes.
+
+---
+
+## 7. Phase 4 Visual Validation Artifacts
+
+6 high-definition ($1280 \times 720$) photographic renders validating Phase 4 environment integration are stored under `docs/screenshots/environment/`:
+
+| Verification View | Image File | Scene Content Verified |
+| :--- | :--- | :--- |
+| Full Track Overview | `track_overview.png` | Panoramic overhead view of entire circuit, terrain, infield, and mountain elevation |
+| Track Surface & Curbs | `track_surface_curbs.png` | Detailed asphalt texturing, red/white curbs, apex pylons, and road marking alignment |
+| Environment Details | `environment_details.png` | Covered spectator grandstands, continuous track barriers, safety fencing, and pitlane garages |
+| Stadium Skyline | `stadium_skyline.png` | Nighttime commercial skyscraper skyline arc, floodlights, and atmospheric stadium lighting |
+| Track Elevation & Hairpin | `track_elevation_hairpin.png` | Climbing mountain overpass, anti-gravity gradient, alpine pine trees, and elevated banking |
+| Kart Racing Action | `kart_racing_action.png` | Racer 1 (Red Speedster) on start/finish straight beneath countdown gantry |

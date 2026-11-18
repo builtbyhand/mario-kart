@@ -3,24 +3,60 @@ import assert from "node:assert/strict";
 
 // Setup mock browser globals for Node.js test environment
 globalThis.window = globalThis;
-if (typeof globalThis.document === "undefined") {
-  globalThis.document = {
-    createElement(tag) {
+globalThis.document = {
+  createElement(tag) {
+    if (tag === "img") {
+      const listeners = {};
       return {
         width: 512,
         height: 512,
-        getContext() {
-          return {
-            createImageData(w, h) {
-              return { data: new Uint8ClampedArray(w * h * 4) };
-            },
-            putImageData() {},
-          };
+        addEventListener(evt, fn) {
+          listeners[evt] = fn;
+        },
+        removeEventListener() {},
+        set src(v) {
+          queueMicrotask(() => {
+            if (listeners["load"]) listeners["load"]();
+            if (this.onload) this.onload();
+          });
         },
       };
-    },
-  };
-}
+    }
+    const ctx = {
+      createImageData(w, h) {
+        return { data: new Uint8ClampedArray(w * h * 4) };
+      },
+      putImageData() {},
+      createLinearGradient() {
+        return { addColorStop() {} };
+      },
+      createRadialGradient() {
+        return { addColorStop() {} };
+      },
+    };
+    const proxyCtx = new Proxy(ctx, {
+      get(target, prop) {
+        if (prop in target) return target[prop];
+        return () => {};
+      },
+      set() {
+        return true;
+      },
+    });
+    return {
+      width: 512,
+      height: 512,
+      addEventListener() {},
+      removeEventListener() {},
+      getContext() {
+        return proxyCtx;
+      },
+    };
+  },
+  createElementNS(ns, tag) {
+    return this.createElement(tag);
+  },
+};
 
 import * as THREE from "three";
 import {

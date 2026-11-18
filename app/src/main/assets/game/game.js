@@ -218,7 +218,7 @@ if (courseDescriptor) {
   try { world = await loadSourceWorld(scene, courseDescriptor); }
   catch (error) { console.warn('Local course pack unavailable; using built-in course:', error.message); }
 }
-if (!world) world = buildWorld(scene, capabilities);
+if (!world) world = await buildWorld(scene, capabilities);
 if (world.source) {
   useSourceTrack(world.route);
   camera.far = 2500;

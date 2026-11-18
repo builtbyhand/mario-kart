@@ -7,6 +7,9 @@
   "scripts": {
     "pretest": "node scripts/ensure-vendor-links.js",
     "test": "node --test test/*.test.js",
-    "check": "for f in app/src/main/assets/game/*.js; do node --check \"$f\"; done"
+    "check": "for f in app/src/main/assets/game/*.js; do node --check \"$f\"; done",
+    "verify:karts": "node --experimental-websocket scripts/capture-verification-screenshots.js",
+    "verify:environment": "node --experimental-websocket scripts/capture-environment-screenshots.js",
+    "verify": "npm run verify:karts && npm run verify:environment"
   }
 }
