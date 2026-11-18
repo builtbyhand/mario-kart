@@ -70,6 +70,7 @@ import {
   logger,
   isTv,
 } from "./config.js";
+import { PostProcessingPipeline } from "./postprocessing.js";
 import { FXAAPass } from "./vendor/three-examples/postprocessing/FXAAPass.js";
 
 const $ = (id) => document.getElementById(id),
@@ -141,7 +142,7 @@ canvas.addEventListener("webglcontextrestored", () => {
 });
 
 const scene = new THREE.Scene();
-const effects = raceEffects(scene, seeded(8703));
+const effects = raceEffects(scene, seeded(8703), { initialBudget: activeQuality.particleLimit });
 scene.background = new THREE.Color(activeLightingPreset.clearColor);
 scene.fog = new THREE.FogExp2(activeLightingPreset.fogColor, activeLightingPreset.fogDensity);
 
@@ -199,62 +200,8 @@ const trackLights = [-2, -1, 0, 1, 2].map((side) => {
   return light;
 });
 
-let composer = null;
-let ambientOcclusion = null;
-let fxaaPass = null;
-const forcePost = new URLSearchParams(location.search).get("post") === "1";
-const shouldPostprocess = forcePost || activeQuality.useBloom || activeQuality.useFXAA;
-
-if (shouldPostprocess && capabilities.floatTextures) {
-  const renderTarget = new THREE.WebGLRenderTarget(initialWidth, initialHeight, {
-    type: THREE.HalfFloatType,
-    samples: activeQuality.antialias ? 4 : 0,
-  });
-  composer = new EffectComposer(renderer, renderTarget);
-  composer.addPass(new RenderPass(scene, camera));
-
-  const enableGTAO = new URLSearchParams(location.search).get("gtao") === "1";
-  if (enableGTAO) {
-    ambientOcclusion = new GTAOPass(scene, camera, initialWidth, initialHeight);
-    ambientOcclusion.updateGtaoMaterial({
-      radius: 2.2,
-      thickness: 1.1,
-      distanceExponent: 1.5,
-      samples: 8,
-    });
-    ambientOcclusion.updatePdMaterial({
-      radius: 4,
-      samples: 8,
-      depthPhi: 3,
-      normalPhi: 3,
-    });
-    ambientOcclusion.blendIntensity = 0.6;
-    composer.addPass(ambientOcclusion);
-  }
-
-  if (activeQuality.useBloom || forcePost) {
-    const bloom = new UnrealBloomPass(
-      new THREE.Vector2(initialWidth, initialHeight),
-      0.22,
-      0.45,
-      1.95,
-    );
-    composer.addPass(bloom);
-  }
-
-  if (activeQuality.useFXAA) {
-    fxaaPass = new FXAAPass();
-    fxaaPass.setSize(initialWidth, initialHeight);
-    composer.addPass(fxaaPass);
-  }
-
-  const outputPass = new OutputPass();
-  outputPass.material.fragmentShader = outputPass.material.fragmentShader.replace(
-    "gl_FragColor = texture2D( tDiffuse, vUv );",
-    "gl_FragColor = vec4(texture2D( tDiffuse, vUv ).rgb, 1.0);",
-  );
-  composer.addPass(outputPass);
-}
+export const postPipeline = new PostProcessingPipeline(renderer, scene, camera, capabilities);
+postPipeline.reconfigure(activeQuality, initialWidth, initialHeight);
 const coursePreference = new URLSearchParams(location.search).get('sourceCourse');
 let courseDescriptor = null;
 if (coursePreference === '1') {
@@ -1380,9 +1327,7 @@ function draw(dt, now) {
   if (broadcast && !/Android|iPhone|Mobile|Headless/i.test(navigator.userAgent)) {
     broadcast.update(now, camera);
   }
-  if (composer) {
-    composer.render();
-  } else {
+  if (!postPipeline || !postPipeline.render()) {
     renderer.render(scene, camera);
   }
   renderCount++;
@@ -1764,15 +1709,20 @@ window.addEventListener("resize", () => {
   renderer.setSize(width, height, false);
   canvas.style.width = innerWidth + "px";
   canvas.style.height = innerHeight + "px";
-  if (composer) {
-    composer.setSize(width, height);
-    if (fxaaPass) fxaaPass.setSize(width, height);
-  }
+  if (postPipeline) postPipeline.setSize(width, height);
 });
 
 // Runtime visual debugging and verification helpers
 window.__setQualityPreset = (presetName) => {
-  return setQualityPreset(presetName, { renderer, scene, keyLight: key, composer, atmosphere });
+  return setQualityPreset(presetName, {
+    renderer,
+    camera,
+    canvas,
+    keyLight: key,
+    postPipeline,
+    effects,
+    atmosphere,
+  });
 };
 window.__setLightingPreset = (presetName) => {
   const p = LIGHTING_PRESETS[presetName];

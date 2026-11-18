@@ -9,16 +9,18 @@
 
 ## 1. Executive Summary
 
-Phase 2 establishes a high-definition rendering engine and visual foundation for Mario Kart Android. Prior to this phase, the WebGL renderer used basic neutral tone mapping with flat ambient lighting, uncalibrated texture color spaces, rigid non-tracking shadow frustums, and uncoupled graphics presets.
+Phase 2 establishes a high-definition rendering engine and visual foundation for Mario Kart Android. Prior to this phase, the WebGL renderer used basic neutral tone mapping with flat ambient lighting, uncalibrated texture color spaces, rigid non-tracking shadow frustums, uncoupled graphics presets, and static particle buffers.
 
 Phase 2 upgrades the engine with:
 1. **Color Management & AgX Filmic Tone Mapping:** Complete sRGB color-space enforcement with `THREE.AgXToneMapping` (exposure `1.15`–`1.20`) delivering rich saturation, highlight rolloff, and preventing overblown washouts.
 2. **Soft Shadow Architecture:** Dynamic `THREE.PCFSoftShadowMap` with bias `-0.0002` and normal bias `0.025`, dynamically tracking the player's kart so shadows never clip or vanish across the 3D stadium.
 3. **PBR Material Pipeline & Texture Cache:** Centralized PBR material generators (`createKartPaintMaterial`, `createKartMetalMaterial`, `createKartRubberMaterial`, `createBarrierMaterial`, `createGrassMaterial`), procedural pavement with proper tangent normal maps and roughness channels, plus a dedicated `TextureCache` and `MaterialCache` to prevent GPU memory leaks.
 4. **Multi-Environment Lighting & Atmosphere Presets:** Centralized `LIGHTING_PRESETS` (`stadium_night`, `sunset_gold`, `sunny_day`) coordinating key lights, fill lights, hemisphere ambients, exponential fog, clear color, and dynamic sky dome shader uniforms.
-5. **Configurable Graphics Quality Presets (`LOW`, `MEDIUM`, `HIGH`, `ULTRA`):** Fully operational presets wired to WebGL DPR, resolution scaling (`0.85`–`1.0`), shadow map resolution (`512`–`2048`), texture anisotropy (`1x`–`16x`), and post-processing passes.
-6. **Post-Processing & Antialiasing Pipeline:** Modular `EffectComposer` pipeline activating `UnrealBloomPass` and `FXAAPass` on high/ultra tiers, falling back to direct rendering on mobile/low tiers.
-7. **Performance Safety & WebGL Context Resilience:** Hardware capability detection (`detectCapabilities`), graceful degradation, dynamic resolution scaling for fillrate relief, and `webglcontextlost`/`webglcontextrestored` event lifecycle handling.
+5. **Configurable Graphics Quality Presets (`LOW`, `MEDIUM`, `HIGH`, `ULTRA`):** Fully operational presets wired to WebGL DPR, resolution scaling (`0.85`–`1.0`), shadow map resolution (`512`–`2048`), texture anisotropy (`1x`–`16x`), and dynamic post-processing passes.
+6. **Modular Post-Processing Pipeline (`PostProcessingPipeline`):** Dedicated pipeline manager dynamically enabling `UnrealBloomPass` and `FXAAPass` on High and Ultra tiers, while safely tearing down render targets and passes when switching to Low or Medium.
+7. **Connected Particle Effects Budget (`raceEffects`):** Particle pool pre-allocates up to peak capacity (1800) once, dynamically adjusting `geometry.setDrawRange` and simulation iteration loop to match the active quality budget (`300`–`1800`) without runtime buffer allocations or memory leaks.
+8. **Robust Hardware Capability Handling & Fallbacks:** Probes WebGL2, float texture sampling, floating-point render targets (`EXT_color_buffer_float` / `EXT_color_buffer_half_float`), clamps anisotropy against device limits, respects max texture dimensions, and gracefully falls back to direct rendering when post-processing is unsupported.
+9. **Clean Dependency Management:** Vendored Three.js module is cleanly linked for offline Android packaging and Node.js testing without committing fake `node_modules` installations to Git.
 
 ---
 
@@ -69,7 +71,7 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
 ### 3.2 Procedural Pavement & Road Shaders
 - **Color Spaces:** The diffuse asphalt texture is tagged with `THREE.SRGBColorSpace`, while tangent normal maps and roughness maps use `THREE.NoColorSpace` (linear) to prevent unwanted gamma curves from distorting surface slope calculations.
-- **Anisotropy:** Dynamically wired to `activeQuality.anisotropy` (`1x` on Low, `4x` on Medium, `8x` on High, `16x` on Ultra). This maintains sharp road markings and aggregate texture at steep grazing angles down long straights.
+- **Anisotropy Clamping:** Dynamically wired to `activeQuality.anisotropy` (`1x` on Low, `4x` on Medium, `8x` on High, `16x` on Ultra), clamped against `capabilities.clampAnisotropy()` to respect hardware limits.
 - **Surface Wear Shader Hook:** `roadMaterial` injects custom GLSL into `#include <map_fragment>` calculating tyre grooves, lane wear, and resurfacing patches via physical ribbon UVs without requiring heavy external image maps.
 
 ### 3.3 TextureCache & MaterialCache
@@ -92,7 +94,7 @@ Lighting can be selected at runtime via query parameter `?lighting=night|sunset|
 
 ---
 
-## 5. Quality Presets & Dynamic Scaling
+## 5. Quality Presets & Dynamic Pipeline Switching
 
 | Setting | Low (Performance) | Medium (Mobile/TV Default) | High (High Definition) | Ultra (Max Quality) |
 | :--- | :--- | :--- | :--- | :--- |
@@ -102,34 +104,55 @@ Lighting can be selected at runtime via query parameter `?lighting=night|sunset|
 | **Shadow Map Size** | `512 x 512` | `1024 x 1024` | `1024 x 1024` | `2048 x 2048` |
 | **Shadow Map Type** | Basic | PCF Soft | PCF Soft | PCF Soft |
 | **Texture Anisotropy** | `1x` | `4x` | `8x` | `16x` |
-| **Hardware Antialiasing** | `false` | `true` | `true` | `true` |
+| **Hardware Antialiasing** | Initial Context | Initial Context | Initial Context | Initial Context |
 | **Unreal Bloom Pass** | `false` | `false` | `true` | `true` |
 | **FXAA Antialiasing Pass** | `false` | `false` | `true` | `true` |
 | **Tone Mapping** | AgX (exp 1.10) | AgX (exp 1.15) | AgX (exp 1.18) | AgX (exp 1.20) |
 | **Particle Limit (VFX)** | `300` | `600` | `1200` | `1800` |
 
-### 5.1 Dynamic Preset Switching
-Preserved across `setQualityPreset(presetKey, engine)`:
-```javascript
-window.__setQualityPreset("high"); // dynamically reconfigures DPR, shadows, and postprocessing
-```
+### 5.1 Dynamic Pipeline Reconfiguration & Teardown
+Switching quality presets via `setQualityPreset(presetKey, engine)` or `window.__setQualityPreset(...)` dynamically manages all rendering subsystems:
+- **Medium → High / Ultra:** If the game started without an `EffectComposer` (e.g. on Medium/Low), the pipeline creates the composer on-demand, allocates half-float (or byte) render targets, adds `RenderPass`, creates and attaches `UnrealBloomPass` and `FXAAPass`, and attaches `OutputPass`.
+- **High / Ultra → Low / Medium:** Unnecessary post-processing effects are disabled. `postPipeline.teardown()` disposes `renderTarget1`, `renderTarget2`, bloom pass, and FXAA pass, freeing GPU memory. The render loop falls back directly to `renderer.render(scene, camera)`.
+- **Shadow Map Disposal:** Toggling shadows off disposes `keyLight.shadow.map` and sets it to `null`, preventing orphaned shadow textures from lingering in VRAM.
+- **Hardware Antialiasing Limitation:** Per WebGL specification, hardware MSAA (`antialias: true` on the WebGL context) is an immutable context-creation attribute that cannot be altered on an active WebGL context. The `antialias` property in `QUALITY_PRESETS` specifies the initial context creation preference. At runtime, edge smoothing during dynamic preset transitions is provided by `FXAAPass` in postprocessing on High and Ultra.
+- **Camera & Canvas Synchronization:** After a quality change, canvas CSS dimensions, internal buffer dimensions, and `camera.aspect` are recalculated and synchronized (`camera.updateProjectionMatrix()`).
 
 ---
 
-## 6. Performance Safety & Context Resilience
+## 6. Particle Pool Integration (`raceEffects`)
 
-1. **Hardware Capability Detection (`detectCapabilities`):**
-   Probes `gl.MAX_TEXTURE_SIZE`, anisotropic extensions (`EXT_texture_filter_anisotropic`), and floating point render target support (`OES_texture_float` / WebGL2). If float render targets are unsupported, postprocessing automatically bypasses `EffectComposer` and renders via `renderer.render(scene, camera)`.
-2. **WebGL Context Loss & Restoration Handling:**
-   Registers `webglcontextlost` calling `event.preventDefault()` per WebGL specification, sets `isContextLost = true`, and cancels redundant draw calls. On `webglcontextrestored`, rebinds `SRGBColorSpace`, `AgXToneMapping`, and resumes the animation loop.
-3. **Dynamic Resolution Scaling on Resize:**
-   Calculates canvas internal buffer `(innerWidth * resolutionScale, innerHeight * resolutionScale)` while setting CSS display sizing to `100%`, preserving 60 FPS fillrate on budget mobile GPUs.
+The particle effects system in `race-effects.js` is directly connected to the active quality budget:
+- **Single Pre-allocation:** Sized to peak capacity (1800 particles) once at initialization, completely eliminating runtime GPU buffer reallocations during gameplay.
+- **Active Draw Range:** Uses `geometry.setDrawRange(0, activeBudget)` so the GPU vertex pipeline only processes active particles (`300` on Low, `600` on Medium, `1200` on High, `1800` on Ultra).
+- **Simulation Loop Clamping:** The CPU update loop only iterates over `0..activeBudget`, providing substantial CPU savings on budget mobile chipsets.
+- **Safe Dynamic Resizing:** When reducing particle budget (e.g. High → Low), `setParticleLimit` zeroes out lifetimes, opacities, and sizes of particles outside the new active window, avoiding ghost particles.
+- **Resource Disposal:** Provides a clean `dispose()` method freeing geometries and materials from GPU memory.
 
 ---
 
-## 7. Visual Verification (Genuine Evidence)
+## 7. Hardware Capability Handling & Fallbacks
 
-All screenshots were genuinely captured in 1280x720 landscape format using the local headless WebGL environment:
+`detectCapabilities(gl)` probes hardware features:
+1. **Float Textures vs Float Render Targets:** Explicitly distinguishes sampling float/half-float textures (`OES_texture_float` / `OES_texture_half_float`) from rendering to floating-point framebuffers (`EXT_color_buffer_float` / `EXT_color_buffer_half_float`).
+2. **Anisotropy Clamping:** Clamps requested anisotropy against the hardware maximum (`capabilities.clampAnisotropy()`).
+3. **Texture Dimension Clamping:** Clamps texture dimensions against `gl.MAX_TEXTURE_SIZE` (`capabilities.clampTextureSize()`).
+4. **Graceful Fallback:** If half-float render targets are unsupported, `PostProcessingPipeline` falls back to `UnsignedByteType` or completely bypasses `EffectComposer` to ensure the game always starts and renders reliably.
+5. **Context Loss & Recovery:** Handles `webglcontextlost` by calling `event.preventDefault()` and halting draw calls; `webglcontextrestored` safely rebinds tone mapping and color space.
+
+---
+
+## 8. Dependency Management
+
+- `node_modules` is excluded from Git tracking via `.gitignore`.
+- Cross-platform `scripts/ensure-vendor-links.js` automatically creates the required local link to the vendored Three.js module before test execution via npm's `"pretest"` script.
+- The offline Android package in `app/src/main/assets/game/vendor/three/` remains completely preserved and self-contained.
+
+---
+
+## 9. Visual Verification (Genuine Evidence)
+
+All screenshots were captured in 1280x720 landscape format using the local headless WebGL environment:
 
 | Preview | Screenshot File | Description |
 | :--- | :--- | :--- |
@@ -143,49 +166,53 @@ All screenshots were genuinely captured in 1280x720 landscape format using the l
 
 ---
 
-## 8. Test & Verification Results
+## 10. Test & Verification Results
 
-### 8.1 JavaScript Unit Tests (`npm test`)
+### 10.1 JavaScript Unit Tests (`npm test`)
 ```
-✔ Quality presets contain valid configuration parameters (1.26ms)
-✔ Lighting presets contain valid atmospheric and light values (1.02ms)
+✔ Quality presets contain valid configuration parameters (1.53ms)
+✔ Lighting presets contain valid atmospheric and light values (1.77ms)
 ✔ Default quality preset returns a valid preset object (0.18ms)
 ✔ Default lighting preset returns a valid preset object (0.16ms)
-✔ detectCapabilities handles null and mock contexts cleanly (0.27ms)
-✔ setQualityPreset dynamically switches preset parameters (1.18ms)
-✔ Render config exposes proper camera and fog properties (0.19ms)
-✔ Asset registry supports registering models and textures with metadata (0.20ms)
-✔ Logger handles log levels without throwing (0.39ms)
-✔ WheelInput initializes in a clean neutral state (1.58ms)
-✔ Touch inputs update and release cleanly without getting stuck (0.34ms)
-✔ Gamepad button polling clears upon release (no stuck buttons) (0.33ms)
-✔ Native bridge inputs integrate with composite state (0.26ms)
+✔ detectCapabilities handles null and mock contexts cleanly (0.34ms)
+✔ setQualityPreset dynamically switches preset parameters (1.74ms)
+✔ Render config exposes proper camera and fog properties (0.27ms)
+✔ Asset registry supports registering models and textures with metadata (0.28ms)
+✔ Logger handles log levels without throwing (1.96ms)
+✔ WheelInput initializes in a clean neutral state (2.67ms)
+✔ Touch inputs update and release cleanly without getting stuck (0.37ms)
+✔ Gamepad button polling clears upon release (no stuck buttons) (0.32ms)
+✔ Native bridge inputs integrate with composite state (0.41ms)
 ✔ Reset resets all input sources cleanly (0.23ms)
-✔ TextureCache manages lifecycle and disposal cleanly (0.72ms)
-✔ MaterialCache manages materials and prevents memory leaks (0.18ms)
-✔ createKartPaintMaterial returns stylized physical material (1.21ms)
-✔ createKartMetalMaterial returns standard metallic material (0.71ms)
-✔ createKartRubberMaterial returns low-reflectance tire material (0.27ms)
-✔ createBarrierMaterial and createGrassMaterial construct valid materials (0.31ms)
-✔ pavementMaps generates textures with proper color spaces (41.07ms)
-✔ Race initializes with correct defaults and characters (1.92ms)
-✔ Top speed scales with collected coins (0.29ms)
+✔ TextureCache manages lifecycle and disposal cleanly (1.04ms)
+✔ MaterialCache manages materials and prevents memory leaks (0.26ms)
+✔ createKartPaintMaterial returns stylized physical material (1.24ms)
+✔ createKartMetalMaterial returns standard metallic material (0.47ms)
+✔ createKartRubberMaterial returns low-reflectance tire material (0.26ms)
+✔ createBarrierMaterial and createGrassMaterial construct valid materials (0.25ms)
+✔ pavementMaps generates textures with proper color spaces (41.36ms)
+✔ detectCapabilities accurately identifies float textures vs float render targets (2.05ms)
+✔ Anisotropy and texture dimensions clamp against device maximums (0.29ms)
+✔ PostProcessingPipeline gracefully falls back when capabilities are unsupported (0.94ms)
+✔ PostProcessingPipeline manages lifecycle: Medium -> High -> Low -> Ultra (6.24ms)
+✔ setQualityPreset performs full pipeline transitions: Medium -> High -> Low -> Ultra (1.46ms)
+✔ raceEffects particle pool connects to quality budget and resizes safely (12.76ms)
+✔ Race initializes with correct defaults and characters (1.37ms)
+✔ Top speed scales with collected coins (0.18ms)
 ✔ Turbo tier resolves mini-turbo levels accurately (0.11ms)
-✔ Race updates fixed-step accumulator and advances race state (24.25ms)
-✔ Seeded random number generator is deterministic (0.21ms)
-✔ Track constants and control points are valid (1.32ms)
-✔ Math utilities wrap, clamp, angle behave as expected (0.33ms)
-✔ Surface sampling returns continuous 3D points with valid coordinates (0.46ms)
+✔ Race updates fixed-step accumulator and advances race state (47.25ms)
+✔ Seeded random number generator is deterministic (0.82ms)
+✔ Track constants and control points are valid (1.00ms)
+✔ Math utilities wrap, clamp, angle behave as expected (0.25ms)
+✔ Surface sampling returns continuous 3D points with valid coordinates (0.38ms)
 
-ℹ tests 29 | pass 29 | fail 0 | cancelled 0 | duration_ms 214ms
+ℹ tests 35 | pass 35 | fail 0 | cancelled 0 | duration_ms 260ms
 ```
 
-### 8.2 Syntax Verification (`npm run check`)
-```
-npm run check -> All 38 JS engine files pass Node.js bytecode syntax check cleanly.
-```
+### 10.2 Syntax Verification (`npm run check`)
+All JavaScript files pass Node.js bytecode syntax check cleanly.
 
-### 8.3 Gradle Tests & Debug Build (`./gradlew test assembleDebug`)
+### 10.3 Gradle Tests & Debug Build (`./gradlew test assembleDebug`)
 ```
 BUILD SUCCESSFUL in 1s
 43 actionable tasks: 3 executed, 40 up-to-date
@@ -193,7 +220,7 @@ BUILD SUCCESSFUL in 1s
 
 ---
 
-## 9. Known Limitations & Next Steps
+## 11. Known Limitations & Next Steps
 
 1. **3D Character & Kart Models:** Currently, karts are generated via procedural meshes and composite primitives. Sourcing and loading optimized, non-infringing 3D GLB/glTF character and kart models is scheduled for Phase 3 and Phase 4.
 2. **Dynamic In-Game Quality Selector UI:** The quality presets are fully operational and can be set via URL parameters (`?quality=...&lighting=...`) or via API (`window.__setQualityPreset(...)`). A visual in-game pause/settings menu toggle will be added alongside the UI Polish phase (Phase 7).

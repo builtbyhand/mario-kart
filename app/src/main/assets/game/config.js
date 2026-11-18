@@ -18,6 +18,7 @@ export const isMobile = (typeof navigator !== "undefined" && /Android|iPhone|iPa
 /**
  * WebGL Capability Detection
  * Probes hardware limits to validate preset applicability without crashing.
+ * Distinguishes float texture sampling from floating-point render-target capabilities.
  */
 export function detectCapabilities(gl) {
   if (!gl) {
@@ -26,19 +27,44 @@ export function detectCapabilities(gl) {
       maxTextureSize: 2048,
       maxAnisotropy: 1,
       floatTextures: false,
+      halfFloatTextures: false,
+      floatRenderTargets: false,
+      halfFloatRenderTargets: false,
+      canPostprocess: false,
       rendererName: "unknown",
+      clampAnisotropy: (requested) => Math.max(1, Math.min(requested || 1, 1)),
+      clampTextureSize: (size) => Math.min(size || 512, 2048),
     };
   }
 
-  const isWebGL2 = typeof WebGL2RenderingContext !== "undefined" && gl instanceof WebGL2RenderingContext;
+  const isWebGL2 = (typeof WebGL2RenderingContext !== "undefined" && gl instanceof WebGL2RenderingContext) ||
+                   typeof gl.texImage3D === "function";
   const maxTextureSize = gl.getParameter(gl.MAX_TEXTURE_SIZE) || 2048;
 
   const extAniso = gl.getExtension("EXT_texture_filter_anisotropic") ||
                    gl.getExtension("WEBKIT_EXT_texture_filter_anisotropic") ||
                    gl.getExtension("MOZ_EXT_texture_filter_anisotropic");
-  const maxAnisotropy = extAniso ? gl.getParameter(extAniso.MAX_TEXTURE_MAX_ANISOTROPY_EXT) : 1;
+  const maxAnisotropy = extAniso ? (gl.getParameter(extAniso.MAX_TEXTURE_MAX_ANISOTROPY_EXT) || 1) : 1;
 
+  // Float & Half-Float Texture sampling support
   const floatTextures = isWebGL2 || Boolean(gl.getExtension("OES_texture_float"));
+  const halfFloatTextures = isWebGL2 || Boolean(gl.getExtension("OES_texture_half_float"));
+
+  // Floating-point render target capability (needed for HalfFloatType HDR render targets in EffectComposer)
+  const extColorBufferFloat = gl.getExtension("EXT_color_buffer_float");
+  const extColorBufferHalfFloat = gl.getExtension("EXT_color_buffer_half_float");
+  const webglColorBufferFloat = gl.getExtension("WEBGL_color_buffer_float");
+
+  const floatRenderTargets = isWebGL2
+    ? Boolean(extColorBufferFloat)
+    : Boolean(webglColorBufferFloat);
+
+  const halfFloatRenderTargets = isWebGL2
+    ? Boolean(extColorBufferFloat || extColorBufferHalfFloat)
+    : Boolean(extColorBufferHalfFloat);
+
+  // Can we run EffectComposer with floating point buffers or fallback to byte buffers?
+  const canPostprocess = halfFloatRenderTargets || isWebGL2;
 
   let rendererName = "unknown";
   const debugInfo = gl.getExtension("WEBGL_debug_renderer_info");
@@ -51,7 +77,17 @@ export function detectCapabilities(gl) {
     maxTextureSize,
     maxAnisotropy,
     floatTextures,
+    halfFloatTextures,
+    floatRenderTargets,
+    halfFloatRenderTargets,
+    canPostprocess,
     rendererName,
+    clampAnisotropy(requested) {
+      return Math.max(1, Math.min(requested || 1, maxAnisotropy));
+    },
+    clampTextureSize(size) {
+      return Math.min(size || 512, maxTextureSize);
+    },
   };
 }
 
@@ -227,6 +263,15 @@ export const activeLightingPreset = { ...getDefaultLightingPreset() };
 
 /**
  * Dynamically updates the active quality preset and reconfigures active engine subsystems.
+ *
+ * Operational scope:
+ * - DPR, resolution scale, exposure, and soft shadows are dynamically updated.
+ * - Post-processing pipeline (UnrealBloomPass + FXAAPass via postPipeline) is created,
+ *   reconfigured, or safely torn down with full GPU resource disposal.
+ * - Particle system (effects) budget is clamped and updated via setParticleLimit.
+ * - Hardware MSAA note: Per WebGL specification, hardware MSAA (antialias flag) is an
+ *   immutable context-creation parameter that cannot be toggled on an active WebGL context.
+ *   Dynamic anti-aliasing during runtime preset switching is handled by post-processing FXAA.
  */
 export function setQualityPreset(presetKey, engine = {}) {
   const target = QUALITY_PRESETS[presetKey?.toLowerCase()];
@@ -236,18 +281,28 @@ export function setQualityPreset(presetKey, engine = {}) {
   }
   Object.assign(activeQuality, target);
 
-  const { renderer, scene, keyLight, composer, atmosphere } = engine;
+  const { renderer, camera, canvas, keyLight, postPipeline, effects } = engine;
 
   if (renderer) {
     const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
     const pixelRatio = Math.min(dpr, activeQuality.maxPixelRatio);
     renderer.setPixelRatio(pixelRatio);
 
-    if (typeof innerWidth !== "undefined" && typeof innerHeight !== "undefined") {
-      const width = Math.floor(innerWidth * activeQuality.resolutionScale);
-      const height = Math.floor(innerHeight * activeQuality.resolutionScale);
-      renderer.setSize(width, height, false);
-      if (composer) composer.setSize(width, height);
+    const winWidth = typeof innerWidth !== "undefined" ? innerWidth : 1280;
+    const winHeight = typeof innerHeight !== "undefined" ? innerHeight : 720;
+    const renderWidth = Math.floor(winWidth * (activeQuality.resolutionScale || 1.0));
+    const renderHeight = Math.floor(winHeight * (activeQuality.resolutionScale || 1.0));
+
+    renderer.setSize(renderWidth, renderHeight, false);
+
+    if (canvas?.style) {
+      canvas.style.width = winWidth + "px";
+      canvas.style.height = winHeight + "px";
+    }
+
+    if (camera) {
+      camera.aspect = winWidth / winHeight;
+      camera.updateProjectionMatrix();
     }
 
     renderer.toneMappingExposure = activeQuality.toneMappingExposure;
@@ -264,8 +319,22 @@ export function setQualityPreset(presetKey, engine = {}) {
       }
     } else {
       renderer.shadowMap.enabled = false;
-      if (keyLight) keyLight.castShadow = false;
+      if (keyLight) {
+        keyLight.castShadow = false;
+        if (keyLight.shadow.map) {
+          keyLight.shadow.map.dispose();
+          keyLight.shadow.map = null;
+        }
+      }
     }
+
+    if (postPipeline && typeof postPipeline.reconfigure === "function") {
+      postPipeline.reconfigure(activeQuality, renderWidth, renderHeight);
+    }
+  }
+
+  if (effects && typeof effects.setParticleLimit === "function") {
+    effects.setParticleLimit(activeQuality.particleLimit);
   }
 
   logger.info(`Quality preset switched to: ${activeQuality.displayName}`);

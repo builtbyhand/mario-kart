@@ -80,11 +80,14 @@ export const materialCache = new MaterialCache();
 
 /**
  * Deterministic, local pavement maps with accurate sRGB color-space configuration.
- * Enhanced for crisp surface micro-details and proper specular response.
+ * Enhanced for crisp surface micro-details, clamped against device capabilities.
  */
-export function pavementMaps(options = {}) {
-  const size = options.size || 512;
-  const anisotropy = options.anisotropy || activeQuality?.anisotropy || 8;
+export function pavementMaps(options = {}, capabilities = null) {
+  const maxSize = capabilities?.maxTextureSize || 4096;
+  const maxAniso = capabilities?.maxAnisotropy || 16;
+  const size = Math.min(options.size || 512, maxSize);
+  const requestedAniso = options.anisotropy || activeQuality?.anisotropy || 8;
+  const anisotropy = Math.max(1, Math.min(requestedAniso, maxAniso));
   const cacheKey = `pavement_${size}_${anisotropy}`;
 
   if (textureCache.textures.has(cacheKey + "_diffuse")) {

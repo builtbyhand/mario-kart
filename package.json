@@ -5,6 +5,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "pretest": "node scripts/ensure-vendor-links.js",
     "test": "node --test test/*.test.js",
     "check": "for f in app/src/main/assets/game/*.js; do node --check \"$f\"; done"
   }
