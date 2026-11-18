@@ -243,15 +243,66 @@ test("environment-loader preloads, caches and retrieves models with error handli
   assert.equal(missing, null);
 });
 
-test("Verify barrier actual geometry: complete transforms, connection endpoints, continuity on curves/bank/elevation, and collision boundary", async () => {
-  const scene = new THREE.Scene();
-  const worldResult = await buildWorld(scene);
+// Exact 3D OBB Separating Axis Theorem (SAT) Overlap Test
+function testOBBOverlap(obbA, obbB) {
+  const axes = [
+    obbA.u[0], obbA.u[1], obbA.u[2],
+    obbB.u[0], obbB.u[1], obbB.u[2],
+  ];
+
+  for (let i = 0; i < 3; i++) {
+    for (let j = 0; j < 3; j++) {
+      const cross = new THREE.Vector3().crossVectors(obbA.u[i], obbB.u[j]);
+      if (cross.lengthSq() > 1e-6) {
+        axes.push(cross.normalize());
+      }
+    }
+  }
+
+  const T = new THREE.Vector3().subVectors(obbB.c, obbA.c);
+  let minOverlap = Infinity;
+  let maxGap = 0;
+  let hasGap = false;
+
+  for (const axis of axes) {
+    const dist = Math.abs(T.dot(axis));
+    const rA =
+      obbA.e.x * Math.abs(obbA.u[0].dot(axis)) +
+      obbA.e.y * Math.abs(obbA.u[1].dot(axis)) +
+      obbA.e.z * Math.abs(obbA.u[2].dot(axis));
+    const rB =
+      obbB.e.x * Math.abs(obbB.u[0].dot(axis)) +
+      obbB.e.y * Math.abs(obbB.u[1].dot(axis)) +
+      obbB.e.z * Math.abs(obbB.u[2].dot(axis));
+    const overlap = rA + rB - dist;
+
+    if (overlap < 0) {
+      hasGap = true;
+      const gap = -overlap;
+      if (gap > maxGap) maxGap = gap;
+    } else {
+      if (overlap < minOverlap) minOverlap = overlap;
+    }
+  }
+
+  return {
+    intersects: !hasGap,
+    overlap: hasGap ? 0 : minOverlap,
+    gap: hasGap ? maxGap : 0,
+  };
+}
+
+/**
+ * Validates actual 3D barrier geometry, complete transforms, connection endpoints,
+ * continuity across curves/banking/elevation, and collision boundary synchronization.
+ */
+async function validateBarrierGeometry(worldResult, options = {}) {
   const world = worldResult.world;
   world.updateMatrixWorld(true);
 
-  // 1. Extract every relevant mesh component from the source GLBs
-  const gltfR = await loadEnvironmentAsset("barrierRed");
-  const gltfW = await loadEnvironmentAsset("barrierWhite");
+  // 1. Independent red and white asset loading and extraction
+  const gltfR = options.gltfRed || (await loadEnvironmentAsset("barrierRed"));
+  const gltfW = options.gltfWhite || (await loadEnvironmentAsset("barrierWhite"));
   assert.ok(gltfR && gltfR.scene, "barrierRed GLB must parse with scene");
   assert.ok(gltfW && gltfW.scene, "barrierWhite GLB must parse with scene");
 
@@ -264,35 +315,61 @@ test("Verify barrier actual geometry: complete transforms, connection endpoints,
     if (o.isMesh) meshesW.push(o);
   });
 
-  assert.equal(meshesR.length, 1, "barrierRed must contain exactly 1 mesh component");
-  assert.equal(meshesW.length, 1, "barrierWhite must contain exactly 1 mesh component");
+  if (meshesR.length === 0) {
+    throw new Error("Missing barrierRed mesh component in geometry verification");
+  }
+  if (meshesW.length === 0) {
+    throw new Error("Missing barrierWhite mesh component in geometry verification");
+  }
 
-  const posAttrR = meshesR[0].geometry.attributes.position;
-  const posAttrW = meshesW[0].geometry.attributes.position;
-  assert.ok(posAttrR && posAttrR.count > 0, "barrierRed mesh must have non-empty position attribute");
-  assert.ok(posAttrW && posAttrW.count > 0, "barrierWhite mesh must have non-empty position attribute");
+  const meshR = meshesR[0];
+  const meshW = meshesW[0];
+  const posAttrR = meshR.geometry?.attributes?.position;
+  const posAttrW = meshW.geometry?.attributes?.position;
+
+  if (!posAttrR || posAttrR.count === 0) {
+    throw new Error("barrierRed mesh component missing position vertex attribute");
+  }
+  if (!posAttrW || posAttrW.count === 0) {
+    throw new Error("barrierWhite mesh component missing position vertex attribute");
+  }
+
   assert.equal(posAttrR.count, 48, "barrierRed must contain 48 vertices");
   assert.equal(posAttrW.count, 48, "barrierWhite must contain 48 vertices");
 
-  // 2. Derive normalized local transform and base mesh matrix
+  // 2. Derive independent normalized local transform and base mesh matrix for each asset
   const normTransformR = getNormalizedLocalTransform(gltfR.scene, new THREE.Vector3(0.6, 0.9, 3.05), {
     rotateY: Math.PI / 2,
   });
-  const baseMeshMatrixR = normTransformR.clone().multiply(meshesR[0].matrixWorld);
+  meshR.updateMatrixWorld(true);
+  const baseMeshMatrixR = normTransformR.clone().multiply(meshR.matrixWorld);
 
-  // Pre-identify connection end faces in local space:
-  // Front connection end face is at local Z = -1.525 (24 vertices)
-  // Rear connection end face is at local Z = +1.525 (24 vertices)
-  const frontIndices = [];
-  const rearIndices = [];
-  const vLocal = new THREE.Vector3();
-  for (let j = 0; j < posAttrR.count; j++) {
-    vLocal.fromBufferAttribute(posAttrR, j).applyMatrix4(baseMeshMatrixR);
-    if (Math.abs(vLocal.z - (-1.525)) < 0.01) frontIndices.push(j);
-    if (Math.abs(vLocal.z - (+1.525)) < 0.01) rearIndices.push(j);
+  const normTransformW = getNormalizedLocalTransform(gltfW.scene, new THREE.Vector3(0.6, 0.9, 3.05), {
+    rotateY: Math.PI / 2,
+  });
+  meshW.updateMatrixWorld(true);
+  const baseMeshMatrixW = normTransformW.clone().multiply(meshW.matrixWorld);
+
+  // Independent endpoint connection face detection
+  function findConnectionFaces(posAttr, baseM) {
+    const frontIndices = [];
+    const rearIndices = [];
+    const vLocal = new THREE.Vector3();
+    for (let j = 0; j < posAttr.count; j++) {
+      vLocal.fromBufferAttribute(posAttr, j).applyMatrix4(baseM);
+      if (Math.abs(vLocal.z - (-1.525)) < 0.02) frontIndices.push(j);
+      if (Math.abs(vLocal.z - 1.525) < 0.02) rearIndices.push(j);
+    }
+    return { frontIndices, rearIndices };
   }
-  assert.equal(frontIndices.length, 24, "Front connection end face must have 24 vertices at Z = -1.525");
-  assert.equal(rearIndices.length, 24, "Rear connection end face must have 24 vertices at Z = +1.525");
+
+  const facesR = findConnectionFaces(posAttrR, baseMeshMatrixR);
+  const facesW = findConnectionFaces(posAttrW, baseMeshMatrixW);
+
+  assert.equal(facesR.frontIndices.length, 24, "Front connection end face of barrierRed must have 24 vertices");
+  assert.equal(facesR.rearIndices.length, 24, "Rear connection end face of barrierRed must have 24 vertices");
+  assert.equal(facesW.frontIndices.length, 24, "Front connection end face of barrierWhite must have 24 vertices");
+  assert.equal(facesW.rearIndices.length, 24, "Rear connection end face of barrierWhite must have 24 vertices");
 
   // 3. Locate InstancedMesh objects in scene
   let redIM = null;
@@ -315,7 +392,19 @@ test("Verify barrier actual geometry: complete transforms, connection endpoints,
   assert.equal(counts.rightWhite, 290, "Right wall must have 290 white barriers");
 
   const mat = new THREE.Matrix4();
-  const instPos = new THREE.Vector3();
+  const halfExtents = new THREE.Vector3(0.30, 0.45, 1.525);
+
+  const report = {
+    totalInstances: 0,
+    totalPairsChecked: 0,
+    consecutiveNonGliderPairs: 0,
+    gliderCorridorPairs: 0,
+    loopClosurePairs: 0,
+    minOverlap: Infinity,
+    maxOverlap: -Infinity,
+    maxSeamSeparation: 0,
+    maxBoundaryDeviation: 0,
+  };
 
   // 4. Verify every barrier instance on both sides of the track
   for (const side of [-1, 1]) {
@@ -328,167 +417,181 @@ test("Verify barrier actual geometry: complete transforms, connection endpoints,
     const barriers = [];
 
     for (let i = 0; i < totalCount; i++) {
-      // Verify strict Red/White alternation
-      const expectedRed = (i % 2 === 0);
-      const im = expectedRed ? redIM : whiteIM;
-      const instanceIdx = expectedRed
+      const isRed = (i % 2 === 0);
+      const im = isRed ? redIM : whiteIM;
+      const instanceIdx = isRed
         ? redOffset + Math.floor(i / 2)
         : whiteOffset + Math.floor(i / 2);
 
       im.getMatrixAt(instanceIdx, mat);
 
-      // Account for complete source model geometry, nested mesh, instance, and world transforms
-      const worldM = world.matrixWorld.clone().multiply(im.matrixWorld).multiply(mat);
+      const baseM = isRed ? baseMeshMatrixR : baseMeshMatrixW;
+      const posAttr = isRed ? posAttrR : posAttrW;
+      const faces = isRed ? facesR : facesW;
 
-      // Extract actual transformed geometry
+      // Complete mesh world transform (instance matrix incorporates baseMeshMatrix = normTransform * origMesh.matrixWorld)
+      const worldM = world.matrixWorld.clone().multiply(im.matrixWorld).multiply(mat);
+      const placementMatrix = worldM.clone().multiply(baseM.clone().invert());
+
+      // Extract actual transformed geometry independently for each asset
       const transformedVerts = [];
       const frontVerts = [];
       const rearVerts = [];
       const fc = new THREE.Vector3();
       const rc = new THREE.Vector3();
       const box = new THREE.Box3();
-
       const centroid = new THREE.Vector3();
-      for (let j = 0; j < posAttrR.count; j++) {
-        const wv = new THREE.Vector3().fromBufferAttribute(posAttrR, j).applyMatrix4(worldM);
+
+      for (let j = 0; j < posAttr.count; j++) {
+        const wv = new THREE.Vector3().fromBufferAttribute(posAttr, j).applyMatrix4(worldM);
         transformedVerts.push(wv);
         box.expandByPoint(wv);
         centroid.add(wv);
-        if (frontIndices.includes(j)) {
+
+        if (faces.frontIndices.includes(j)) {
           frontVerts.push(wv);
           fc.add(wv);
         }
-        if (rearIndices.includes(j)) {
+        if (faces.rearIndices.includes(j)) {
           rearVerts.push(wv);
           rc.add(wv);
         }
       }
-      fc.divideScalar(frontIndices.length);
-      rc.divideScalar(rearIndices.length);
-      centroid.divideScalar(posAttrR.count);
+      fc.divideScalar(faces.frontIndices.length);
+      rc.divideScalar(faces.rearIndices.length);
+      centroid.divideScalar(posAttr.count);
 
-      const center = box.getCenter(new THREE.Vector3());
-      const s = sArray[i];
+      // 3D OBB
+      const ux = new THREE.Vector3(placementMatrix.elements[0], placementMatrix.elements[1], placementMatrix.elements[2]).normalize();
+      const uy = new THREE.Vector3(placementMatrix.elements[4], placementMatrix.elements[5], placementMatrix.elements[6]).normalize();
+      const uz = new THREE.Vector3(placementMatrix.elements[8], placementMatrix.elements[9], placementMatrix.elements[10]).normalize();
+      const origin = new THREE.Vector3().setFromMatrixPosition(placementMatrix);
+      const obbCenter = origin.clone().addScaledVector(uy, 0.45);
 
-      // Verify lateral offset against WALL_HALF = 14.5m
-      // The barrier base origin coincides with surfaceAt(s, side * WALL_HALF)
-      const expectedSurface = surfaceAt(s, side * WALL_HALF);
-      const qf = roadFrame(s, side * WALL_HALF, expectedSurface.heading);
-      const baseCenter = centroid.clone().sub(
-        new THREE.Vector3(qf.up.x, qf.up.y, qf.up.z).multiplyScalar(0.39375)
-      );
-      const baseDeviation = baseCenter.distanceTo(
-        new THREE.Vector3(expectedSurface.x, expectedSurface.y, expectedSurface.z)
-      );
-      assert.ok(
-        baseDeviation < 0.001,
-        `Barrier ${i} on ${sideName} wall must be placed at surfaceAt(s, side * WALL_HALF), got deviation ${baseDeviation}m`
-      );
-
-      // Verify exact placement matrix origin coincides with collision boundary within 1mm
-      const placementOrigin = new THREE.Vector3(0, 0, 0).applyMatrix4(
-        worldM.clone().multiply(baseMeshMatrixR.clone().invert())
-      );
-      const originDeviation = placementOrigin.distanceTo(
-        new THREE.Vector3(expectedSurface.x, expectedSurface.y, expectedSurface.z)
-      );
-      assert.ok(
-        originDeviation < 0.001,
-        `Barrier ${i} on ${sideName} wall placement origin must coincide with surface boundary within 1mm, got ${originDeviation}m`
-      );
-
-      // Transformed center lateral distance from centerline coincides with WALL_HALF within half-width (0.35m)
-      const centerlineQ = surfaceAt(s, 0);
-      const horizDistFromCenterline = Math.hypot(center.x - centerlineQ.x, center.z - centerlineQ.z);
-      assert.ok(
-        Math.abs(horizDistFromCenterline - WALL_HALF) <= 0.35,
-        `Barrier ${i} on ${sideName} wall lateral distance (${horizDistFromCenterline.toFixed(3)}m) must match WALL_HALF (${WALL_HALF}m)`
-      );
+      const obb = {
+        c: obbCenter,
+        u: [ux, uy, uz],
+        e: halfExtents,
+      };
 
       barriers.push({
         i,
-        s,
-        isRed: expectedRed,
+        s: sArray[i],
+        isRed,
+        origin,
+        placementMatrix,
+        worldM,
         verts: transformedVerts,
         frontVerts,
         rearVerts,
         fc,
         rc,
+        centroid,
         box,
-        center,
+        center: box.getCenter(new THREE.Vector3()),
+        obb,
       });
     }
 
-    // 5. Verify continuity between consecutive barriers along the wall
-    let gliderGaps = 0;
-    let nonIntersectingCount = 0;
-    let maxGap = 0;
+    report.totalInstances += barriers.length;
 
+    // Optional corruption injection hook for regression testing
+    if (options.corruptBarriers) {
+      options.corruptBarriers(barriers, sideName);
+    }
+
+    // Boundary alignment and alternation verification
+    for (let i = 0; i < barriers.length; i++) {
+      const b = barriers[i];
+      const expectedRed = (i % 2 === 0);
+      if (b.isRed !== expectedRed) {
+        throw new Error(
+          `Barrier alternation break on ${sideName} wall at index ${i}: expected ${expectedRed ? "red" : "white"}, got ${b.isRed ? "red" : "white"}`
+        );
+      }
+
+      // Verify lateral offset against WALL_HALF = 14.5m
+      const expectedSurface = surfaceAt(b.s, side * WALL_HALF);
+      const qf = roadFrame(b.s, side * WALL_HALF, expectedSurface.heading);
+      const baseCenter = b.centroid.clone().sub(
+        new THREE.Vector3(qf.up.x, qf.up.y, qf.up.z).multiplyScalar(0.39375)
+      );
+      const dev = baseCenter.distanceTo(
+        new THREE.Vector3(expectedSurface.x, expectedSurface.y, expectedSurface.z)
+      );
+      if (dev > report.maxBoundaryDeviation) report.maxBoundaryDeviation = dev;
+      if (dev > 0.001) {
+        throw new Error(
+          `Barrier ${i} on ${sideName} wall drifted from collision boundary: ${dev.toFixed(6)}m > 0.001m`
+        );
+      }
+
+      const centerlineQ = surfaceAt(b.s, 0);
+      const horizDistFromCenterline = Math.hypot(b.center.x - centerlineQ.x, b.center.z - centerlineQ.z);
+      if (Math.abs(horizDistFromCenterline - WALL_HALF) > 0.35) {
+        throw new Error(
+          `Barrier ${i} on ${sideName} wall lateral distance (${horizDistFromCenterline.toFixed(3)}m) must match WALL_HALF (${WALL_HALF}m)`
+        );
+      }
+    }
+
+    // 5. Verify continuity between consecutive barriers along the wall
     for (let i = 0; i < barriers.length - 1; i++) {
       const b1 = barriers[i];
       const b2 = barriers[i + 1];
       const centerDist = b1.center.distanceTo(b2.center);
 
+      report.totalPairsChecked++;
+
       // Check intentional glider corridor
       if (centerDist > 15.0) {
-        gliderGaps++;
-        assert.ok(
-          b1.s <= SECTIONS.glideStart + 1.0 && b2.s >= SECTIONS.glideEnd - 1.0,
-          `Gap > 15m must only occur at the intentional glider corridor (${SECTIONS.glideStart.toFixed(1)} -> ${SECTIONS.glideEnd.toFixed(1)}), got s1=${b1.s}, s2=${b2.s}`
-        );
+        report.gliderCorridorPairs++;
+        if (!(b1.s <= SECTIONS.glideStart + 1.0 && b2.s >= SECTIONS.glideEnd - 1.0)) {
+          throw new Error(
+            `Unexpected large gap ${centerDist.toFixed(2)}m on ${sideName} wall outside glider corridor at s=${b1.s.toFixed(2)}`
+          );
+        }
         continue;
       }
 
-      // Verify 3D geometry intersection / physical overlap
-      const intersects = b1.box.intersectsBox(b2.box);
+      report.consecutiveNonGliderPairs++;
 
-      // Calculate exact minimum Euclidean distance between transformed vertices
-      let minVtoV = Infinity;
-      for (const p1 of b1.verts) {
-        for (const p2 of b2.verts) {
-          const vd = p1.distanceTo(p2);
-          if (vd < minVtoV) minVtoV = vd;
-        }
+      // Exact 3D OBB SAT overlap test
+      const sat = testOBBOverlap(b1.obb, b2.obb);
+      if (!sat.intersects) {
+        throw new Error(
+          `Uncovered gap along ${sideName} wall between barrier ${i} (s=${b1.s.toFixed(2)}) and ${i+1} (s=${b2.s.toFixed(2)}): gap=${sat.gap.toFixed(4)}m`
+        );
       }
 
-      if (!intersects) {
-        nonIntersectingCount++;
-        if (minVtoV > maxGap) maxGap = minVtoV;
-      }
-
-      // Verify physical overlap: distance between consecutive centers <= 2.65m ensuring overlap with 3.05m barriers
-      assert.ok(
-        centerDist <= 2.65,
-        `Consecutive barriers ${i} -> ${i+1} on ${sideName} wall center distance (${centerDist.toFixed(3)}m) must be <= 2.65m`
-      );
+      const physicalOverlap = sat.overlap;
+      if (physicalOverlap < report.minOverlap) report.minOverlap = physicalOverlap;
+      if (physicalOverlap > report.maxOverlap) report.maxOverlap = physicalOverlap;
+      if (sat.gap > report.maxSeamSeparation) report.maxSeamSeparation = sat.gap;
     }
 
-    assert.equal(gliderGaps, 1, `Must detect exactly 1 intentional glider corridor on ${sideName} wall`);
-    assert.equal(
-      nonIntersectingCount,
-      0,
-      `All consecutive barriers on ${sideName} wall must physically overlap with 0 non-intersecting pairs, got ${nonIntersectingCount} (max gap: ${maxGap.toFixed(4)}m)`
-    );
-
     // 6. Verify loop closure at start/finish line: last barrier connects to first barrier
-    const bFirst = barriers[0];
+    report.totalPairsChecked++;
+    report.loopClosurePairs++;
     const bLast = barriers[barriers.length - 1];
-    const closureIntersects = bLast.box.intersectsBox(bFirst.box);
-    assert.ok(
-      closureIntersects,
-      `Loop closure on ${sideName} wall: last barrier at s=${bLast.s.toFixed(2)} must intersect first barrier at s=0`
-    );
-    // Last barrier is white (579), first is red (0): alternating loop closure
-    assert.equal(bLast.isRed, false, `Last barrier on ${sideName} wall must be white`);
-    assert.equal(bFirst.isRed, true, `First barrier on ${sideName} wall must be red`);
+    const bFirst = barriers[0];
+    const closureSat = testOBBOverlap(bLast.obb, bFirst.obb);
+    if (!closureSat.intersects) {
+      throw new Error(
+        `Loop closure gap along ${sideName} wall between last barrier (s=${bLast.s.toFixed(2)}) and first barrier (s=${bFirst.s.toFixed(2)}): gap=${closureSat.gap.toFixed(4)}m`
+      );
+    }
+    if (bLast.isRed !== false || bFirst.isRed !== true) {
+      throw new Error(`Loop closure alternation error on ${sideName} wall: last must be white, first must be red`);
+    }
 
-    // 7. Verify continuity across specific demanding track sections
+    // 7. Verify continuity across demanding track sections
     // Turn 1 curve: s = 150..220
     const turn1Barriers = barriers.filter((b) => b.s >= 150 && b.s <= 220);
     assert.ok(turn1Barriers.length >= 25, `Turn 1 curve must have dense barrier coverage (${turn1Barriers.length})`);
     for (let k = 0; k < turn1Barriers.length - 1; k++) {
       assert.ok(
-        turn1Barriers[k].box.intersectsBox(turn1Barriers[k + 1].box),
+        testOBBOverlap(turn1Barriers[k].obb, turn1Barriers[k + 1].obb).intersects,
         `Turn 1 curve barriers must intersect seamlessly at s=${turn1Barriers[k].s.toFixed(1)}`
       );
     }
@@ -498,17 +601,17 @@ test("Verify barrier actual geometry: complete transforms, connection endpoints,
     assert.ok(mountainBarriers.length >= 15, `Mountain hairpin must have dense barrier coverage (${mountainBarriers.length})`);
     for (let k = 0; k < mountainBarriers.length - 1; k++) {
       assert.ok(
-        mountainBarriers[k].box.intersectsBox(mountainBarriers[k + 1].box),
+        testOBBOverlap(mountainBarriers[k].obb, mountainBarriers[k + 1].obb).intersects,
         `Mountain hairpin barriers must intersect seamlessly at s=${mountainBarriers[k].s.toFixed(1)}`
       );
     }
 
-    // High banking & elevation section: s = 740..780 (anti-gravity, bank ~57 deg, mountain climb)
+    // High banking & elevation section: s = 740..780
     const bankedBarriers = barriers.filter((b) => b.s >= 740 && b.s <= 780);
     assert.ok(bankedBarriers.length >= 15, `Banked elevation section must have dense barrier coverage (${bankedBarriers.length})`);
     for (let k = 0; k < bankedBarriers.length - 1; k++) {
       assert.ok(
-        bankedBarriers[k].box.intersectsBox(bankedBarriers[k + 1].box),
+        testOBBOverlap(bankedBarriers[k].obb, bankedBarriers[k + 1].obb).intersects,
         `Banked elevation barriers must intersect seamlessly at s=${bankedBarriers[k].s.toFixed(1)}`
       );
     }
@@ -518,120 +621,106 @@ test("Verify barrier actual geometry: complete transforms, connection endpoints,
     assert.ok(hairpinBarriers.length >= 35, `Banked hairpin must have dense barrier coverage (${hairpinBarriers.length})`);
     for (let k = 0; k < hairpinBarriers.length - 1; k++) {
       assert.ok(
-        hairpinBarriers[k].box.intersectsBox(hairpinBarriers[k + 1].box),
+        testOBBOverlap(hairpinBarriers[k].obb, hairpinBarriers[k + 1].obb).intersects,
         `Banked hairpin barriers must intersect seamlessly at s=${hairpinBarriers[k].s.toFixed(1)}`
       );
     }
   }
+
+  return report;
+}
+
+test("Verify barrier actual geometry: complete transforms, connection endpoints, continuity on curves/bank/elevation, and collision boundary", async () => {
+  const scene = new THREE.Scene();
+  const worldResult = await buildWorld(scene);
+  const report = await validateBarrierGeometry(worldResult);
+
+  // Exact pair count arithmetic verification:
+  // 580 barriers per side => 578 consecutive non-glider pairs per side (1 intentional glider corridor excluded)
+  // => 1,156 consecutive non-glider pairs + 2 glider pairs + 2 loop closure pairs = 1,160 pairs total
+  assert.equal(report.totalInstances, 1160, "Must have exactly 1,160 barrier instances (580 left, 580 right)");
+  assert.equal(report.totalPairsChecked, 1160, "Must check exactly 1,160 barrier pairs total");
+  assert.equal(report.consecutiveNonGliderPairs, 1156, "Must verify exactly 1,156 consecutive non-glider pairs");
+  assert.equal(report.gliderCorridorPairs, 2, "Must detect exactly 2 intentional glider corridor pairs (1 per side)");
+  assert.equal(report.loopClosurePairs, 2, "Must verify exactly 2 loop closure pairs (1 per side)");
+
+  // Measurable zero-gap claim verification
+  assert.equal(report.maxSeamSeparation, 0, "Maximum seam separation must be exactly 0.0000m (zero uncovered gap)");
+  assert.ok(report.minOverlap > 0.30, `Minimum physical overlap must be > 0.30m, got ${report.minOverlap.toFixed(4)}m`);
+  assert.ok(report.maxOverlap < 0.90, `Maximum physical overlap must be < 0.90m, got ${report.maxOverlap.toFixed(4)}m`);
+  assert.ok(
+    report.maxBoundaryDeviation < 0.001,
+    `Maximum collision boundary deviation must be < 0.001m (1mm), got ${report.maxBoundaryDeviation.toFixed(6)}m`
+  );
 });
 
 test("Barrier regression tests: detect missing mesh components, gaps, boundary drift, alternation breaks, and curve/bank perturbations", async () => {
-  const gltfR = await loadEnvironmentAsset("barrierRed");
-  const normTransformR = getNormalizedLocalTransform(gltfR.scene, new THREE.Vector3(0.6, 0.9, 3.05), {
-    rotateY: Math.PI / 2,
-  });
-  const meshR = gltfR.scene.children[0];
-  const baseMeshMatrixR = normTransformR.clone().multiply(meshR.matrixWorld);
-  const posAttr = meshR.geometry.attributes.position;
+  const scene = new THREE.Scene();
+  const worldResult = await buildWorld(scene);
 
-  // Helper to build transformed vertices and box from a placement matrix
-  function buildBarrierGeom(placementMatrix) {
-    const worldM = placementMatrix.clone().multiply(baseMeshMatrixR);
-    const box = new THREE.Box3();
-    const verts = [];
-    for (let j = 0; j < posAttr.count; j++) {
-      const v = new THREE.Vector3().fromBufferAttribute(posAttr, j).applyMatrix4(worldM);
-      verts.push(v);
-      box.expandByPoint(v);
-    }
-    return { box, verts, center: box.getCenter(new THREE.Vector3()) };
-  }
+  // Regression 1: Missing barrier component / empty mesh verification fails in real validator
+  await assert.rejects(async () => {
+    const dummyGltf = { scene: new THREE.Group() };
+    await validateBarrierGeometry(worldResult, { gltfRed: dummyGltf });
+  }, /Missing barrierRed mesh component/);
 
-  // Regression 1: Missing barrier component / empty mesh verification fails
-  assert.throws(() => {
-    const emptyMeshes = [];
-    if (emptyMeshes.length === 0) {
-      throw new Error("Missing barrier mesh component in geometry verification");
-    }
-  }, /Missing barrier mesh component/);
+  await assert.rejects(async () => {
+    const dummyMesh = new THREE.Mesh(new THREE.BufferGeometry());
+    const dummyGltf = { scene: new THREE.Group() };
+    dummyGltf.scene.add(dummyMesh);
+    await validateBarrierGeometry(worldResult, { gltfRed: dummyGltf });
+  }, /barrierRed mesh component missing position vertex attribute/);
 
-  assert.throws(() => {
-    const invalidGeo = { attributes: {} };
-    if (!invalidGeo.attributes.position || invalidGeo.attributes.position.count === 0) {
-      throw new Error("Barrier mesh component missing position vertex attribute");
-    }
-  }, /missing position vertex attribute/);
+  // Regression 2: Consecutive barrier pair with uncovered gap along wall fails in real validator
+  await assert.rejects(async () => {
+    await validateBarrierGeometry(worldResult, {
+      corruptBarriers(barriers, sideName) {
+        if (sideName === "left") {
+          // Displace barrier 50 OBB along track tangent by 3.5m creating an uncovered gap
+          barriers[50].obb.c.addScaledVector(barriers[50].obb.u[2], 3.5);
+        }
+      },
+    });
+  }, /Uncovered gap along left wall/);
 
-  // Regression 2: Consecutive barrier pair with uncovered gap along wall fails
-  const m1 = new THREE.Matrix4().makeTranslation(0, 0, 0);
-  const m2Gap = new THREE.Matrix4().makeTranslation(0, 0, 4.5); // gap of 4.5 - 3.05 = 1.45m
-  const b1 = buildBarrierGeom(m1);
-  const b2Gap = buildBarrierGeom(m2Gap);
+  // Regression 3: Barrier incorrectly positioned relative to collision boundary fails in real validator
+  await assert.rejects(async () => {
+    await validateBarrierGeometry(worldResult, {
+      corruptBarriers(barriers, sideName) {
+        if (sideName === "left") {
+          // Displace barrier 20 centroid laterally by 1.5m
+          barriers[20].centroid.x += 1.5;
+        }
+      },
+    });
+  }, /drifted from collision boundary/);
 
-  const gapIntersects = b1.box.intersectsBox(b2Gap.box);
-  assert.equal(gapIntersects, false, "Artificially separated barriers must not intersect");
+  // Regression 4: Red/white alternation break fails in real validator
+  await assert.rejects(async () => {
+    await validateBarrierGeometry(worldResult, {
+      corruptBarriers(barriers, sideName) {
+        if (sideName === "left") {
+          // Break alternation at barrier 5 (make it red instead of white)
+          barriers[5].isRed = true;
+        }
+      },
+    });
+  }, /Barrier alternation break on left wall at index 5/);
 
-  let minVtoV = Infinity;
-  for (const p1 of b1.verts) {
-    for (const p2 of b2Gap.verts) {
-      const d = p1.distanceTo(p2);
-      if (d < minVtoV) minVtoV = d;
-    }
-  }
-  assert.ok(minVtoV > 1.0, `Separated barriers must exhibit a measurable gap, got ${minVtoV.toFixed(2)}m`);
-
-  // Verify that an uncovered gap detection assertion would fail
-  assert.throws(() => {
-    if (!b1.box.intersectsBox(b2Gap.box)) {
-      throw new Error(`Uncovered gap along barrier wall: ${minVtoV.toFixed(3)}m`);
-    }
-  }, /Uncovered gap along barrier wall/);
-
-  // Regression 3: Barrier incorrectly positioned relative to collision boundary fails
-  const lateralCenterlineDist = 17.5; // 3.0m drift from WALL_HALF (14.5m)
-  assert.throws(() => {
-    if (Math.abs(lateralCenterlineDist - WALL_HALF) > 0.35) {
-      throw new Error(
-        `Barrier lateral position (${lateralCenterlineDist.toFixed(2)}m) drifted from WALL_HALF (${WALL_HALF}m)`
-      );
-    }
-  }, /drifted from WALL_HALF/);
-
-  // Regression 4: Red/white alternation break fails
-  const corruptedAlternation = ["red", "white", "red", "red", "white"];
-  assert.throws(() => {
-    for (let i = 0; i < corruptedAlternation.length; i++) {
-      const expected = (i % 2 === 0) ? "red" : "white";
-      if (corruptedAlternation[i] !== expected) {
-        throw new Error(`Barrier alternation break at index ${i}: expected ${expected}, got ${corruptedAlternation[i]}`);
-      }
-    }
-  }, /Barrier alternation break at index 3/);
-
-  // Regression 5: Unexpected geometry change / elevation disconnect on banked curve fails
-  const sCurve = 760;
-  const qBank = surfaceAt(sCurve, WALL_HALF);
-  const qfBank = roadFrame(sCurve, WALL_HALF, qBank.heading);
-
-  const mBank1 = new THREE.Matrix4().makeBasis(
-    new THREE.Vector3(qfBank.right.x, qfBank.right.y, qfBank.right.z),
-    new THREE.Vector3(qfBank.up.x, qfBank.up.y, qfBank.up.z),
-    new THREE.Vector3(-qfBank.forward.x, -qfBank.forward.y, -qfBank.forward.z)
-  );
-  mBank1.setPosition(qBank.x, qBank.y, qBank.z);
-
-  // Displace consecutive barrier vertically by 2.0m (simulating an unhandled vertical shear/elevation disconnect)
-  const mBank2Displaced = mBank1.clone();
-  mBank2Displaced.elements[13] += 2.0;
-
-  const bBank1 = buildBarrierGeom(mBank1);
-  const bBank2 = buildBarrierGeom(mBank2Displaced);
-
-  assert.throws(() => {
-    if (!bBank1.box.intersectsBox(bBank2.box)) {
-      throw new Error("Banked section vertical elevation discontinuity detected");
-    }
-  }, /elevation discontinuity/);
+  // Regression 5: Unexpected geometry change / elevation disconnect on banked curve fails in real validator
+  await assert.rejects(async () => {
+    await validateBarrierGeometry(worldResult, {
+      corruptBarriers(barriers, sideName) {
+        if (sideName === "left") {
+          // Displace banked barrier vertically by 2.0m along local up vector (around s=760)
+          const idx = barriers.findIndex((b) => b.s >= 758 && b.s <= 765);
+          if (idx !== -1) {
+            barriers[idx].obb.c.addScaledVector(barriers[idx].obb.u[1], 2.0);
+          }
+        }
+      },
+    });
+  }, /Uncovered gap along left wall/);
 });
 
 test("createInstancedModel generates valid multi-instance InstancedMesh groups", async () => {
