@@ -1,7 +1,12 @@
+if (typeof globalThis.self === "undefined") {
+  globalThis.self = globalThis;
+}
+
 import * as THREE from "three";
 import { GLTFLoader } from "./vendor/three-examples/loaders/GLTFLoader.js";
 import { RoundedBoxGeometry } from "./vendor/three-examples/geometries/RoundedBoxGeometry.js";
 import { mergeGeometries } from "./vendor/three-examples/utils/BufferGeometryUtils.js";
+import { clone as cloneSkeleton } from "./vendor/three-examples/utils/SkeletonUtils.js";
 import { modelSpec } from "./model-spec.js";
 import { driverFabric, projectFabric } from "./driver-fabric.js";
 import { sourceWheelMaterial } from "./source-wheel.js";
@@ -159,12 +164,258 @@ export function disposeModel(root) {
     m.dispose();
   });
 }
+export const KART_SPECS = {
+  mario: {
+    kart: "models/kart-oobi.glb",
+    character: "models/character-male-a.glb",
+    name: "Red Speedster",
+    scale: 2.2,
+    driverOffset: [0, 0.38, -0.06],
+    driverScale: 1.4,
+  },
+  luigi: {
+    kart: "models/kart-oodi.glb",
+    character: "models/character-male-b.glb",
+    name: "Green Aero",
+    scale: 2.2,
+    driverOffset: [0, 0.38, -0.06],
+    driverScale: 1.4,
+  },
+  peach: {
+    kart: "models/kart-ooli.glb",
+    character: "models/character-female-a.glb",
+    name: "Pink Sport",
+    scale: 2.2,
+    driverOffset: [0, 0.38, -0.06],
+    driverScale: 1.4,
+  },
+  yoshi: {
+    kart: "models/kart-oopi.glb",
+    character: "models/character-female-b.glb",
+    name: "Lime Turbo",
+    scale: 2.2,
+    driverOffset: [0, 0.38, -0.06],
+    driverScale: 1.4,
+  },
+  toad: {
+    kart: "models/kart-oozi.glb",
+    character: "models/character-male-c.glb",
+    name: "Blue Comet",
+    scale: 2.2,
+    driverOffset: [0, 0.38, -0.06],
+    driverScale: 1.4,
+  },
+  bowser: {
+    kart: "models/race-future.glb",
+    character: "models/character-male-d.glb",
+    name: "Cyber Beast",
+    scale: 2.0,
+    driverOffset: [0, 0.45, 0.05],
+    driverScale: 1.5,
+  },
+  "donkey-kong": {
+    kart: "models/race.glb",
+    character: "models/character-male-d.glb",
+    name: "Classic GT",
+    scale: 2.0,
+    driverOffset: [0, 0.45, 0.05],
+    driverScale: 1.5,
+  },
+  koopa: {
+    kart: "models/sedan-sports.glb",
+    character: "models/character-female-c.glb",
+    name: "Yellow Sprint",
+    scale: 2.0,
+    driverOffset: [0, 0.42, 0.05],
+    driverScale: 1.4,
+  },
+};
+
+const gltfLoader = new GLTFLoader();
+const assetCache = new Map();
+
+export async function loadGLB(pathUrl) {
+  if (assetCache.has(pathUrl)) {
+    return assetCache.get(pathUrl);
+  }
+
+  let gltfPromise;
+  const isNode = typeof process !== "undefined" && Boolean(process.versions?.node) && !globalThis.location?.href;
+  if (isNode) {
+    const fs = await import("fs");
+    const path = await import("path");
+    const fullPath = path.resolve(
+      pathUrl.startsWith("./") || pathUrl.startsWith("/")
+        ? pathUrl
+        : path.join("app/src/main/assets/game", pathUrl)
+    );
+    const buf = fs.readFileSync(fullPath);
+    gltfPromise = new Promise((resolve, reject) => {
+      gltfLoader.parse(
+        buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength),
+        "",
+        resolve,
+        reject
+      );
+    });
+  } else {
+    gltfPromise = gltfLoader.loadAsync(pathUrl);
+  }
+
+  const gltf = await gltfPromise;
+  assetCache.set(pathUrl, gltf);
+  return gltf;
+}
+
+export function buildGLBKart(id, kartGltf, charGltf) {
+  const spec = KART_SPECS[id] || KART_SPECS.mario;
+  const root = new THREE.Group();
+  root.name = "glb-kart";
+  root.userData.isGLB = true;
+
+  // Clone kart hierarchy
+  const kartScene = kartGltf.scene.clone(true);
+
+  // Hide static driver in kart mesh if present
+  const staticDriver = kartScene.getObjectByName("character");
+  if (staticDriver) staticDriver.visible = false;
+
+  // Articulate 4 wheels
+  const wheelAliases = [
+    ["wheel-front-left", "wheel-0"],
+    ["wheel-front-right", "wheel-1"],
+    ["wheel-back-left", "wheel-2"],
+    ["wheel-back-right", "wheel-3"],
+  ];
+
+  const wheels = wheelAliases.map(([name, alias], i) => {
+    const mesh = kartScene.getObjectByName(name) || kartScene.getObjectByName(alias);
+    if (!mesh) return null;
+
+    mesh.geometry.computeBoundingBox();
+    const box = mesh.geometry.boundingBox;
+    const center = box.getCenter(new THREE.Vector3());
+    const axle = mesh.position.clone().add(center);
+    const extent = box.getSize(new THREE.Vector3());
+    const radius = Math.max(extent.y, extent.z) * 0.5;
+
+    const wheelPivot = new THREE.Group();
+    wheelPivot.name = "wheel-" + i;
+    wheelPivot.position.copy(axle);
+
+    const rolling = new THREE.Group();
+    wheelPivot.add(rolling);
+    wheelPivot.userData.rolling = rolling;
+    wheelPivot.userData.hubCenter = [0, 0, 0];
+    wheelPivot.userData.hubRadius = radius;
+
+    // Reparent mesh inside rolling group
+    mesh.position.sub(axle);
+    rolling.add(mesh);
+
+    // Anti-gravity glow ring
+    const glow = new THREE.Group();
+    const light = new THREE.MeshBasicMaterial({
+      color: new THREE.Color("#35e3ff").multiplyScalar(3.1),
+    });
+    const blue = new THREE.MeshStandardMaterial({
+      color: "#08171d",
+      emissive: "#12badb",
+      emissiveIntensity: 0.055,
+      metalness: 0.55,
+      roughness: 0.32,
+    });
+    for (const face of [-extent.x * 0.45, extent.x * 0.45]) {
+      const ring = new THREE.Mesh(
+        new THREE.TorusGeometry(radius * 0.82, radius * 0.045, 8, 40),
+        light
+      );
+      ring.rotation.y = Math.PI / 2;
+      ring.position.set(face, 0, 0);
+      glow.add(ring);
+      const hub = new THREE.Mesh(new THREE.CircleGeometry(radius * 0.74, 40), blue);
+      hub.rotation.y = face < 0 ? -Math.PI / 2 : Math.PI / 2;
+      hub.position.set(face, 0, 0);
+      glow.add(hub);
+    }
+    glow.visible = false;
+    wheelPivot.add(glow);
+    wheelPivot.userData.glow = glow;
+
+    kartScene.add(wheelPivot);
+    return wheelPivot;
+  });
+
+  // Scale and orient kart: Rotate by Math.PI around Y so nose faces -Z
+  kartScene.scale.setScalar(spec.scale);
+  kartScene.rotation.y = Math.PI;
+  root.add(kartScene);
+
+  // Driver character integration with animation
+  let mixer = null;
+  let driverScene = null;
+  let driverHead = null;
+
+  if (charGltf && charGltf.scene) {
+    driverScene = cloneSkeleton(charGltf.scene);
+    mixer = new THREE.AnimationMixer(driverScene);
+
+    const driveClip =
+      charGltf.animations?.find((a) => a.name === "drive") ||
+      charGltf.animations?.[0];
+    if (driveClip) {
+      const action = mixer.clipAction(driveClip);
+      action.play();
+    }
+
+    driverScene.position.set(...spec.driverOffset);
+    driverScene.scale.setScalar(spec.driverScale);
+
+    // Set up driver-head anchor for camera look-at and glance attention
+    driverHead =
+      driverScene.getObjectByName("head") ||
+      driverScene.getObjectByName("head-mesh") ||
+      driverScene;
+    driverHead.name = "driver-head";
+    driverHead.userData.lookRestQuaternion = driverHead.quaternion.toArray();
+
+    kartScene.add(driverScene);
+  }
+
+  // Ensure all meshes cast/receive shadows and have correct color space
+  root.traverse((o) => {
+    if (o.isMesh) {
+      o.castShadow = true;
+      o.receiveShadow = true;
+      if (o.material?.map) {
+        o.material.map.colorSpace = THREE.SRGBColorSpace;
+      }
+    }
+  });
+
+  root.userData.wheels = wheels;
+  root.userData.mixer = mixer;
+  root.userData.driver = driverScene;
+  root.userData.driverHead = driverHead;
+
+  return {
+    model: root,
+    wheels,
+    mixer,
+    driver: driverScene,
+    driverHead,
+  };
+}
+
 export function rigWheels(model) {
+  if (model.userData?.isGLB && model.userData.wheels) {
+    return model.userData.wheels;
+  }
   const source = model.getObjectByName('source-kart')?.userData.sourcePack===1;
   return [0, 1, 2, 3].map((i) => {
     const wheel = model.getObjectByName("wheel-" + i);
     if (!wheel || wheel.userData.rolling) return wheel;
-    if(!source)finishKart(wheel);
+    if(!source && !model.userData?.isGLB)finishKart(wheel);
     const rolling = new THREE.Group();
     for (const child of [...wheel.children]) rolling.add(child);
     wheel.add(rolling);
@@ -236,8 +487,43 @@ export function rigWheels(model) {
     return wheel;
   });
 }
+
 export async function loadKartPack(karts, onProgress = () => {}) {
-  return { loaded: 0, fallback: karts.length };
+  let loaded = 0;
+  let fallback = 0;
+
+  for (const [index, kartObj] of karts.entries()) {
+    const id = kartObj.id;
+    const spec = KART_SPECS[id] || KART_SPECS.mario;
+
+    try {
+      const kartGltf = await loadGLB(spec.kart);
+      const charGltf = await loadGLB(spec.character);
+
+      const glbResult = buildGLBKart(id, kartGltf, charGltf);
+
+      // Replace procedural model in kartObj.root
+      if (kartObj.model && kartObj.root) {
+        kartObj.root.remove(kartObj.model);
+        disposeModel(kartObj.model);
+        kartObj.root.add(glbResult.model);
+        kartObj.model = glbResult.model;
+        kartObj.wheels = glbResult.wheels;
+        kartObj.mixer = glbResult.mixer;
+        kartObj.driver = glbResult.driver;
+        kartObj.source = "glb";
+      }
+
+      loaded++;
+    } catch (err) {
+      console.warn(`[loadKartPack] Fallback to procedural model for ${id}:`, err?.message || err);
+      fallback++;
+    }
+
+    onProgress({ loaded, fallback, total: karts.length, current: index + 1 });
+  }
+
+  return { loaded, fallback };
 }
 export function makeGlider(color,characterId) {
   const group = new THREE.Group();
@@ -333,9 +619,9 @@ export function makeGlider(color,characterId) {
 
 /** Art pass shared by optional GLBs and the geometry fallback. Wheel groups stay riggable. */
 function finishKart(root, character) {
-  // Optional local source packs already contain their authored texture materials,
+  // Optional local source packs and GLB assets already contain their authored texture materials,
   // seated skeleton and wheel pivots. Flattening them would discard skinning.
-  if (root.getObjectByName("source-kart")?.userData.sourcePack === 1) return;
+  if (root.userData?.isGLB || root.getObjectByName("glb-kart") || root.getObjectByName("source-kart")?.userData.sourcePack === 1) return;
   const pool = new Map(),
     groups = new Map(),
     remove = [];

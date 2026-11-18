@@ -379,7 +379,8 @@ function constructRace() {
     });
   }
   const set = karts.slice();
-  loadKartPack(set).then((status) => {
+  if (typeof location === "undefined" || new URLSearchParams(location.search).get("procedural") !== "1") {
+    loadKartPack(set).then((status) => {
     if (set[0] !== karts[0]) return;
     debug.assets = status;
     const mario = set.find((k) => k.id === "mario" && k.source === "glb");
@@ -401,7 +402,8 @@ function constructRace() {
       world.statue.add(sculpture);
       world.statue.userData.finishedModel = true;
     }
-  });
+    });
+  }
   syncPickupPools();
   $("results").hidden = true;
   $("pause").hidden = true;
@@ -1105,6 +1107,8 @@ function draw(dt, now) {
     k.model.rotation.y = r.spin > 0 ? time * 15 : r.drift ? -r.drift * 0.25 : 0;
     k.model.rotation.z = (r.gliding ? -r.steer * 0.15 : -r.steer * 0.07) + Math.sin((r.contactAnimation||0)/.42*Math.PI*2)*(r.contactAnimation||0)*.55*(r.contactSide||.4);
     updateDriverLook(k, r, race.racers, paused ? 0 : dt, race.state === "racing");
+    if (k.mixer && !paused) k.mixer.update(dt);
+    if (k.driver) k.driver.rotation.z = -r.steer * 0.12;
     updateHeldItem(k.model, r, paused ? 0 : dt);
     updateBoostEffect(k.boostEffect,k.model,r.boost,time+i*.17);
     updateStarModel(k.model,r.star>0,(time*.65+i*.1)%1);
@@ -1743,6 +1747,13 @@ window.__setLightingPreset = (presetName) => {
   if (atmosphere?.updatePreset) atmosphere.updatePreset(p);
   return activeLightingPreset;
 };
+window.__begin = begin;
+window.__karts = karts;
+window.__race = race;
+
+if (new URLSearchParams(location.search).get('autostart') === '1') {
+  setTimeout(() => begin(), 300);
+}
 
 function toggleFullscreen() {
   if (document.fullscreenElement) document.exitFullscreen();
