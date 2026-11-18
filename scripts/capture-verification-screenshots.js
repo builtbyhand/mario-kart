@@ -164,22 +164,43 @@ server.listen(8888, "127.0.0.1", async () => {
   const chrome = spawn(chromeBin, [
     "--headless=new",
     "--no-sandbox",
+    "--disable-setuid-sandbox",
     "--disable-gpu-sandbox",
     "--disable-dev-shm-usage",
     "--use-gl=angle",
     "--use-angle=swiftshader",
+    "--enable-unsafe-swiftshader",
     "--enable-webgl",
     "--window-size=1280,720",
     "--remote-debugging-port=9222",
   ]);
 
-  await new Promise((r) => setTimeout(r, 1200));
+  chrome.on("error", (err) => {
+    console.error("[Chrome Process Error]", err);
+  });
 
-  const resp = await fetch("http://127.0.0.1:9222/json/list");
-  const pages = await resp.json();
-  const page = pages.find((p) => p.type === "page");
+  chrome.stderr.on("data", (d) => {
+    const s = d.toString();
+    if (s.includes("ERROR:") || s.includes("FATAL:")) {
+      console.error("[Chrome STDERR]", s.trim());
+    }
+  });
+
+  let page = null;
+  for (let attempt = 0; attempt < 40; attempt++) {
+    try {
+      const resp = await fetch("http://127.0.0.1:9222/json/list");
+      if (resp.ok) {
+        const pages = await resp.json();
+        page = pages.find((p) => p.type === "page");
+        if (page) break;
+      }
+    } catch (_) {}
+    await new Promise((r) => setTimeout(r, 250));
+  }
+
   if (!page) {
-    console.error("Could not find chrome target page");
+    console.error("Could not connect to Chrome debugging port 9222 after waiting");
     chrome.kill();
     server.close();
     process.exit(1);
