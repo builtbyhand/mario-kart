@@ -3,28 +3,61 @@
  * Fully self-contained, offline, hardware-accelerated sound generation.
  */
 export class AudioEngine {
-  constructor({ volume = 0.55 } = {}) {
+  constructor({ volume = 0.55, musicVolume = 0.75, sfxVolume = 0.85 } = {}) {
     this.volume = volume;
+    this.musicVolume = musicVolume;
+    this.sfxVolume = sfxVolume;
     this.enabled = true;
     this.ctx = null;
     this.master = null;
+    this.musicBus = null;
+    this.sfxBus = null;
     this.registry = new Map();
     this.overrides = new Map();
   }
 
   ensureCtx() {
     if (!this.ctx) {
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      const AudioCtx = (typeof window !== "undefined" ? (window.AudioContext || window.webkitAudioContext) : null) || globalThis.AudioContext || globalThis.webkitAudioContext;
       if (!AudioCtx) return null;
       this.ctx = new AudioCtx();
       this.master = this.ctx.createGain();
       this.master.gain.value = this.enabled ? this.volume : 0;
       this.master.connect(this.ctx.destination);
+
+      this.musicBus = this.ctx.createGain();
+      this.musicBus.gain.value = this.musicVolume;
+      this.musicBus.connect(this.master);
+
+      this.sfxBus = this.ctx.createGain();
+      this.sfxBus.gain.value = this.sfxVolume;
+      this.sfxBus.connect(this.master);
     }
     if (this.ctx.state === "suspended") {
       this.ctx.resume().catch(() => {});
     }
     return this.ctx;
+  }
+
+  setMasterVolume(val) {
+    this.volume = Math.max(0, Math.min(1, val));
+    if (this.master && this.ctx) {
+      this.master.gain.setValueAtTime(this.enabled ? this.volume : 0, this.ctx.currentTime);
+    }
+  }
+
+  setMusicVolume(val) {
+    this.musicVolume = Math.max(0, Math.min(1, val));
+    if (this.musicBus && this.ctx) {
+      this.musicBus.gain.setValueAtTime(this.musicVolume, this.ctx.currentTime);
+    }
+  }
+
+  setSfxVolume(val) {
+    this.sfxVolume = Math.max(0, Math.min(1, val));
+    if (this.sfxBus && this.ctx) {
+      this.sfxBus.gain.setValueAtTime(this.sfxVolume, this.ctx.currentTime);
+    }
   }
 
   async unlock() {
@@ -64,10 +97,12 @@ export class AudioEngine {
     gain = 0.1,
     slideTo = null,
     delay = 0,
+    bus = "sfx",
   } = {}) {
     if (!this.enabled) return;
     this.ensureCtx();
     if (!this.ctx) return;
+    const targetBus = bus === "music" ? (this.musicBus || this.master) : (this.sfxBus || this.master);
     const now = this.ctx.currentTime + delay;
     const osc = this.ctx.createOscillator();
     const g = this.ctx.createGain();
@@ -78,7 +113,7 @@ export class AudioEngine {
     }
     g.gain.setValueAtTime(gain, now);
     g.gain.exponentialRampToValueAtTime(0.0001, now + dur);
-    osc.connect(g).connect(this.master);
+    osc.connect(g).connect(targetBus);
     osc.start(now);
     osc.stop(now + dur + 0.05);
   }
@@ -89,10 +124,12 @@ export class AudioEngine {
     freq = 1000,
     sweepTo = null,
     delay = 0,
+    bus = "sfx",
   } = {}) {
     if (!this.enabled) return;
     this.ensureCtx();
     if (!this.ctx) return;
+    const targetBus = bus === "music" ? (this.musicBus || this.master) : (this.sfxBus || this.master);
     const now = this.ctx.currentTime + delay;
     const bufferSize = Math.floor(this.ctx.sampleRate * Math.min(dur, 2));
     if (bufferSize <= 0) return;
@@ -115,7 +152,7 @@ export class AudioEngine {
     const g = this.ctx.createGain();
     g.gain.setValueAtTime(gain, now);
     g.gain.exponentialRampToValueAtTime(0.0001, now + dur);
-    noise.connect(filter).connect(g).connect(this.master);
+    noise.connect(filter).connect(g).connect(targetBus);
     noise.start(now);
     noise.stop(now + dur + 0.05);
   }

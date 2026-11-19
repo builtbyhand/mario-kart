@@ -16,7 +16,10 @@ export class SampledKartAudio {
     this.mix=ctx.createDynamicsCompressor();this.mix.threshold.value=-5;this.mix.knee.value=5;this.mix.ratio.value=5;this.mix.attack.value=.003;this.mix.release.value=.16;
     this.mix.connect(this.engine.master);this.buses={};
     for(const [key,level] of Object.entries({music:.72,stinger:1,ui:1,effects:1,engine:.8,voice:.9,ambience:.6})){
-      const g=ctx.createGain();g.gain.value=level;g.connect(this.mix);this.buses[key]=g;
+      const g=ctx.createGain();
+      const mult = key === 'music' ? (this.engine.musicVolume ?? 1) : (this.engine.sfxVolume ?? 1);
+      g.gain.value=level * mult;
+      g.connect(this.mix);this.buses[key]=g;
     }
     this.capture=this.engine.ctx.createMediaStreamDestination();this.engine.master.connect(this.capture);
   }

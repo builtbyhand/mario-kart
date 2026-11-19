@@ -4,20 +4,21 @@ import fs from "node:fs";
 import path from "node:path";
 import zlib from "node:zlib";
 import { spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
 const OUT_DIR = path.resolve("docs/screenshots/menu");
 if (!fs.existsSync(OUT_DIR)) {
   fs.mkdirSync(OUT_DIR, { recursive: true });
 }
 
-// PNG scanline reconstruction & verification
-function paethPredictor(a, b, c) {
+// PNG scanline reconstruction & verification (W3C / RFC 2083 Paeth filter)
+export function paethPredictor(a, b, c) {
   const p = a + b - c;
   const pa = Math.abs(p - a);
   const pb = Math.abs(p - b);
   const pc = Math.abs(p - c);
   if (pa <= pb && pa <= pc) return a;
-  if (pb <= pb && pb <= pc) return b;
+  if (pb <= pc) return b;
   return c;
 }
 
@@ -186,8 +187,10 @@ const server = http.createServer((req, res) => {
 const HTTP_PORT = 8892;
 const CDP_PORT = 9225;
 
-server.listen(HTTP_PORT, "127.0.0.1", async () => {
-  console.log(`Local HTTP server running on http://127.0.0.1:${HTTP_PORT} for 3D Menu verification`);
+export async function runMenuVerification() {
+  return new Promise((resolve, reject) => {
+    server.listen(HTTP_PORT, "127.0.0.1", async () => {
+      console.log(`Local HTTP server running on http://127.0.0.1:${HTTP_PORT} for 3D Menu verification`);
 
   const chromeFlags = [
     "--headless=new",
@@ -525,7 +528,19 @@ server.listen(HTTP_PORT, "127.0.0.1", async () => {
   console.log(`=========================================\n`);
 
   if (totalCaptured !== CAPTURES.length) {
-    process.exit(1);
+    reject(new Error(`Captured ${totalCaptured}/${CAPTURES.length} screenshots`));
+  } else {
+    resolve();
   }
-  process.exit(0);
 });
+});
+}
+
+if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
+  runMenuVerification().then(() => {
+    process.exit(0);
+  }).catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}

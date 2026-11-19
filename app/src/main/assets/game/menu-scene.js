@@ -447,6 +447,9 @@ export class MenuScene {
   }
 
   async setShowcaseRacer(characterId, kartId = null) {
+    this.showcaseRequestId = (this.showcaseRequestId || 0) + 1;
+    const currentRequestId = this.showcaseRequestId;
+
     this.characterId = characterId;
     const charSpec = KART_SPECS[characterId] || KART_SPECS.mario;
 
@@ -460,8 +463,24 @@ export class MenuScene {
 
     try {
       // Load both GLTF models from memory cache (or disk if first run)
-      const kartGltf = await loadGLB(kartConfig.glb);
-      const charGltf = await loadGLB(charSpec.character);
+      const [kartGltf, charGltf] = await Promise.all([
+        loadGLB(kartConfig.glb),
+        loadGLB(charSpec.character),
+      ]);
+
+      // Guard: If another racer selection was made while awaiting assets, discard outdated load
+      if (currentRequestId !== this.showcaseRequestId) {
+        return null;
+      }
+
+      // Build articulated GLB kart with driver sitting in cockpit
+      const built = buildGLBKart(characterId, kartGltf, charGltf, kartConfig.scale);
+
+      // Guard: Ensure still latest before attaching to scene graph
+      if (currentRequestId !== this.showcaseRequestId) {
+        disposeModel(built.model);
+        return null;
+      }
 
       // Remove existing showcase kart model if present
       if (this.showcaseModel) {
@@ -469,9 +488,6 @@ export class MenuScene {
         disposeModel(this.showcaseModel);
         this.showcaseModel = null;
       }
-
-      // Build articulated GLB kart with driver sitting in cockpit
-      const built = buildGLBKart(characterId, kartGltf, charGltf, kartConfig.scale);
 
       this.showcaseModel = built.model;
       this.showcaseWheels = built.wheels || [];
@@ -497,8 +513,11 @@ export class MenuScene {
       }
 
       this.root.add(this.showcaseModel);
+      return this.showcaseModel;
     } catch (err) {
-      console.warn("[MenuScene] Failed to load showcase racer:", err);
+      if (currentRequestId === this.showcaseRequestId) {
+        console.warn("[MenuScene] Failed to load showcase racer:", err);
+      }
     }
   }
 

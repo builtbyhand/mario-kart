@@ -11,7 +11,25 @@ export function engineFrequency(speed) {
 }
 export class KartAudio {
   constructor() {
-    this.engine = new AudioEngine({ volume: 0.55 });
+    let savedMaster = 0.8, savedMusic = 0.75, savedSfx = 0.85;
+    try {
+      if (typeof localStorage !== "undefined") {
+        const m = localStorage.getItem("mariokart.volume.master");
+        const mu = localStorage.getItem("mariokart.volume.music");
+        const s = localStorage.getItem("mariokart.volume.sfx");
+        if (m !== null) savedMaster = Number(m) / 100;
+        if (mu !== null) savedMusic = Number(mu) / 100;
+        if (s !== null) savedSfx = Number(s) / 100;
+      }
+    } catch (_) {}
+
+    this.engine = new AudioEngine({
+      volume: isNaN(savedMaster) ? 0.8 : savedMaster,
+      musicVolume: isNaN(savedMusic) ? 0.75 : savedMusic,
+      sfxVolume: isNaN(savedSfx) ? 0.85 : savedSfx,
+    });
+    this.musicVolume = this.engine.musicVolume;
+    this.sfxVolume = this.engine.sfxVolume;
     this.original = new SampledKartAudio(this.engine);
     this.motor = null;
     this.music = null;
@@ -93,7 +111,7 @@ export class KartAudio {
       const osc = ctx.createOscillator();
       osc.type = "sawtooth";
       osc.frequency.value = 48;
-      osc.connect(filter).connect(g).connect(this.engine.master);
+      osc.connect(filter).connect(g).connect(this.engine.sfxBus || this.engine.master);
       osc.start();
       this.motor = { osc, g, override: null };
       this.engine.loadOverride("mk-engine").then((buffer) => {
@@ -113,11 +131,35 @@ export class KartAudio {
         src.buffer = buffer;
         src.loop = true;
         gain.gain.value = 0;
-        src.connect(gain).connect(this.engine.master);
+        src.connect(gain).connect(this.engine.musicBus || this.engine.master);
         src.start();
         this.music = src;
         this.musicGain = gain;
       });
+    }
+  }
+
+  setMasterVolume(val) {
+    this.engine.setMasterVolume(val);
+  }
+
+  setMusicVolume(val) {
+    this.musicVolume = Math.max(0, Math.min(1, val));
+    this.engine.setMusicVolume(this.musicVolume);
+    if (this.original?.buses?.music && this.engine.ctx) {
+      this.original.buses.music.gain.setValueAtTime(0.72 * this.musicVolume, this.engine.ctx.currentTime);
+    }
+  }
+
+  setSfxVolume(val) {
+    this.sfxVolume = Math.max(0, Math.min(1, val));
+    this.engine.setSfxVolume(this.sfxVolume);
+    if (this.original?.buses && this.engine.ctx) {
+      for (const [key, base] of Object.entries({stinger:1, ui:1, effects:1, engine:0.8, voice:0.9, ambience:0.6})) {
+        if (this.original.buses[key]) {
+          this.original.buses[key].gain.setValueAtTime(base * this.sfxVolume, this.engine.ctx.currentTime);
+        }
+      }
     }
   }
   get resultsReady(){return this.original.ready ? this.original.resultsReady : !this.engine.ctx || this.engine.ctx.state !== 'running' || this.engine.ctx.currentTime >= (this.fallbackFinishUntil || 0);}
@@ -156,7 +198,7 @@ export class KartAudio {
       );
     if (this.musicGain)
       this.musicGain.gain.setTargetAtTime(
-        active ? 0.3 : 0,
+        active ? (0.3 * this.musicVolume) : 0,
         ctx.currentTime,
         0.25,
       );
@@ -178,11 +220,12 @@ export class KartAudio {
         dur: 0.15,
         type: "triangle",
         gain: 0.045,
+        bus: "music",
       });
       if (this.beat % 2 === 0)
-        this.engine.tone({ freq: 73.42, slideTo: 40, dur: 0.12, gain: 0.07 });
+        this.engine.tone({ freq: 73.42, slideTo: 40, dur: 0.12, gain: 0.07, bus: "music" });
       if (this.beat % 4 === 2)
-        this.engine.noise({ dur: 0.08, freq: 1700, gain: 0.035 });
+        this.engine.noise({ dur: 0.08, freq: 1700, gain: 0.035, bus: "music" });
       this.nextBeat = ctx.currentTime + (race.laps > 1 && r.lap === race.laps ? 0.19 : 0.225);
       this.beat++;
     }

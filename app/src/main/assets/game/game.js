@@ -963,16 +963,52 @@ if (toggleShadowsBtn) {
 
 // Audio Controls
 const sliderMaster = $("slider-volume-master");
+const sliderMusic = $("slider-volume-music");
+const sliderSfx = $("slider-volume-sfx");
+
+function updateAudioDisplay() {
+  const masterVal = Math.round(audio.engine.volume * 100);
+  const musicVal = Math.round((audio.musicVolume ?? 0.75) * 100);
+  const sfxVal = Math.round((audio.sfxVolume ?? 0.85) * 100);
+
+  if (sliderMaster) sliderMaster.value = String(masterVal);
+  if ($("volume-master-val")) $("volume-master-val").textContent = masterVal + "%";
+
+  if (sliderMusic) sliderMusic.value = String(musicVal);
+  if ($("volume-music-val")) $("volume-music-val").textContent = musicVal + "%";
+
+  if (sliderSfx) sliderSfx.value = String(sfxVal);
+  if ($("volume-sfx-val")) $("volume-sfx-val").textContent = sfxVal + "%";
+}
+
 if (sliderMaster) {
   sliderMaster.addEventListener("input", (e) => {
     const val = Number(e.target.value);
-    audio.engine.volume = val / 100;
-    if (audio.engine.master && audio.engine.ctx) {
-      audio.engine.master.gain.setValueAtTime(audio.engine.enabled ? audio.engine.volume : 0, audio.engine.ctx.currentTime);
-    }
+    audio.setMasterVolume(val / 100);
+    localStorage.setItem("mariokart.volume.master", String(val));
     if ($("volume-master-val")) $("volume-master-val").textContent = val + "%";
   });
 }
+
+if (sliderMusic) {
+  sliderMusic.addEventListener("input", (e) => {
+    const val = Number(e.target.value);
+    audio.setMusicVolume(val / 100);
+    localStorage.setItem("mariokart.volume.music", String(val));
+    if ($("volume-music-val")) $("volume-music-val").textContent = val + "%";
+  });
+}
+
+if (sliderSfx) {
+  sliderSfx.addEventListener("input", (e) => {
+    const val = Number(e.target.value);
+    audio.setSfxVolume(val / 100);
+    localStorage.setItem("mariokart.volume.sfx", String(val));
+    if ($("volume-sfx-val")) $("volume-sfx-val").textContent = val + "%";
+  });
+}
+
+updateAudioDisplay();
 
 const toggleAudioMaster = $("toggle-audio-master");
 if (toggleAudioMaster) {
@@ -2024,6 +2060,7 @@ window.__setLightingPreset = (presetName) => {
 window.__begin = begin;
 window.__karts = karts;
 window.__race = race;
+window.__audio = audio;
 window.__menuScene = menuScene;
 window.__menuCamera = menuCamera;
 window.__chooseDriver = chooseDriver;
