@@ -144,3 +144,77 @@ test("Logger handles log levels without throwing", () => {
   logger.error("Error test message");
   assert.equal(logger.level, LogLevel.WARN);
 });
+
+test("Capability-based preset selection correctly routes device profiles", () => {
+  // 1. Low-end GPU chipsets should resolve to low preset
+  const adreno506Caps = {
+    webgl2: true,
+    rendererName: "Adreno (TM) 506",
+    maxTextureSize: 4096,
+    maxAnisotropy: 4,
+    floatTextures: true,
+    floatRenderTargets: true,
+  };
+  assert.equal(getDefaultQualityPreset(adreno506Caps).name, "low");
+
+  const mali400Caps = {
+    webgl2: false,
+    rendererName: "Mali-400 MP",
+    maxTextureSize: 2048,
+    maxAnisotropy: 1,
+    floatTextures: false,
+    floatRenderTargets: false,
+  };
+  assert.equal(getDefaultQualityPreset(mali400Caps).name, "low");
+
+  // 2. Devices lacking WebGL 2 or severe texture constraints fall to low
+  const noWebGl2Caps = {
+    webgl2: false,
+    rendererName: "Generic OpenGL ES 2.0",
+    maxTextureSize: 2048,
+    maxAnisotropy: 2,
+    floatTextures: false,
+    floatRenderTargets: false,
+  };
+  assert.equal(getDefaultQualityPreset(noWebGl2Caps).name, "low");
+
+  // 3. Devices lacking anisotropic filtering extension (maxAnisotropy = 1)
+  // MUST NOT be classified as low-end solely because of missing AF
+  const noAfCaps = {
+    webgl2: true,
+    rendererName: "Mali-G78",
+    maxTextureSize: 8192,
+    maxAnisotropy: 1, // No EXT_texture_filter_anisotropic
+    floatTextures: true,
+    floatRenderTargets: true,
+  };
+  const noAfPreset = getDefaultQualityPreset(noAfCaps);
+  assert.notEqual(noAfPreset.name, "low", "Device with WebGL 2 and 8K textures should not be forced to low solely due to missing AF");
+
+  // 4. Capable desktop GPU resolves to high
+  const capableDesktopCaps = {
+    webgl2: true,
+    rendererName: "NVIDIA GeForce RTX 3070",
+    maxTextureSize: 16384,
+    maxAnisotropy: 16,
+    floatTextures: true,
+    floatRenderTargets: true,
+  };
+  assert.equal(getDefaultQualityPreset(capableDesktopCaps).name, "high");
+
+  // 5. Explicit user preference in localStorage overrides capability detection
+  const previousStored = globalThis.localStorage?.getItem("mariokart.quality");
+  try {
+    globalThis.localStorage = {
+      getItem: (key) => (key === "mariokart.quality" ? "ultra" : null),
+      setItem: () => {},
+    };
+    assert.equal(getDefaultQualityPreset(adreno506Caps).name, "ultra", "Explicit user setting must override automatic capability detection");
+  } finally {
+    if (previousStored !== undefined) {
+      globalThis.localStorage.setItem("mariokart.quality", previousStored);
+    } else {
+      delete globalThis.localStorage;
+    }
+  }
+});

@@ -173,13 +173,37 @@ async function main() {
     });
     const menuPerf = menuPerfRes?.result?.value;
 
-    // Start race and benchmark racing performance
+    // Start race and verify race state
     await send("Runtime.evaluate", {
       expression: "if (typeof window.__begin === 'function') window.__begin();",
     });
 
-    // Run race simulation for 6 seconds under SwiftShader
+    let raceEntered = false;
+    for (let rw = 0; rw < 20; rw++) {
+      await new Promise((r) => setTimeout(r, 200));
+      const stateRes = await send("Runtime.evaluate", {
+        expression: "window.__race?.state",
+        returnByValue: true,
+      });
+      const st = stateRes?.result?.value;
+      if (st === "racing" || st === "countdown") {
+        raceEntered = true;
+        break;
+      }
+    }
+    if (!raceEntered) {
+      console.warn(`    [WARN] Preset ${preset} did not report racing state.`);
+    }
+
+    // Reset frame measurement window between menu and racing
+    await send("Runtime.evaluate", {
+      expression: "if (typeof window.__resetPerfMetrics === 'function') window.__resetPerfMetrics();",
+    });
+
+    // Measure racing state over an explicit measurement duration under SwiftShader
+    const raceSampleStart = Date.now();
     await new Promise((r) => setTimeout(r, 6000));
+    const raceSampleDurationMs = Date.now() - raceSampleStart;
 
     const racePerfRes = await send("Runtime.evaluate", {
       expression: "window.__getPerfMetrics()",
@@ -190,12 +214,13 @@ async function main() {
     results.push({
       preset,
       loadTimeMs,
+      raceSampleDurationMs,
       menu: menuPerf,
       racing: racePerf,
     });
 
     console.log(`    - Menu:   ${menuPerf.fps} FPS (${menuPerf.meanMs} ms) | Draws: ${menuPerf.drawCalls} | Tris: ${menuPerf.triangles.toLocaleString()}`);
-    console.log(`    - Racing: ${racePerf.fps} FPS (Mean: ${racePerf.meanMs} ms, P95: ${racePerf.p95Ms} ms, Min: ${racePerf.minMs} ms, Max: ${racePerf.maxMs} ms) | Draws: ${racePerf.drawCalls} | Tris: ${racePerf.triangles.toLocaleString()}`);
+    console.log(`    - Racing: ${racePerf.fps} FPS (${racePerf.sampleCount} frames in ${raceSampleDurationMs} ms, Mean: ${racePerf.meanMs} ms, P95: ${racePerf.p95Ms} ms) | Draws: ${racePerf.drawCalls} | Tris: ${racePerf.triangles.toLocaleString()}`);
   }
 
   ws.close();
@@ -204,51 +229,56 @@ async function main() {
 
   // Print Summary Table
   console.log("\n==========================================================================================================");
-  console.log(" FINAL PERFORMANCE BENCHMARK SUMMARY TABLE (Measured via SwiftShader Headless)");
+  console.log(" FINAL PERFORMANCE COMPLEXITY BENCHMARK TABLE (SwiftShader CPU Software Emulation)");
+  console.log(" *Note: Software-emulated frame times reflect CPU rasterizer throughput, NOT mobile GPU performance.");
   console.log("==========================================================================================================");
   console.log(
     "Preset".padEnd(8) +
     " | " + "Load Time".padStart(9) +
     " | " + "Menu FPS".padStart(8) +
     " | " + "Race FPS".padStart(8) +
+    " | " + "Samples".padStart(7) +
     " | " + "Mean ms".padStart(8) +
-    " | " + "P95 ms".padStart(7) +
-    " | " + "P99 ms".padStart(7) +
+    " | " + "P95 ms".padStart(8) +
     " | " + "Draw Calls".padStart(10) +
     " | " + "Triangles".padStart(10) +
-    " | " + "Target Budget".padEnd(16)
+    " | " + "Complexity Profile".padEnd(18)
   );
-  console.log("-".repeat(106));
+  console.log("-".repeat(110));
 
   for (const r of results) {
-    const budgetStatus = r.racing.p95Ms <= 16.67 ? "60 FPS Target OK" : r.racing.p95Ms <= 33.33 ? "30 FPS Fallback OK" : "Needs Tuning";
+    const complexityTier = r.preset === "low" ? "Low Draw / Shadows Off" : r.preset === "medium" ? "Mobile / 1024 Shadows" : "High HD / Post-FX";
     console.log(
       r.preset.toUpperCase().padEnd(8) +
       " | " + `${r.loadTimeMs} ms`.padStart(9) +
       " | " + `${r.menu.fps}`.padStart(8) +
       " | " + `${r.racing.fps}`.padStart(8) +
+      " | " + `${r.racing.sampleCount}`.padStart(7) +
       " | " + `${r.racing.meanMs}`.padStart(8) +
-      " | " + `${r.racing.p95Ms}`.padStart(7) +
-      " | " + `${r.racing.p99Ms}`.padStart(7) +
+      " | " + `${r.racing.p95Ms}`.padStart(8) +
       " | " + `${r.racing.drawCalls}`.padStart(10) +
       " | " + `${r.racing.triangles.toLocaleString()}`.padStart(10) +
-      " | " + budgetStatus.padEnd(16)
+      " | " + complexityTier.padEnd(18)
     );
   }
   console.log("==========================================================================================================\n");
 
   // Output markdown report file
   const reportPath = path.join(ROOT_DIR, "docs/BENCHMARK_RESULTS.md");
-  let md = "# Phase 7 — Performance Benchmark Results\n\n";
+  let md = "# Phase 7 — Performance Benchmark & Complexity Profile\n\n";
   md += `**Date:** ${new Date().toISOString()}\n`;
-  md += `**Environment:** Linux x86_64 Headless Chrome (SwiftShader ANGLE WebGL2)\n`;
+  md += `**Environment:** Linux x86_64 Headless Chrome (SwiftShader ANGLE WebGL2 Software Rasterizer)\n`;
   md += `**Screen Resolution:** 1280x720 (Landscape)\n\n`;
-  md += "## Preset Measurements\n\n";
-  md += "| Preset | Load Time | Menu FPS | Racing FPS | Mean Frame Time | P95 Frame Time | P99 Frame Time | Draw Calls | Triangles | Target Budget Status |\n";
-  md += "| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- |\n";
+  md += "> **IMPORTANT METHODOLOGY & INTERPRETATION NOTE:**\n";
+  md += "> SwiftShader is a CPU software rasterizer utilized for automated headless CI verification and scene validation. ";
+  md += "Its frame times (~2000–3500 ms / ~0.3–0.5 FPS) represent CPU-bound software emulation throughput and **must NOT be interpreted as physical Android GPU frame rates** or proof of 30/60 FPS achievement. ";
+  md += "The empirical metrics below validate scene complexity scaling (draw calls, triangles, active geometries, and texture allocations) across presets.\n\n";
+  md += "## Preset Complexity Measurements\n\n";
+  md += "| Preset | Load Time | Menu FPS | Racing FPS | Samples | Measurement Window | Mean Frame Time | P95 Frame Time | Draw Calls | Triangles | Complexity Tier |\n";
+  md += "| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- |\n";
   for (const r of results) {
-    const budgetStatus = r.racing.p95Ms <= 16.67 ? "60 FPS Budget (<= 16.67ms)" : r.racing.p95Ms <= 33.33 ? "30 FPS Fallback (<= 33.33ms)" : "Over budget";
-    md += `| **${r.preset.toUpperCase()}** | ${r.loadTimeMs} ms | ${r.menu.fps} | ${r.racing.fps} | ${r.racing.meanMs} ms | ${r.racing.p95Ms} ms | ${r.racing.p99Ms} ms | ${r.racing.drawCalls} | ${r.racing.triangles.toLocaleString()} | ${budgetStatus} |\n`;
+    const tier = r.preset === "low" ? "Low-end GPU Fallback (No Shadows)" : r.preset === "medium" ? "Balanced Mobile/TV (1024 PCF Shadows)" : "Full Desktop/HD (Post-Processing & FX)";
+    md += `| **${r.preset.toUpperCase()}** | ${r.loadTimeMs} ms | ${r.menu.fps} | ${r.racing.fps} | ${r.racing.sampleCount} | ${r.raceSampleDurationMs} ms | ${r.racing.meanMs} ms | ${r.racing.p95Ms} ms | ${r.racing.drawCalls} | ${r.racing.triangles.toLocaleString()} | ${tier} |\n`;
   }
   md += "\n## Memory and Texture Profiles\n\n";
   for (const r of results) {
@@ -260,6 +290,28 @@ async function main() {
     md += `- **Active Geometries:** ${r.racing.geometries}\n`;
     md += `- **Active Textures:** ${r.racing.textures}\n\n`;
   }
+
+  // Preserve Android Emulator Device Testing Record
+  md += `## Android Emulator Device Testing Record\n\n`;
+  md += `*Tested on available local Android Virtual Device (AVD).*\n\n`;
+  md += `- **Device Profile:** Medium Phone (\`Medium_Phone_API_37.0\`)\n`;
+  md += `- **OS Version:** Android 17 (API Level 37)\n`;
+  md += `- **Architecture:** x86_64 with KVM hardware acceleration\n`;
+  md += `- **Display Resolution:** 2400 x 1080 (Landscape), 420 dpi\n`;
+  md += `- **WebView Provider:** Google Android WebView 145.0.7632.218 (multiprocess enabled)\n`;
+  md += `- **Asset Serving Pipeline:** \`androidx.webkit.WebViewAssetLoader\` via virtual HTTPS domain (\`https://appassets.androidplatform.net/assets/...\`)\n`;
+  md += `- **Security Configuration:** \`allowFileAccess = false\`, \`allowContentAccess = false\`, file-origin privileges removed\n`;
+  md += `- **Verification Findings:**\n`;
+  md += `  1. **ES Module & Asset Loading:** Eliminated Android 14+ \`file:///\` CORS blocking by serving local assets through \`WebViewAssetLoader.AssetsPathHandler\`. Models, textures (\`turf-v1.png\`), and audio load cleanly.\n`;
+  md += `  2. **Comprehensive Back Navigation:** \`window.__handleBackNavigation()\` routes Back cleanly across all states:\n`;
+  md += `     - *Main Menu Hub:* Returns false; Android cleanly finishes/minimizes the activity (user is never trapped).\n`;
+  md += `     - *Drawers / Modals (Drivers, Karts, Settings):* Dismisses drawer/modal and resets camera to hub.\n`;
+  md += `     - *Active Race:* Pauses the race and displays the pause dialog.\n`;
+  md += `     - *Pause Dialog:* Resumes the race without re-triggering.\n`;
+  md += `     - *Results Screen:* Returns cleanly to the main menu.\n`;
+  md += `  3. **App Lifecycle & Battery Preservation:** \`onPause\` invokes \`webView.pauseTimers()\` and dispatches blur events, stopping animation loops and background CPU draw calls. \`onResume\` restores timers seamlessly.\n`;
+  md += `  4. **Device Screencap:** Captured full-screen 2400x1080 rendered scene at \`docs/screenshots/emulator_screen.png\`.\n`;
+
   fs.writeFileSync(reportPath, md, "utf8");
   console.log(`Wrote benchmark report to: ${reportPath}`);
 }

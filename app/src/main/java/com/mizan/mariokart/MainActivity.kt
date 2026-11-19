@@ -88,14 +88,26 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         setupWebView()
         setContentView(webView)
 
-        // Handle modern gesture/hardware back navigation cleanly
+        // Handle modern gesture/hardware back navigation cleanly across all screens
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                webView.evaluateJavascript("document.getElementById('pause-btn')?.click();", null)
+                handleBackPress()
             }
         })
 
         hideSystemUI()
+    }
+
+    private fun handleBackPress() {
+        webView.evaluateJavascript(
+            "typeof window.__handleBackNavigation === 'function' ? window.__handleBackNavigation() : false"
+        ) { result ->
+            val handled = result?.trim('"', '\'') == "true"
+            if (!handled) {
+                // User is on the root main menu hub: exit activity cleanly
+                finish()
+            }
+        }
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -119,12 +131,8 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
                 javaScriptEnabled = true
                 domStorageEnabled = true
                 mediaPlaybackRequiresUserGesture = false
-                allowFileAccess = true
-                allowContentAccess = true
-                @Suppress("DEPRECATION")
-                allowFileAccessFromFileURLs = true
-                @Suppress("DEPRECATION")
-                allowUniversalAccessFromFileURLs = true
+                allowFileAccess = false
+                allowContentAccess = false
                 useWideViewPort = true
                 loadWithOverviewMode = true
                 cacheMode = WebSettings.LOAD_DEFAULT
@@ -147,10 +155,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
                     view: WebView?,
                     request: WebResourceRequest?
                 ): WebResourceResponse? {
-                    val uri = request?.url ?: return null
-                    val response = assetLoader.shouldInterceptRequest(uri)
-                    Log.d("MarioKartLoader", "Intercepted: $uri -> response: $response")
-                    return response
+                    return request?.url?.let { assetLoader.shouldInterceptRequest(it) }
                 }
 
                 override fun onPageFinished(view: WebView?, url: String?) {
@@ -313,7 +318,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
             }
             KeyEvent.KEYCODE_BACK -> {
                 if (isDown) {
-                    webView.evaluateJavascript("document.getElementById('pause-btn')?.click();", null)
+                    handleBackPress()
                 }
                 return true
             }

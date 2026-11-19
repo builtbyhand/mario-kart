@@ -70,6 +70,7 @@ import {
   activeLightingPreset,
   LIGHTING_PRESETS,
   setQualityPreset,
+  getDefaultQualityPreset,
   detectCapabilities,
   logger,
   isTv,
@@ -114,8 +115,8 @@ const renderer = new THREE.WebGLRenderer({
 });
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.setPixelRatio(RENDER_CONFIG.pixelRatio);
-const initialWidth = Math.floor(innerWidth * (activeQuality.resolutionScale || 1.0));
-const initialHeight = Math.floor(innerHeight * (activeQuality.resolutionScale || 1.0));
+let initialWidth = Math.floor(innerWidth * (activeQuality.resolutionScale || 1.0));
+let initialHeight = Math.floor(innerHeight * (activeQuality.resolutionScale || 1.0));
 renderer.setSize(initialWidth, initialHeight, false);
 canvas.style.width = innerWidth + "px";
 canvas.style.height = innerHeight + "px";
@@ -130,6 +131,20 @@ renderer.toneMappingExposure = activeQuality.toneMappingExposure || RENDER_CONFI
 const capabilities = detectCapabilities(renderer.getContext());
 logger.info("WebGL Capabilities:", capabilities);
 setMaterialCapabilities(capabilities);
+
+// Connect GPU capability detection to initial quality preset selection
+const detectedQuality = getDefaultQualityPreset(capabilities);
+if (detectedQuality.name !== activeQuality.name) {
+  Object.assign(activeQuality, detectedQuality);
+  renderer.shadowMap.enabled = activeQuality.shadows;
+  if (renderer.shadowMap.enabled) {
+    renderer.shadowMap.type = THREE.PCFShadowMap;
+  }
+  renderer.toneMappingExposure = activeQuality.toneMappingExposure || RENDER_CONFIG.toneMappingExposure;
+  initialWidth = Math.floor(innerWidth * (activeQuality.resolutionScale || 1.0));
+  initialHeight = Math.floor(innerHeight * (activeQuality.resolutionScale || 1.0));
+  renderer.setSize(initialWidth, initialHeight, false);
+}
 
 let isContextLost = false;
 canvas.addEventListener("webglcontextlost", (e) => {
@@ -846,6 +861,7 @@ addTapListener($("tab-btn-audio"), () => {
 
 // Quality Preset buttons
 document.querySelectorAll(".preset-btn").forEach((btn) => {
+  btn.classList.toggle("active", btn.dataset.preset === activeQuality.name);
   addTapListener(btn, () => {
     const preset = btn.dataset.preset;
     setQualityPreset(preset, { renderer, camera, canvas, keyLight: key, postPipeline, effects });
@@ -863,6 +879,9 @@ document.querySelectorAll(".preset-btn").forEach((btn) => {
     try { audio.ui("cursor"); } catch (e) {}
   });
 });
+if ($("preset-details-text")) {
+  $("preset-details-text").textContent = activeQuality.displayName || activeQuality.name;
+}
 
 // Bloom & Shadows Toggles
 const toggleBloomBtn = $("toggle-bloom");
@@ -2009,6 +2028,49 @@ window.__setLightingPreset = (presetName) => {
   scene.background.set(p.clearColor);
   if (atmosphere?.updatePreset) atmosphere.updatePreset(p);
   return activeLightingPreset;
+};
+window.__handleBackNavigation = function () {
+  // 1. Settings modal open -> close settings, return to hub
+  const modalSettings = $("modal-settings");
+  if (modalSettings && !modalSettings.hidden) {
+    $("btn-close-settings")?.click();
+    return true;
+  }
+
+  // 2. Drivers drawer open -> close drivers, return to hub
+  const drawerDrivers = $("drawer-drivers");
+  if (drawerDrivers && !drawerDrivers.hidden) {
+    $("btn-close-drivers")?.click();
+    return true;
+  }
+
+  // 3. Karts drawer open -> close karts, return to hub
+  const drawerKarts = $("drawer-karts");
+  if (drawerKarts && !drawerKarts.hidden) {
+    $("btn-close-karts")?.click();
+    return true;
+  }
+
+  // 4. Currently paused in race -> unpause/resume race
+  if (paused) {
+    resume();
+    return true;
+  }
+
+  // 5. Actively racing or counting down -> pause the race
+  if (race && (race.state === "racing" || race.state === "countdown")) {
+    pause();
+    return true;
+  }
+
+  // 6. On results screen -> return to main menu
+  if (document.body.classList.contains("results-screen") || (race && race.state === "results")) {
+    showMenu();
+    return true;
+  }
+
+  // 7. On root main menu hub (nothing active to dismiss or pause) -> allow system exit
+  return false;
 };
 window.__begin = begin;
 window.__karts = karts;

@@ -228,25 +228,44 @@ export const LIGHTING_PRESETS = {
 };
 
 /**
- * Resolve quality preset from URL query override or device environment.
+ * Resolve quality preset from URL query override, stored user settings, or device capabilities.
  */
 export function getDefaultQualityPreset(capabilities = null) {
-  if (typeof location !== "undefined") {
+  // 1. URL query override takes highest precedence
+  if (typeof location !== "undefined" && location?.search) {
     const param = new URLSearchParams(location.search).get("quality")?.toLowerCase();
     if (param && QUALITY_PRESETS[param]) {
       return QUALITY_PRESETS[param];
     }
   }
-  // Automatic profile detection based on GPU capabilities
+
+  // 2. Explicit user-selected graphics setting saved in localStorage
+  if (typeof localStorage !== "undefined") {
+    try {
+      const stored = localStorage.getItem("mariokart.quality")?.toLowerCase();
+      if (stored && QUALITY_PRESETS[stored]) {
+        return QUALITY_PRESETS[stored];
+      }
+    } catch (_) {}
+  }
+
+  // 3. Automatic detection based on GPU hardware capabilities
   if (capabilities) {
-    if (!capabilities.webgl2 || capabilities.maxTextureSize < 4096 || capabilities.maxAnisotropy <= 1) {
+    const renderer = (capabilities.rendererName || "").toLowerCase();
+    // Known entry-level mobile GPUs (handles standard WebGL unmasked vendor strings e.g. "Adreno (TM) 506")
+    if (/mali-4|mali-t|adreno.*(?:3\d\d|504|505|506)|powervr/i.test(renderer)) {
       return QUALITY_PRESETS.low;
     }
-    const renderer = (capabilities.rendererName || "").toLowerCase();
-    if (/mali-4|mali-t|adreno 3|adreno 505|adreno 506|powervr/i.test(renderer)) {
+    // Devices lacking WebGL 2 or having severe texture dimension constraints
+    // (Note: lack of anisotropic filtering extension alone does NOT demote a device to low)
+    if (!capabilities.webgl2 || capabilities.maxTextureSize < 2048) {
       return QUALITY_PRESETS.low;
+    }
+    if (capabilities.webgl2 && capabilities.floatRenderTargets && capabilities.maxTextureSize >= 8192 && !isMobile && !isTv) {
+      return QUALITY_PRESETS.high;
     }
   }
+
   if (isTv) return QUALITY_PRESETS.medium;
   if (isMobile) return QUALITY_PRESETS.medium;
   return QUALITY_PRESETS.high;
