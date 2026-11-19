@@ -3,13 +3,17 @@
 **Version:** 1.0.0  
 **Build:** `versionCode = 3`, `versionName = "1.0.0"`  
 **Package:** `com.mizan.mariokart`  
-**Target Platform:** Android 8.0+ (API 26+) Mobile, Tablet, Foldable, Chromebook, Android TV  
+**Minimum SDK:** 26 (Android 8.0 Oreo)  
+**Target SDK:** 35 (Android 15)  
+**Compile SDK:** 36 (Android 16)  
+**Target Form Factors:** Android Mobile, Tablet, Foldable, Chromebook, Android TV  
+**Release APK Checksum (Local Test Build):** `c62b8a0a628271ff53b31fd2a73317813b77e630bcecf25cc19e435aec1d3c91` (Size: 6.3 MB)
 
 ---
 
 ## 🏎️ Executive Summary
 
-Version 1.0.0 represents the complete, fully realized release of the Mario Kart Android experience. Designed from the ground up for high-fidelity mobile racing, the title features an interactive real-time 3D main menu, 8 distinct racers and custom karts, seamless track loop geometry, responsive arcade drift physics, dynamic multi-tier visual effects, 4 graphics scalability presets, and 100% offline gameplay packaged into a compact 6.6 MB native Android APK.
+Version 1.0.0 represents the complete, fully realized release of the Mario Kart Android experience. Designed from the ground up for high-fidelity mobile racing, the title features an interactive real-time 3D main menu, 8 distinct racers and custom karts, seamless track loop geometry, responsive arcade drift physics, dynamic multi-tier visual effects, 4 graphics scalability presets, and 100% offline gameplay packaged into a compact 6.3 MB native Android APK.
 
 ---
 
@@ -49,25 +53,39 @@ Version 1.0.0 represents the complete, fully realized release of the Mario Kart 
 - **Secure Sandboxed WebView Loading:** Built with AndroidX `WebViewAssetLoader` over `https://appassets.androidplatform.net`, eliminating dangerous local file scheme privileges.
 - **Robust Android Back Navigation:** Full lifecycle handling for Android physical/gesture back button across drivers, karts, settings, active racing, pause modal, and results screens.
 
-### Phase 8: Final Polish, Verification & Production Packaging
-- **Self-Contained 6.6 MB Release APK:** All assets, textures, GLTF models, audio synthesizers, and scripts bundled locally. Zero external network dependencies.
-- **Release Signing Infrastructure:** Out-of-the-box buildable signed release APK with support for custom production keystore environment variables.
-- **Complete Test Pass:** Full green status across `npm test`, `npm run check`, `npm run verify`, `./gradlew test`, and `./gradlew assembleRelease`.
-- **Verified Visual Evidence:** Captured and validated 8 high-resolution release screenshots across all core game modes and systems.
+### Phase 8: Final Polish, Verification & Production Release Preparation
+- **Dedicated Release Signing Configuration:** Independent release signing configuration in `app/build.gradle.kts` decoupled from debug certificates.
+- **Production Keystore Support:** Full support for `RELEASE_STORE_FILE`, `RELEASE_STORE_PASSWORD`, `RELEASE_KEY_ALIAS`, and `RELEASE_KEY_PASSWORD` via environment variables or GitHub Actions secrets.
+- **Uncommitted Local Test-Release Keystore:** When production signing credentials are absent, Gradle generates a local test-release keystore (`CN=Mario Kart Local Test Release`, alias `mariokart-test-release`) enabling local installation and testing without claiming production signing.
+- **Verified Signature Schemes:** Validated with `apksigner verify --verbose --print-certs` for v2 signature scheme compliance; verified that the release APK is not signed with the Android debug key.
+- **Automated vs Physical Verification Matrix:** Distinctly delineates automated tests (unit, syntax, visual regression, AVD navigation) from physical hardware testing requirements (GPU 60 FPS, physical multi-touch feel, accelerometer calibration).
+- **Self-Contained 6.3 MB Release APK:** Bundles all assets, textures, GLTF models, audio synthesizers, and scripts locally for 100% offline gameplay.
 
 ---
 
 ## 📱 System Requirements
 
-| Parameter | Minimum Requirement | Recommended |
-| :--- | :--- | :--- |
-| **Operating System** | Android 8.0 (Oreo, API 26) | Android 12+ (API 31+) |
-| **Architecture** | ARM64 (aarch64), ARMv7 (armeabi-v7a), x86_64 | ARM64-v8a |
-| **GPU Hardware** | OpenGL ES 3.0 / WebGL 2.0 compatible | Adreno 600+, Mali-G70+, PowerVR |
-| **RAM** | 2 GB | 4 GB+ |
-| **Storage Space** | 25 MB free space | 50 MB free space |
-| **Display** | Landscape, 1280x720 or higher | 1080p / 1440p / 4K Landscape |
-| **Network** | None (100% offline standalone) | None |
+| Parameter | Configuration / Requirement |
+| :--- | :--- |
+| **Minimum SDK** | API 26 (Android 8.0 Oreo) |
+| **Target SDK** | API 35 (Android 15) |
+| **Compile SDK** | API 36 (Android 16) |
+| **Architecture** | ARM64 (aarch64), ARMv7 (armeabi-v7a), x86_64 |
+| **GPU Hardware** | OpenGL ES 3.0 / WebGL 2.0 compatible |
+| **RAM** | 2 GB minimum (4 GB+ recommended) |
+| **Storage Space** | ~25 MB free space |
+| **Display** | Sensor Landscape, 1280x720 or higher |
+| **Network** | 100% Offline Standalone (Zero network required) |
+
+---
+
+## 🔐 Release Signing Architecture
+
+| Mode | Environment | Keystore Used | Status |
+| :--- | :--- | :--- | :--- |
+| **Production Release** | GitHub Actions (`release.yml`) / Production Machine | Provided via `RELEASE_STORE_FILE` or `RELEASE_KEYSTORE_BASE64` secret | Official Production Release |
+| **Local Test-Release** | Developer Workstation (`./gradlew assembleRelease`) | Generated locally in `build/signing/test-release.jks` (`CN=Mario Kart Local Test Release`) | Sideloadable Local Test APK |
+| **Debug** | Local Development (`./gradlew assembleDebug`) | Android SDK Debug Keystore (`~/.android/debug.keystore`) | Development Debug APK |
 
 ---
 
@@ -90,6 +108,22 @@ Version 1.0.0 represents the complete, fully realized release of the Mario Kart 
 
 ---
 
+## 🧪 Verification Matrix
+
+### Automated Tests
+- `npm test`: 91 unit tests passing (100% pass rate).
+- `npm run check`: Complete AST syntax verification of all runtime game code.
+- `./gradlew test`: All Kotlin unit tests passing.
+- `scripts/verify-back-navigation-avd.js`: Verified all 7 Android back button navigation transitions on Android 17 / API 37 AVD.
+- `scripts/capture-release-screenshots.js`: Automated capture and pixel validation of 8 release categories at 1280 × 720.
+
+### Physical Hardware Verification Requirements
+- GPU 60 FPS frame rate on physical mobile chipset.
+- Multi-touch capacitance and physical touchscreen response latency.
+- Physical device accelerometer calibration.
+
+---
+
 ## 📦 Build Instructions
 
 ### Quick Build
@@ -100,22 +134,20 @@ Version 1.0.0 represents the complete, fully realized release of the Mario Kart 
 # Build debug APK
 ./gradlew assembleDebug
 
-# Output directory:
+# Output APK:
 # app/build/outputs/apk/release/app-release.apk
 ```
 
-### Custom Production Release Signing
-To sign the release APK with your own Google Play production keystore, configure the following environment variables or add them to your `~/.gradle/gradle.properties`:
-
+### Production Release Signing
+To build an official production-signed release APK, export the following environment variables before invoking `./gradlew assembleRelease`:
 ```bash
-export RELEASE_STORE_FILE="/path/to/your/upload-keystore.jks"
-export RELEASE_STORE_PASSWORD="your-keystore-password"
-export RELEASE_KEY_ALIAS="your-key-alias"
-export RELEASE_KEY_PASSWORD="your-key-password"
+export RELEASE_STORE_FILE="/path/to/production-keystore.jks"
+export RELEASE_STORE_PASSWORD="keystore-password"
+export RELEASE_KEY_ALIAS="key-alias"
+export RELEASE_KEY_PASSWORD="key-password"
 
 ./gradlew assembleRelease
 ```
-*(If omitted, Gradle automatically signs the APK using a built-in release configuration so CI pipelines and testers can install it immediately).*
 
 ---
 

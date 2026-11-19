@@ -17,17 +17,73 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    val prodStoreFile = System.getenv("RELEASE_STORE_FILE")
+        ?: (project.findProperty("RELEASE_STORE_FILE") as? String)
+        ?: System.getenv("RELEASE_KEYSTORE_PATH")
+        ?: (project.findProperty("RELEASE_KEYSTORE_PATH") as? String)
+    val prodStorePassword = System.getenv("RELEASE_STORE_PASSWORD")
+        ?: (project.findProperty("RELEASE_STORE_PASSWORD") as? String)
+        ?: System.getenv("RELEASE_KEYSTORE_PASSWORD")
+        ?: (project.findProperty("RELEASE_KEYSTORE_PASSWORD") as? String)
+    val prodKeyAlias = System.getenv("RELEASE_KEY_ALIAS")
+        ?: (project.findProperty("RELEASE_KEY_ALIAS") as? String)
+    val prodKeyPassword = System.getenv("RELEASE_KEY_PASSWORD")
+        ?: (project.findProperty("RELEASE_KEY_PASSWORD") as? String)
+
+    val hasProductionSigning = !prodStoreFile.isNullOrBlank() &&
+        file(prodStoreFile).exists() &&
+        !prodStorePassword.isNullOrBlank() &&
+        !prodKeyAlias.isNullOrBlank() &&
+        !prodKeyPassword.isNullOrBlank()
+
+    fun getOrCreateTestReleaseKeystore(): File {
+        val signingDir = File(layout.buildDirectory.asFile.get(), "signing")
+        signingDir.mkdirs()
+        val testKeystore = File(signingDir, "test-release.jks")
+        if (!testKeystore.exists()) {
+            val process = ProcessBuilder(
+                "keytool", "-genkeypair",
+                "-keystore", testKeystore.absolutePath,
+                "-storepass", "mariokart-test",
+                "-alias", "mariokart-test-release",
+                "-keypass", "mariokart-test",
+                "-keyalg", "RSA",
+                "-keysize", "2048",
+                "-validity", "10000",
+                "-dname", "CN=Mario Kart Local Test Release, OU=QA Test, O=Mario Kart Project, C=US"
+            ).redirectErrorStream(true).start()
+            val exitCode = process.waitFor()
+            if (exitCode != 0) {
+                throw GradleException("Failed to generate local test-release keystore")
+            }
+        }
+        return testKeystore
+    }
+
     signingConfigs {
-        getByName("debug") {
+        create("release") {
             enableV1Signing = true
             enableV2Signing = true
+            if (hasProductionSigning) {
+                storeFile = file(prodStoreFile!!)
+                storePassword = prodStorePassword
+                keyAlias = prodKeyAlias
+                keyPassword = prodKeyPassword
+                println("[Mario Kart] Release signing configured with PRODUCTION keystore: $prodStoreFile")
+            } else {
+                storeFile = getOrCreateTestReleaseKeystore()
+                storePassword = "mariokart-test"
+                keyAlias = "mariokart-test-release"
+                keyPassword = "mariokart-test"
+                println("[Mario Kart] Release signing configured with LOCAL TEST-RELEASE keystore (NOT production-signed).")
+            }
         }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

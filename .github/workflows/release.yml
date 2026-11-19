@@ -24,6 +24,11 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
@@ -33,14 +38,71 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
+      - name: Run JavaScript Verification
+        run: |
+          npm test
+          npm run check
+
+      - name: Run Kotlin Unit Tests
+        run: ./gradlew test --stacktrace
+
+      - name: Verify Production Signing Credentials
+        id: signing-check
+        run: |
+          if [ -z "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" ] || \
+             [ -z "${{ secrets.RELEASE_STORE_PASSWORD }}" ] || \
+             [ -z "${{ secrets.RELEASE_KEY_ALIAS }}" ] || \
+             [ -z "${{ secrets.RELEASE_KEY_PASSWORD }}" ]; then
+            echo "::error::Required production signing credentials (RELEASE_KEYSTORE_BASE64, RELEASE_STORE_PASSWORD, RELEASE_KEY_ALIAS, RELEASE_KEY_PASSWORD) are not configured."
+            echo "A production GitHub Release must be signed with the production release keystore, not an unsigned or debug certificate."
+            exit 1
+          fi
+          echo "Production signing secrets detected."
+
+      - name: Prepare Keystore File
+        run: |
+          echo "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" | base64 --decode > /tmp/release.keystore
+
       - name: Build Release APK
+        env:
+          RELEASE_STORE_FILE: /tmp/release.keystore
+          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
         run: ./gradlew assembleRelease --stacktrace
 
-      - name: Stage Release Artifacts
+      - name: Verify APK Signature with apksigner
+        run: |
+          APKSIGNER=$(find $ANDROID_HOME/build-tools -name apksigner | sort -V | tail -n 1)
+          echo "Using apksigner at: $APKSIGNER"
+          VERIFY_OUTPUT=$($APKSIGNER verify --verbose --print-certs app/build/outputs/apk/release/app-release.apk)
+          echo "$VERIFY_OUTPUT"
+
+          if echo "$VERIFY_OUTPUT" | grep -q "CN=Android Debug"; then
+            echo "::error::Release APK must NOT be signed with the Android debug certificate."
+            exit 1
+          fi
+
+          if ! echo "$VERIFY_OUTPUT" | grep -q "Verified using v2 scheme (APK Signature Scheme v2): true"; then
+            echo "::error::APK v2 signature scheme verification failed."
+            exit 1
+          fi
+
+      - name: Stage Release Artifacts & Calculate Checksums
         run: |
           mkdir -p release-artifacts
-          cp app/build/outputs/apk/release/app-release.apk release-artifacts/MarioKart-${{ github.ref_name }}.apk
-          cp app/build/outputs/apk/release/app-release.apk release-artifacts/MarioKart.apk
+          APK_TAG="release-artifacts/MarioKart-${{ github.ref_name }}.apk"
+          APK_LATEST="release-artifacts/MarioKart.apk"
+          cp app/build/outputs/apk/release/app-release.apk "$APK_TAG"
+          cp app/build/outputs/apk/release/app-release.apk "$APK_LATEST"
+
+          cd release-artifacts
+          sha256sum "$(basename "$APK_TAG")" "$(basename "$APK_LATEST")" > checksums-sha256.txt
+          cat checksums-sha256.txt
+
+      - name: Clean up Keystore File
+        if: always()
+        run: rm -f /tmp/release.keystore
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
@@ -53,5 +115,6 @@ jobs:
           files: |
             release-artifacts/MarioKart-${{ github.ref_name }}.apk
             release-artifacts/MarioKart.apk
+            release-artifacts/checksums-sha256.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

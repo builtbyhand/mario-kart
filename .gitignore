@@ -13,6 +13,8 @@ local.properties
 *.apk
 *.ap_
 *.aab
+*.jks
+*.keystore
 node_modules/
 .package-lock.json
 package-lock.json

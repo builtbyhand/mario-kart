@@ -1,14 +1,19 @@
 /**
  * Automated Capture Script for Phase 8 Production Release Visual Evidence.
- * Captures all 8 required categories directly from live game output:
+ * Headless Visual Regression Captures (1280 × 720 HD Landscape, Chromium SwiftShader).
+ * Captures all 8 required categories directly from live game rendering:
  * 1. Main menu
- * 2. Character and kart showcase
- * 3. Gameplay action
- * 4. Racing environment
- * 5. Camera behavior
- * 6. Graphics settings
- * 7. HUD and controls
- * 8. Race completion / finish screen
+ * 2. Character showcase pedestal
+ * 3. Kart customization showcase
+ * 4. Scalable graphics & audio settings
+ * 5. Racing gameplay & track environment
+ * 6. Third-person chase camera behavior
+ * 7. Touch HUD and control overlay layout
+ * 8. Race completion and standings results screen
+ *
+ * NOTE: These screenshots validate visual layout, shaders, asset presentation,
+ * and HUD styling. Gameplay mechanics (touch lifecycle, physics, barrier seams,
+ * loop closure) are verified separately by automated unit and integration suites.
  */
 
 import http from "node:http";
@@ -249,9 +254,9 @@ async function main() {
     return { filename, bytes: buffer.length, colors: val.colors };
   }
 
-  // Load game
-  console.log("Loading Mario Kart...");
-  await send("Page.navigate", { url: `http://127.0.0.1:${PORT}/index.html?quality=high` });
+  // Load game with evidence harness enabled
+  console.log("Loading Mario Kart (1280x720 Headless SwiftShader)...");
+  await send("Page.navigate", { url: `http://127.0.0.1:${PORT}/index.html?quality=high&evidence=1` });
 
   // Wait for 3D menu scene ready
   for (let i = 0; i < 40; i++) {
@@ -264,23 +269,23 @@ async function main() {
   const captures = [];
 
   // 1. Main Menu
-  console.log("\n1. Capturing Main Menu...");
+  console.log("\n1. Capturing Main Menu (1280x720)...");
   captures.push(await captureScreenshot("01_main_menu.png"));
 
   // 2. Character Showcase
-  console.log("\n2. Capturing Character Showcase...");
+  console.log("\n2. Capturing Character Showcase (1280x720)...");
   await evaluate("document.getElementById('nav-btn-drivers')?.click();");
   await new Promise((r) => setTimeout(r, 1200));
   captures.push(await captureScreenshot("02_character_showcase.png"));
 
   // 3. Kart Showcase
-  console.log("\n3. Capturing Kart Showcase...");
+  console.log("\n3. Capturing Kart Showcase (1280x720)...");
   await evaluate("document.getElementById('nav-btn-karts')?.click();");
   await new Promise((r) => setTimeout(r, 1200));
   captures.push(await captureScreenshot("03_kart_showcase.png"));
 
   // 4. Graphics Settings
-  console.log("\n4. Capturing Graphics Settings...");
+  console.log("\n4. Capturing Graphics Settings (1280x720)...");
   await evaluate("document.getElementById('nav-btn-settings')?.click();");
   await new Promise((r) => setTimeout(r, 800));
   captures.push(await captureScreenshot("04_graphics_settings.png"));
@@ -290,41 +295,31 @@ async function main() {
   await new Promise((r) => setTimeout(r, 600));
 
   // 5. Active Gameplay & Racing Environment
-  console.log("\n5. Capturing Active Gameplay & Racing Action...");
+  console.log("\n5. Capturing Active Gameplay & Racing Action (1280x720)...");
   await evaluate("window.__begin();");
-  await new Promise((r) => setTimeout(r, 3000));
+  await new Promise((r) => setTimeout(r, 3500));
   captures.push(await captureScreenshot("05_gameplay_action.png"));
 
   // 6. Camera Behavior (Chase camera)
-  console.log("\n6. Capturing Camera Behavior...");
-  await new Promise((r) => setTimeout(r, 2000));
+  console.log("\n6. Capturing Camera Behavior (1280x720)...");
+  await new Promise((r) => setTimeout(r, 1500));
   captures.push(await captureScreenshot("06_camera_chase.png"));
 
-  // 7. HUD and Controls
-  console.log("\n7. Capturing HUD and Controls...");
-  await evaluate(`
-    if (document.getElementById('touch-controls')) {
-      document.getElementById('touch-controls').hidden = false;
-    }
-  `);
-  await new Promise((r) => setTimeout(r, 800));
+  // 7. HUD and Controls (touch controls naturally visible during active race on non-TV)
+  console.log("\n7. Capturing HUD and Controls Layout (1280x720)...");
+  await new Promise((r) => setTimeout(r, 500));
   captures.push(await captureScreenshot("07_hud_and_controls.png"));
 
-  // 8. Race Finish / Results Screen
-  console.log("\n8. Capturing Race Finish / Results Screen...");
-  await evaluate(`
-    if (window.__race) {
-      window.__race.state = 'results';
-    }
-    document.body.classList.remove('racing');
-    document.body.classList.remove('paused');
-    document.body.classList.add('results-screen');
-    const resEl = document.getElementById('results');
-    if (resEl) resEl.hidden = false;
-    const sumEl = document.getElementById('result-summary');
-    if (sumEl) sumEl.textContent = 'MARIO · 1st place · 1:42.350';
-  `);
-  await new Promise((r) => setTimeout(r, 1000));
+  // 8. Race Finish / Results Screen (natural CPU completion via evidence harness)
+  console.log("\n8. Capturing Genuine Race Finish Results Screen (1280x720)...");
+  await evaluate("if (window.__kart && window.__kart.capture) window.__kart.capture('results');");
+  // Allow presentation animation and standings population to finish
+  for (let i = 0; i < 25; i++) {
+    await new Promise((r) => setTimeout(r, 200));
+    const done = await evaluate("Boolean(document.getElementById('again') && !document.getElementById('again').disabled)");
+    if (done) break;
+  }
+  await new Promise((r) => setTimeout(r, 600));
   captures.push(await captureScreenshot("08_race_finish_results.png"));
 
   ws.close();
