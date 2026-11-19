@@ -48,6 +48,7 @@ import {
   wrap,
 } from "./track.js";
 import { addAtmosphere } from "./atmosphere.js";
+import { setupTouchControls, addTapListener } from "./touch-controls.js";
 import { roadFrame, chasePose, cameraClearance } from "./visual-frame.js";
 import { WheelInput } from "./input.js";
 import { KartAudio } from "./audio.js";
@@ -465,197 +466,33 @@ function showMenu() {
   updateStatBars(selected, selectedKart);
 }
 
-function addTapListener(el, handler) {
-  if (!el) return;
-  let lastTrigger = 0;
-  const trigger = (e) => {
-    const now = Date.now();
-    if (now - lastTrigger < 280) return;
-    lastTrigger = now;
-    if (e && e.cancelable) e.preventDefault();
-    handler(e);
-  };
-  el.addEventListener("pointerdown", trigger);
-  el.addEventListener("click", trigger);
-}
+export { setupTouchControls, addTapListener } from "./touch-controls.js";
 
-function setupTouchControls() {
-  const activeTouches = new Map();
-
-  const releaseAllTouch = () => {
-    wheel.setTouchSteer(0);
-    wheel.setTouchButton("gas", false);
-    wheel.setTouchButton("brake", false);
-    wheel.setTouchButton("drift", false);
-    wheel.setTouchButton("item", false);
-    activeTouches.clear();
-    document.querySelectorAll(".touch-btn").forEach((b) => b.classList.remove("active"));
-  };
-
-  const steerRow = document.querySelector(".steer-row");
-  const leftBtn = $("touch-steer-left");
-  const rightBtn = $("touch-steer-right");
-  if (steerRow && leftBtn && rightBtn) {
-    let steerPointerId = null;
-    const updateSteerFromPoint = (clientX) => {
-      const rect = steerRow.getBoundingClientRect();
-      const centerX = rect.left + rect.width / 2;
-      const norm = (clientX - centerX) / (rect.width / 2);
-      const deadzone = 0.1;
-      if (Math.abs(norm) < deadzone) {
-        wheel.setTouchSteer(0);
-        leftBtn.classList.remove("active");
-        rightBtn.classList.remove("active");
-      } else if (norm < 0) {
-        wheel.setTouchSteer(Math.max(-1, norm));
-        leftBtn.classList.add("active");
-        rightBtn.classList.remove("active");
-      } else {
-        wheel.setTouchSteer(Math.min(1, norm));
-        leftBtn.classList.remove("active");
-        rightBtn.classList.add("active");
-      }
-    };
-
-    const onSteerDown = (e) => {
-      if (e && e.cancelable) e.preventDefault();
-      steerPointerId = e.pointerId;
-      try { steerRow.setPointerCapture(e.pointerId); } catch (_) {}
-      updateSteerFromPoint(e.clientX);
-    };
-    const onSteerMove = (e) => {
-      if (steerPointerId !== null && e.pointerId === steerPointerId) {
-        if (e && e.cancelable) e.preventDefault();
-        updateSteerFromPoint(e.clientX);
-      }
-    };
-    const onSteerUp = (e) => {
-      if (steerPointerId !== null && (e.pointerId === undefined || e.pointerId === steerPointerId)) {
-        steerPointerId = null;
-        try { steerRow.releasePointerCapture(e.pointerId); } catch (_) {}
-        wheel.setTouchSteer(0);
-        leftBtn.classList.remove("active");
-        rightBtn.classList.remove("active");
-      }
-    };
-
-    steerRow.addEventListener("pointerdown", onSteerDown);
-    steerRow.addEventListener("pointermove", onSteerMove);
-    steerRow.addEventListener("pointerup", onSteerUp);
-    steerRow.addEventListener("pointercancel", onSteerUp);
-    steerRow.addEventListener("lostpointercapture", onSteerUp);
-  }
-
-  const bindTouch = (id, onDown, onUp) => {
-    const el = $(id);
-    if (!el) return;
-    let isPressed = false;
-    let activePointerId = null;
-
-    const press = (e) => {
-      if (e && e.cancelable) e.preventDefault();
-      if (e && e.pointerId !== undefined) {
-        activePointerId = e.pointerId;
-        try {
-          if (el.setPointerCapture) el.setPointerCapture(e.pointerId);
-        } catch (err) {}
-      }
-      if (!isPressed) {
-        isPressed = true;
-        el.classList.add("active");
-        onDown();
-      }
-    };
-
-    const release = (e) => {
-      if (e && e.cancelable) e.preventDefault();
-      if (isPressed) {
-        isPressed = false;
-        el.classList.remove("active");
-        try {
-          if (activePointerId !== null && el.releasePointerCapture && el.hasPointerCapture?.(activePointerId)) {
-            el.releasePointerCapture(activePointerId);
-          }
-        } catch (err) {}
-        activePointerId = null;
-        onUp();
-      }
-    };
-
-    if (typeof window !== "undefined" && window.PointerEvent) {
-      el.addEventListener("pointerdown", press);
-      el.addEventListener("pointerup", release);
-      el.addEventListener("pointercancel", release);
-      el.addEventListener("lostpointercapture", release);
-    } else {
-      el.addEventListener("touchstart", press, { passive: false });
-      el.addEventListener("touchend", release, { passive: false });
-      el.addEventListener("touchcancel", release, { passive: false });
-      el.addEventListener("mousedown", press);
-      el.addEventListener("mouseup", release);
-    }
-  };
-
-  bindTouch("touch-gas", () => wheel.setTouchButton("gas", true), () => wheel.setTouchButton("gas", false));
-  bindTouch("touch-brake", () => wheel.setTouchButton("brake", true), () => wheel.setTouchButton("brake", false));
-  bindTouch("touch-drift", () => wheel.setTouchButton("drift", true), () => wheel.setTouchButton("drift", false));
-  bindTouch("touch-item", () => {
-    wheel.setTouchButton("item", true);
+const touchControls = setupTouchControls({
+  wheel,
+  onItemPulse: () => {
     itemPulse = true;
-  }, () => wheel.setTouchButton("item", false));
-
-  window.addEventListener("pointercancel", releaseAllTouch);
-  window.addEventListener("blur", releaseAllTouch);
-  window.addEventListener("pagehide", releaseAllTouch);
-  document.addEventListener("visibilitychange", () => {
-    if (document.hidden) releaseAllTouch();
-  });
-
-  const tiltToggle = $("touch-tilt-toggle");
-  if (tiltToggle) {
-    addTapListener(tiltToggle, () => {
-      wheel.tiltEnabled = !wheel.tiltEnabled;
-      tiltToggle.textContent = wheel.tiltEnabled ? "TILT: ON" : "TILT: OFF";
-      tiltToggle.classList.toggle("active", wheel.tiltEnabled);
-    });
-  }
-
-  const pauseBtn = $("pause-btn");
-  if (pauseBtn) {
-    addTapListener(pauseBtn, () => {
-      if (paused) resume();
-      else pause();
-    });
-  }
-
-  const restartBtn = $("restart");
-  if (restartBtn) {
-    addTapListener(restartBtn, () => {
-      $("pause").hidden = true;
-      paused = false;
-      constructRace();
-      begin();
-    });
-  }
-
-  const menuReturnBtn = $("menu-return");
-  if (menuReturnBtn) {
-    addTapListener(menuReturnBtn, () => {
-      $("pause").hidden = true;
-      paused = false;
-      showMenu();
-    });
-  }
-
-  const resultsMenuBtn = $("results-menu");
-  if (resultsMenuBtn) {
-    addTapListener(resultsMenuBtn, () => {
-      $("results").hidden = true;
-      showMenu();
-    });
-  }
-}
-setupTouchControls();
+  },
+  onPauseToggle: () => {
+    if (paused) resume();
+    else pause();
+  },
+  onRestart: () => {
+    $("pause").hidden = true;
+    paused = false;
+    constructRace();
+    begin();
+  },
+  onMenuReturn: () => {
+    $("pause").hidden = true;
+    paused = false;
+    showMenu();
+  },
+  onResultsMenu: () => {
+    $("results").hidden = true;
+    showMenu();
+  },
+});
 if ($("touch-controls")) $("touch-controls").hidden = true;
 if ($("pause-btn")) $("pause-btn").hidden = true;
 document.body.classList.add("in-menu");
