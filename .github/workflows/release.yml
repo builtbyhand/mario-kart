@@ -5,11 +5,6 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
-    inputs:
-      safe_validation:
-        description: 'Run safe workflow validation (does not publish release)'
-        type: boolean
-        default: true
 
 permissions:
   contents: write
@@ -140,13 +135,15 @@ jobs:
           fi
 
       - name: Stage Release Artifacts & Calculate Checksums
+        env:
+          REF_NAME: ${{ github.ref_name }}
         run: |
           mkdir -p release-artifacts
-          REF_NAME="${{ github.ref_name }}"
-          if [ -z "$REF_NAME" ] || [ "$REF_NAME" = "main" ]; then
-            REF_NAME="validation"
+          TARGET_REF="$REF_NAME"
+          if [ -z "$TARGET_REF" ] || [ "$TARGET_REF" = "main" ]; then
+            TARGET_REF="validation"
           fi
-          APK_TAG="release-artifacts/MarioKart-${REF_NAME}.apk"
+          APK_TAG="release-artifacts/MarioKart-${TARGET_REF}.apk"
           APK_LATEST="release-artifacts/MarioKart.apk"
           cp app/build/outputs/apk/release/app-release.apk "$APK_TAG"
           cp app/build/outputs/apk/release/app-release.apk "$APK_LATEST"
