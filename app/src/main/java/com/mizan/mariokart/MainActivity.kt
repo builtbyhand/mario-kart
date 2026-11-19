@@ -55,6 +55,11 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
     private var driftPressed = false
     private var itemPressed = false
 
+    // Sensor throttling
+    private var lastSensorPostTime = 0L
+    private var lastRoll = 0f
+    private var lastPitch = 0f
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -103,8 +108,10 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
             "typeof window.__handleBackNavigation === 'function' ? window.__handleBackNavigation() : false"
         ) { result ->
             val handled = result?.trim('"', '\'') == "true"
+            Log.d("MarioKartNav", "Back pressed - handled by webview: $handled")
             if (!handled) {
                 // User is on the root main menu hub: exit activity cleanly
+                Log.d("MarioKartNav", "Exiting activity from root menu")
                 finish()
             }
         }
@@ -112,6 +119,10 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
 
     @SuppressLint("SetJavaScriptEnabled")
     private fun setupWebView() {
+        if (BuildConfig.DEBUG) {
+            WebView.setWebContentsDebuggingEnabled(true)
+        }
+
         val assetLoader = WebViewAssetLoader.Builder()
             .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(this))
             .build()
@@ -227,6 +238,15 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         // In landscape, event.values[1] represents sideways tilt roll
         val roll = InputBridgeUtils.computeRollDegrees(event.values[1])
         val pitch = InputBridgeUtils.computePitchDegrees(event.values[0])
+
+        val now = System.currentTimeMillis()
+        if (now - lastSensorPostTime < 33L && Math.abs(roll - lastRoll) < 0.5f && Math.abs(pitch - lastPitch) < 0.5f) {
+            return
+        }
+        lastSensorPostTime = now
+        lastRoll = roll
+        lastPitch = pitch
+
         webView.post {
             if (!isFinishing && !isDestroyed) {
                 webView.evaluateJavascript("window.onNativeSensorOrientation?.($roll, $pitch);", null)
@@ -371,6 +391,13 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
                 )
             } catch (e: Exception) {
                 Log.w("MarioKart", "Pattern vibration failed: ${e.message}")
+            }
+        }
+
+        @JavascriptInterface
+        fun triggerBack() {
+            runOnUiThread {
+                handleBackPress()
             }
         }
 

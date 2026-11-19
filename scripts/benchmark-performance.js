@@ -179,10 +179,10 @@ async function main() {
     });
 
     let raceEntered = false;
-    for (let rw = 0; rw < 20; rw++) {
+    for (let rw = 0; rw < 25; rw++) {
       await new Promise((r) => setTimeout(r, 200));
       const stateRes = await send("Runtime.evaluate", {
-        expression: "window.__race?.state",
+        expression: "window.__race?.state || (document.body.classList.contains('racing') ? 'racing' : 'menu')",
         returnByValue: true,
       });
       const st = stateRes?.result?.value;
@@ -191,8 +191,10 @@ async function main() {
         break;
       }
     }
+
     if (!raceEntered) {
-      console.warn(`    [WARN] Preset ${preset} did not report racing state.`);
+      console.error(`    [FAIL] Preset ${preset} failed to enter racing/countdown state.`);
+      throw new Error(`Preset ${preset} verification failed: did not enter racing or countdown state.`);
     }
 
     // Reset frame measurement window between menu and racing
@@ -210,17 +212,23 @@ async function main() {
       returnByValue: true,
     });
     const racePerf = racePerfRes?.result?.value || menuPerf;
+    const hasSufficientSamples = (racePerf.sampleCount || 0) >= 10;
 
     results.push({
       preset,
       loadTimeMs,
+      raceEntered,
       raceSampleDurationMs,
+      hasSufficientSamples,
       menu: menuPerf,
       racing: racePerf,
     });
 
-    console.log(`    - Menu:   ${menuPerf.fps} FPS (${menuPerf.meanMs} ms) | Draws: ${menuPerf.drawCalls} | Tris: ${menuPerf.triangles.toLocaleString()}`);
-    console.log(`    - Racing: ${racePerf.fps} FPS (${racePerf.sampleCount} frames in ${raceSampleDurationMs} ms, Mean: ${racePerf.meanMs} ms, P95: ${racePerf.p95Ms} ms) | Draws: ${racePerf.drawCalls} | Tris: ${racePerf.triangles.toLocaleString()}`);
+    const fpsDisplay = hasSufficientSamples ? `${racePerf.fps} FPS` : `N/A (insufficient sample count: ${racePerf.sampleCount} frames; CPU rasterizer)`;
+    console.log(`    - Race Entered: true (state: verified)`);
+    console.log(`    - Menu Scene:   Draws: ${menuPerf.drawCalls} | Tris: ${menuPerf.triangles.toLocaleString()}`);
+    console.log(`    - Racing Scene: Draws: ${racePerf.drawCalls} | Tris: ${racePerf.triangles.toLocaleString()} | Geometries: ${racePerf.geometries} | Textures: ${racePerf.textures}`);
+    console.log(`    - Racing Timing:${fpsDisplay}`);
   }
 
   ws.close();
@@ -229,20 +237,20 @@ async function main() {
 
   // Print Summary Table
   console.log("\n==========================================================================================================");
-  console.log(" FINAL PERFORMANCE COMPLEXITY BENCHMARK TABLE (SwiftShader CPU Software Emulation)");
+  console.log(" SCENE COMPLEXITY & BENCHMARK PROFILE (SwiftShader CPU Software Emulation)");
   console.log(" *Note: Software-emulated frame times reflect CPU rasterizer throughput, NOT mobile GPU performance.");
+  console.log("  Per-preset draw calls, triangles, and memory buffers validate relative scene scaling.");
   console.log("==========================================================================================================");
   console.log(
     "Preset".padEnd(8) +
+    " | " + "Race Entered".padEnd(12) +
     " | " + "Load Time".padStart(9) +
-    " | " + "Menu FPS".padStart(8) +
-    " | " + "Race FPS".padStart(8) +
     " | " + "Samples".padStart(7) +
-    " | " + "Mean ms".padStart(8) +
-    " | " + "P95 ms".padStart(8) +
     " | " + "Draw Calls".padStart(10) +
     " | " + "Triangles".padStart(10) +
-    " | " + "Complexity Profile".padEnd(18)
+    " | " + "Geometries".padStart(10) +
+    " | " + "Textures".padStart(8) +
+    " | " + "Complexity Profile".padEnd(22)
   );
   console.log("-".repeat(110));
 
@@ -250,15 +258,14 @@ async function main() {
     const complexityTier = r.preset === "low" ? "Low Draw / Shadows Off" : r.preset === "medium" ? "Mobile / 1024 Shadows" : "High HD / Post-FX";
     console.log(
       r.preset.toUpperCase().padEnd(8) +
+      " | " + `${r.raceEntered ? "Yes (true)" : "No"}`.padEnd(12) +
       " | " + `${r.loadTimeMs} ms`.padStart(9) +
-      " | " + `${r.menu.fps}`.padStart(8) +
-      " | " + `${r.racing.fps}`.padStart(8) +
       " | " + `${r.racing.sampleCount}`.padStart(7) +
-      " | " + `${r.racing.meanMs}`.padStart(8) +
-      " | " + `${r.racing.p95Ms}`.padStart(8) +
       " | " + `${r.racing.drawCalls}`.padStart(10) +
       " | " + `${r.racing.triangles.toLocaleString()}`.padStart(10) +
-      " | " + complexityTier.padEnd(18)
+      " | " + `${r.racing.geometries}`.padStart(10) +
+      " | " + `${r.racing.textures}`.padStart(8) +
+      " | " + complexityTier.padEnd(22)
     );
   }
   console.log("==========================================================================================================\n");
@@ -271,18 +278,21 @@ async function main() {
   md += `**Screen Resolution:** 1280x720 (Landscape)\n\n`;
   md += "> **IMPORTANT METHODOLOGY & INTERPRETATION NOTE:**\n";
   md += "> SwiftShader is a CPU software rasterizer utilized for automated headless CI verification and scene validation. ";
-  md += "Its frame times (~2000–3500 ms / ~0.3–0.5 FPS) represent CPU-bound software emulation throughput and **must NOT be interpreted as physical Android GPU frame rates** or proof of 30/60 FPS achievement. ";
+  md += "Its frame times represent CPU-bound software emulation throughput and **must NOT be interpreted as physical Android GPU frame rates** or proof of 30/60 FPS achievement. ";
+  md += "Because the sample count in headless software emulation is insufficient (< 10 frames), racing FPS/frame times are explicitly withheld as non-meaningful performance numbers. ";
   md += "The empirical metrics below validate scene complexity scaling (draw calls, triangles, active geometries, and texture allocations) across presets.\n\n";
-  md += "## Preset Complexity Measurements\n\n";
-  md += "| Preset | Load Time | Menu FPS | Racing FPS | Samples | Measurement Window | Mean Frame Time | P95 Frame Time | Draw Calls | Triangles | Complexity Tier |\n";
-  md += "| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- |\n";
+  md += "## Preset Scene Complexity Observations\n\n";
+  md += "| Preset | Race Entered | Load Time | Samples | Draw Calls | Triangles | Active Geometries | Active Textures | Complexity Tier | Racing FPS / Frame Time |\n";
+  md += "| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- | :--- |\n";
   for (const r of results) {
     const tier = r.preset === "low" ? "Low-end GPU Fallback (No Shadows)" : r.preset === "medium" ? "Balanced Mobile/TV (1024 PCF Shadows)" : "Full Desktop/HD (Post-Processing & FX)";
-    md += `| **${r.preset.toUpperCase()}** | ${r.loadTimeMs} ms | ${r.menu.fps} | ${r.racing.fps} | ${r.racing.sampleCount} | ${r.raceSampleDurationMs} ms | ${r.racing.meanMs} ms | ${r.racing.p95Ms} ms | ${r.racing.drawCalls} | ${r.racing.triangles.toLocaleString()} | ${tier} |\n`;
+    const fpsCol = r.hasSufficientSamples ? `${r.racing.fps} FPS (${r.racing.meanMs} ms)` : `N/A (insufficient sample count: ${r.racing.sampleCount} frames; CPU rasterizer)`;
+    md += `| **${r.preset.toUpperCase()}** | **${r.raceEntered ? "true" : "false"}** | ${r.loadTimeMs} ms | ${r.racing.sampleCount} | ${r.racing.drawCalls} | ${r.racing.triangles.toLocaleString()} | ${r.racing.geometries} | ${r.racing.textures} | ${tier} | ${fpsCol} |\n`;
   }
   md += "\n## Memory and Texture Profiles\n\n";
   for (const r of results) {
     md += `### ${r.preset.toUpperCase()}\n`;
+    md += `- **Race Entered:** ${r.raceEntered ? "true (verified countdown/racing)" : "false"}\n`;
     md += `- **Resolution Scale:** ${r.racing.resolutionScale}\n`;
     md += `- **Max Pixel Ratio:** ${r.racing.maxPixelRatio}\n`;
     md += `- **Shadows:** ${r.racing.shadows ? "Enabled (PCF)" : "Disabled"}\n`;

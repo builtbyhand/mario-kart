@@ -2033,21 +2033,27 @@ window.__handleBackNavigation = function () {
   // 1. Settings modal open -> close settings, return to hub
   const modalSettings = $("modal-settings");
   if (modalSettings && !modalSettings.hidden) {
-    $("btn-close-settings")?.click();
+    modalSettings.hidden = true;
+    if (menuCamera) menuCamera.setMode("hub");
+    try { audio.ui("cancel"); } catch (e) {}
     return true;
   }
 
   // 2. Drivers drawer open -> close drivers, return to hub
   const drawerDrivers = $("drawer-drivers");
   if (drawerDrivers && !drawerDrivers.hidden) {
-    $("btn-close-drivers")?.click();
+    drawerDrivers.hidden = true;
+    if (menuCamera) menuCamera.setMode("hub");
+    try { audio.ui("cancel"); } catch (e) {}
     return true;
   }
 
   // 3. Karts drawer open -> close karts, return to hub
   const drawerKarts = $("drawer-karts");
   if (drawerKarts && !drawerKarts.hidden) {
-    $("btn-close-karts")?.click();
+    drawerKarts.hidden = true;
+    if (menuCamera) menuCamera.setMode("hub");
+    try { audio.ui("cancel"); } catch (e) {}
     return true;
   }
 
@@ -2057,15 +2063,16 @@ window.__handleBackNavigation = function () {
     return true;
   }
 
-  // 5. Actively racing or counting down -> pause the race
-  if (race && (race.state === "racing" || race.state === "countdown")) {
-    pause();
+  // 5. On results screen -> return to main menu
+  const resultsEl = $("results");
+  if (document.body.classList.contains("results-screen") || (resultsEl && !resultsEl.hidden) || (race && race.state === "results")) {
+    showMenu();
     return true;
   }
 
-  // 6. On results screen -> return to main menu
-  if (document.body.classList.contains("results-screen") || (race && race.state === "results")) {
-    showMenu();
+  // 6. Actively racing or counting down -> pause the race
+  if (race && (race.state === "racing" || race.state === "countdown")) {
+    pause();
     return true;
   }
 
@@ -2073,8 +2080,14 @@ window.__handleBackNavigation = function () {
   return false;
 };
 window.__begin = begin;
+window.__pause = pause;
+window.__resume = resume;
+window.__showMenu = showMenu;
 window.__karts = karts;
-window.__race = race;
+Object.defineProperty(window, "__race", {
+  get: () => race,
+  configurable: true,
+});
 window.__audio = audio;
 window.__menuScene = menuScene;
 window.__menuCamera = menuCamera;
