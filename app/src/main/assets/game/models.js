@@ -341,7 +341,7 @@ export async function loadGLB(pathUrl) {
   return gltf;
 }
 
-export function buildGLBKart(id, kartGltf, charGltf) {
+export function buildGLBKart(id, kartGltf, charGltf, customScale = null) {
   const spec = KART_SPECS[id] || KART_SPECS.mario;
   const root = new THREE.Group();
   root.name = "glb-kart";
@@ -366,7 +366,7 @@ export function buildGLBKart(id, kartGltf, charGltf) {
   if (staticDriver) staticDriver.visible = false;
 
   // Scale and orient kart chassis: Rotate by Math.PI around Y so nose faces -Z
-  kartScene.scale.setScalar(spec.scale);
+  kartScene.scale.setScalar(customScale || spec.scale);
   kartScene.rotation.y = Math.PI;
   root.add(kartScene);
   root.updateMatrixWorld(true);
@@ -430,10 +430,10 @@ export function buildGLBKart(id, kartGltf, charGltf) {
     // 3. Create rolling group under wheelPivot
     const rolling = new THREE.Group();
     wheelPivot.add(rolling);
-    wheelPivot.userData.rolling = rolling;
+    Object.defineProperty(wheelPivot.userData, "rolling", { value: rolling, enumerable: false, writable: true });
     wheelPivot.userData.hubCenter = [0, 0, 0];
     wheelPivot.userData.hubRadius = radius;
-    wheelPivot.userData.axleWorldDir = worldAxleDir.clone();
+    Object.defineProperty(wheelPivot.userData, "axleWorldDir", { value: worldAxleDir.clone(), enumerable: false, writable: true });
     root.updateMatrixWorld(true);
 
     // 4. Convert mesh world transform into rolling group local coordinate system:
@@ -477,7 +477,7 @@ export function buildGLBKart(id, kartGltf, charGltf) {
     }
     glow.visible = false;
     wheelPivot.add(glow);
-    wheelPivot.userData.glow = glow;
+    Object.defineProperty(wheelPivot.userData, "glow", { value: glow, enumerable: false, writable: true });
 
     return wheelPivot;
   });
@@ -536,10 +536,12 @@ export function buildGLBKart(id, kartGltf, charGltf) {
     }
   });
 
-  root.userData.wheels = wheels;
-  root.userData.mixer = mixer;
-  root.userData.driver = driverScene;
-  root.userData.driverHead = driverHead;
+  Object.defineProperties(root.userData, {
+    wheels: { value: wheels, enumerable: false, writable: true },
+    mixer: { value: mixer, enumerable: false, writable: true },
+    driver: { value: charGltf ? charGltf.scene : null, enumerable: false, writable: true },
+    driverHead: { value: driverHead, enumerable: false, writable: true },
+  });
 
   return {
     model: root,
@@ -640,10 +642,12 @@ export async function loadKartPack(karts, onProgress = () => {}) {
     const spec = KART_SPECS[id] || KART_SPECS.mario;
 
     try {
-      const kartGltf = await loadGLB(spec.kart);
+      const kartPath = kartObj.customKartGlb || spec.kart;
+      const kartScale = kartObj.customKartScale || spec.scale;
+      const kartGltf = await loadGLB(kartPath);
       const charGltf = await loadGLB(spec.character);
 
-      const glbResult = buildGLBKart(id, kartGltf, charGltf);
+      const glbResult = buildGLBKart(id, kartGltf, charGltf, kartScale);
 
       // Replace procedural model in kartObj.root
       if (kartObj.model && kartObj.root) {

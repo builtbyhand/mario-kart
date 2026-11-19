@@ -82,28 +82,167 @@
     </div>
 
     <div id="intro">
-      <div class="intro-card">
-        <div class="intro-col intro-col-left">
-          <div class="eyebrow">MUSHROOM CUP · 150cc</div>
-          <h1><img src="menu-logo.svg" alt="Mario Kart"></h1>
-          <div class="stadium-name">MARIO KART STADIUM <span>★</span></div>
-          <div id="lap-options" role="group" aria-label="Race length">
-            <span>LAPS:</span>
-            <button type="button" data-laps="1" aria-pressed="false">1 LAP</button>
-            <button type="button" data-laps="3" aria-pressed="true">3 LAPS</button>
-          </div>
-          <button id="start" type="button">START RACE <span>🏁 GO!</span></button>
+      <!-- Main Hub Header & Brand -->
+      <div id="menu-brand-header">
+        <div class="menu-eyebrow">MUSHROOM CUP · 150cc</div>
+        <h1 class="menu-logo-title"><img src="menu-logo.svg" alt="Mario Kart"></h1>
+        <div class="menu-stadium-tag">MARIO KART STADIUM <span>★</span></div>
+      </div>
+
+      <!-- Quick Action Controls in Top Right -->
+      <div id="menu-top-actions">
+        <button id="menu-settings-btn" class="menu-pill-btn" type="button" aria-label="Open Settings">⚙️ SETTINGS</button>
+      </div>
+
+      <!-- Center 3D Interactive Viewport Hint -->
+      <div id="drag-hint" aria-hidden="true">
+        <span>↔ Drag to Rotate 360°</span>
+      </div>
+
+      <!-- Bottom-Left Active Racer Showcase Badge -->
+      <div id="showcase-card">
+        <div class="showcase-badge-row">
+          <span class="showcase-label">RACER:</span>
+          <span id="chosen" class="showcase-driver-name">MARIO</span>
+          <span id="driver-class-badge" class="showcase-class-tag">All-Rounder</span>
         </div>
-        <div class="intro-col intro-col-right">
-          <div class="driver-title-row">
-            <span class="intro-copy">DRIVER:</span>
-            <span id="chosen">MARIO</span>
+        <div class="showcase-kart-row">
+          <span class="showcase-label">KART:</span>
+          <span id="kart-name-badge" class="showcase-kart-name">Red Speedster</span>
+          <span id="kart-class-badge" class="showcase-category-tag">Standard</span>
+        </div>
+        <div id="showcase-stats-bars" class="mini-stats-grid">
+          <div class="stat-row"><span>SPEED</span><div class="stat-bar"><div id="stat-bar-speed" class="stat-fill" style="width: 85%;"></div></div></div>
+          <div class="stat-row"><span>ACCEL</span><div class="stat-bar"><div id="stat-bar-accel" class="stat-fill" style="width: 85%;"></div></div></div>
+          <div class="stat-row"><span>DRIFT</span><div class="stat-bar"><div id="stat-bar-drift" class="stat-fill" style="width: 80%;"></div></div></div>
+          <div class="stat-row"><span>WEIGHT</span><div class="stat-bar"><div id="stat-bar-weight" class="stat-fill" style="width: 80%;"></div></div></div>
+        </div>
+      </div>
+
+      <!-- Bottom-Right Primary Action & Navigation Cluster -->
+      <div id="menu-action-cluster">
+        <div id="lap-options" role="group" aria-label="Race length">
+          <span>LAPS:</span>
+          <button type="button" data-laps="1" aria-pressed="false">1 LAP</button>
+          <button type="button" data-laps="3" aria-pressed="true">3 LAPS</button>
+        </div>
+        <button id="start" type="button">START RACE <span>🏁 GO!</span></button>
+        <div id="menu-nav-bar" role="navigation" aria-label="Menu Sections">
+          <button id="nav-btn-drivers" class="nav-tab-btn" type="button">🏎️ DRIVERS</button>
+          <button id="nav-btn-karts" class="nav-tab-btn" type="button">🏁 KARTS</button>
+          <button id="nav-btn-settings" class="nav-tab-btn" type="button">⚙️ SETTINGS</button>
+        </div>
+        <p id="menu-hint">Select your Driver &amp; Kart · Tap START RACE</p>
+      </div>
+
+      <!-- Drawer: Driver Selection -->
+      <div id="drawer-drivers" class="menu-drawer" hidden>
+        <div class="drawer-header">
+          <button id="btn-close-drivers" class="drawer-back-btn" type="button">← BACK TO MENU</button>
+          <h2>CHOOSE YOUR DRIVER</h2>
+          <span class="drawer-counter">8 DRIVERS</span>
+        </div>
+        <div id="driver-details-panel" class="drawer-profile-card">
+          <div class="profile-header">
+            <h3 id="driver-detail-name">MARIO</h3>
+            <span id="driver-detail-class" class="profile-badge">All-Rounder</span>
           </div>
-          <div id="characters" role="group" aria-label="Choose character"></div>
-          <p id="menu-hint">Tap character to select · Tap START RACE</p>
-          <p class="controls">
-            <b>CONTROLS:</b> Touch Pedals · Tilt · Gamepad &amp; TV Remote
-          </p>
+          <p id="driver-detail-desc" class="profile-desc">The iconic champion with flawless balance across all track zones.</p>
+        </div>
+        <div id="characters" class="carousel-track" role="group" aria-label="Choose character"></div>
+      </div>
+
+      <!-- Drawer: Kart Selection -->
+      <div id="drawer-karts" class="menu-drawer" hidden>
+        <div class="drawer-header">
+          <button id="btn-close-karts" class="drawer-back-btn" type="button">← BACK TO MENU</button>
+          <h2>CHOOSE YOUR KART</h2>
+          <span class="drawer-counter">8 KARTS</span>
+        </div>
+        <div id="kart-details-panel" class="drawer-profile-card">
+          <div class="profile-header">
+            <h3 id="kart-detail-name">Red Speedster</h3>
+            <span id="kart-detail-class" class="profile-badge">Standard</span>
+          </div>
+          <p id="kart-detail-desc" class="profile-desc">Balanced aerodynamic classic with high straight-line stability.</p>
+        </div>
+        <div id="karts-carousel" class="carousel-track" role="group" aria-label="Choose kart"></div>
+      </div>
+
+      <!-- Modal: Settings Dialog -->
+      <div id="modal-settings" class="menu-modal" hidden>
+        <div class="modal-backdrop"></div>
+        <div class="modal-card">
+          <div class="modal-header">
+            <h2>SETTINGS</h2>
+            <button id="btn-close-settings" class="modal-close-btn" type="button" aria-label="Close Settings">✕ CLOSE</button>
+          </div>
+          <div class="modal-tabs" role="tablist">
+            <button id="tab-btn-graphics" class="modal-tab active" type="button" role="tab" aria-selected="true">🎮 GRAPHICS</button>
+            <button id="tab-btn-audio" class="modal-tab" type="button" role="tab" aria-selected="false">🔊 AUDIO</button>
+          </div>
+          <div class="modal-body">
+            <!-- Graphics Settings Section -->
+            <div id="settings-graphics-panel" class="settings-tab-panel">
+              <div class="setting-group">
+                <label>RENDERING PRESET</label>
+                <div class="preset-selector" role="group" aria-label="Quality Preset">
+                  <button type="button" class="preset-btn" data-preset="low">LOW</button>
+                  <button type="button" class="preset-btn" data-preset="medium">MEDIUM</button>
+                  <button type="button" class="preset-btn active" data-preset="high">HIGH</button>
+                  <button type="button" class="preset-btn" data-preset="ultra">ULTRA</button>
+                </div>
+                <div id="preset-details-text" class="setting-caption">High (HD) · 1.0x Scale · Dynamic Soft Shadows · Bloom &amp; FXAA</div>
+              </div>
+              <div class="setting-toggle-row">
+                <span>Bloom &amp; Post-Processing</span>
+                <button id="toggle-bloom" class="toggle-btn active" type="button" aria-pressed="true">ON</button>
+              </div>
+              <div class="setting-toggle-row">
+                <span>Dynamic Soft Shadows</span>
+                <button id="toggle-shadows" class="toggle-btn active" type="button" aria-pressed="true">ON</button>
+              </div>
+              <div class="device-diagnostics-card">
+                <b>DEVICE PROFILING</b>
+                <span id="device-renderer-info">WebGL2 High-Definition Pipeline</span>
+              </div>
+            </div>
+
+            <!-- Audio Settings Section -->
+            <div id="settings-audio-panel" class="settings-tab-panel" hidden>
+              <div class="setting-toggle-row">
+                <span>Master Sound</span>
+                <button id="toggle-audio-master" class="toggle-btn active" type="button" aria-pressed="true">SOUND ON</button>
+              </div>
+              <div class="setting-slider-group">
+                <div class="slider-label-row">
+                  <span>Master Volume</span>
+                  <b id="volume-master-val">80%</b>
+                </div>
+                <input id="slider-volume-master" type="range" min="0" max="100" value="80" aria-label="Master Volume">
+              </div>
+              <div class="setting-slider-group">
+                <div class="slider-label-row">
+                  <span>Music Volume</span>
+                  <b id="volume-music-val">75%</b>
+                </div>
+                <input id="slider-volume-music" type="range" min="0" max="100" value="75" aria-label="Music Volume">
+              </div>
+              <div class="setting-slider-group">
+                <div class="slider-label-row">
+                  <span>Sound Effects (SFX)</span>
+                  <b id="volume-sfx-val">85%</b>
+                </div>
+                <input id="slider-volume-sfx" type="range" min="0" max="100" value="85" aria-label="Sound Effects Volume">
+              </div>
+              <div class="audio-test-row">
+                <button id="btn-test-sound" class="test-sound-btn" type="button">🎵 TEST SOUND EFFECT</button>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button id="btn-save-settings" class="modal-done-btn" type="button">DONE</button>
+          </div>
         </div>
       </div>
     </div>

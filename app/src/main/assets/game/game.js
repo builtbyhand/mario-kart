@@ -73,6 +73,8 @@ import {
 } from "./config.js";
 import { PostProcessingPipeline } from "./postprocessing.js";
 import { FXAAPass } from "./vendor/three-examples/postprocessing/FXAAPass.js";
+import { MenuCamera } from "./menu-camera.js";
+import { MenuScene, KART_TYPES, DRIVER_PROFILES } from "./menu-scene.js";
 
 const $ = (id) => document.getElementById(id),
   canvas = $("game"),
@@ -292,6 +294,7 @@ for (const { mat, geos, cast } of staticGroups.values()) {
   geos.forEach((x) => x.dispose());
 }
 let selected = "mario",
+  selectedKart = localStorage.getItem("mariokart.kart") || "kart-oobi",
   selectedLaps = localStorage.getItem("mariokart.laps") === "1" ? 1 : 3,
   paused = false,
   race,
@@ -313,7 +316,7 @@ let captureUntil = performance.now() + 3000,
 const karts = [];
 // Emissive exhaust sheets have no solid surface for ambient occlusion.
 // GTAO overrides mesh materials, so shader transparency alone cannot exclude them.
-if (ambientOcclusion) {
+if (typeof ambientOcclusion !== "undefined" && ambientOcclusion) {
   const renderOcclusion = ambientOcclusion.render.bind(ambientOcclusion);
   ambientOcclusion.render = (...args) => {
     const active = karts.map(k => k.boostEffect).filter(effect => effect.visible);
@@ -329,6 +332,12 @@ const shadowTexture = canvasTexture(64, 64, (ctx, w, h) => {
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, w, h);
 });
+
+export const menuCamera = new MenuCamera(camera, canvas);
+export const menuScene = new MenuScene({ scene, renderer, camera, keyLight: key, postPipeline });
+menuCamera.setTurntableCenter(menuScene.origin.x, menuScene.origin.y, menuScene.origin.z);
+menuScene.setShowcaseRacer(selected, selectedKart);
+
 function constructRace() {
   race = new Race({
     character: selected,
@@ -348,7 +357,8 @@ function constructRace() {
     k.shadow.material.dispose();
   }
   karts.length = 0;
-  for (const r of race.racers) {
+  const customKartConfig = KART_TYPES.find(k => k.id === selectedKart) || KART_TYPES[0];
+  for (const [i, r] of race.racers.entries()) {
     const root = new THREE.Group(),
       model = proceduralKart(r.character.id),
       glider = makeGlider(r.character.color,r.character.id),
@@ -367,6 +377,8 @@ function constructRace() {
     scene.add(shadow);
     karts.push({
       id: r.character.id,
+      customKartGlb: i === 0 ? customKartConfig.glb : null,
+      customKartScale: i === 0 ? customKartConfig.scale : null,
       root,
       model,
       glider,
@@ -437,12 +449,19 @@ function showMenu() {
   document.body.classList.remove("paused");
   document.body.classList.remove("results-screen");
   $("intro").hidden = false;
+  $("intro").classList.remove("menu-hidden");
   $("hud").hidden = true;
   $("pause").hidden = true;
   $("results").hidden = true;
   if ($("touch-controls")) $("touch-controls").hidden = true;
   if ($("pause-btn")) $("pause-btn").hidden = true;
   constructRace();
+  if (menuScene) {
+    menuScene.activate();
+    menuScene.setShowcaseRacer(selected, selectedKart);
+  }
+  if (menuCamera) menuCamera.resetToHub();
+  updateStatBars(selected, selectedKart);
 }
 
 function addTapListener(el, handler) {
@@ -634,18 +653,94 @@ function cancelDriver() {
     try { audio.ui('cancel'); } catch (e) {}
   }
 }
+function updateStatBars(driverId, kartId) {
+  const dProfile = DRIVER_PROFILES[driverId] || DRIVER_PROFILES.mario;
+  const kConfig = KART_TYPES.find(k => k.id === kartId) || KART_TYPES[0];
+
+  const speed = Math.round((dProfile.stats.speed + kConfig.stats.speed) / 2);
+  const accel = Math.round((dProfile.stats.accel + kConfig.stats.accel) / 2);
+  const drift = Math.round((dProfile.stats.handling + kConfig.stats.drift) / 2);
+  const weight = Math.round((dProfile.stats.weight + kConfig.stats.weight) / 2);
+
+  if ($("stat-bar-speed")) $("stat-bar-speed").style.width = speed + "%";
+  if ($("stat-bar-accel")) $("stat-bar-accel").style.width = accel + "%";
+  if ($("stat-bar-drift")) $("stat-bar-drift").style.width = drift + "%";
+  if ($("stat-bar-weight")) $("stat-bar-weight").style.width = weight + "%";
+}
+
 function chooseDriver(index) {
   if (race.state !== 'ready') return;
   const c = CHARACTERS[(index + CHARACTERS.length) % CHARACTERS.length];
   selected = c.id;
+  const profile = DRIVER_PROFILES[selected] || DRIVER_PROFILES.mario;
   setDriverConfirmed(false);
   document.querySelectorAll('.character').forEach((el, i) => {
     el.classList.toggle('selected', CHARACTERS[i].id === selected);
     el.setAttribute('aria-pressed', String(CHARACTERS[i].id === selected));
   });
-  $('chosen').textContent = c.name;
+  if ($('chosen')) $('chosen').textContent = c.name;
+  if ($('driver-class-badge')) $('driver-class-badge').textContent = profile.class;
+  if ($('driver-detail-name')) $('driver-detail-name').textContent = c.name;
+  if ($('driver-detail-class')) $('driver-detail-class').textContent = profile.class;
+  if ($('driver-detail-desc')) $('driver-detail-desc').textContent = profile.desc;
+
+  updateStatBars(selected, selectedKart);
+  if (menuScene) menuScene.setShowcaseRacer(selected, selectedKart);
   constructRace();
   try { audio.ui('cursor'); } catch (e) {}
+}
+
+function chooseKart(kartId) {
+  if (race.state !== 'ready') return;
+  const k = KART_TYPES.find(x => x.id === kartId) || KART_TYPES[0];
+  selectedKart = k.id;
+  localStorage.setItem('mariokart.kart', selectedKart);
+
+  document.querySelectorAll('.kart-card').forEach((el) => {
+    const isSel = el.dataset.kartId === k.id;
+    el.classList.toggle('selected', isSel);
+    el.setAttribute('aria-pressed', String(isSel));
+  });
+
+  if ($('kart-name-badge')) $('kart-name-badge').textContent = k.name;
+  if ($('kart-class-badge')) $('kart-class-badge').textContent = k.category;
+  if ($('kart-detail-name')) $('kart-detail-name').textContent = k.name;
+  if ($('kart-detail-class')) $('kart-detail-class').textContent = k.category;
+  if ($('kart-detail-desc')) $('kart-detail-desc').textContent = k.desc;
+
+  updateStatBars(selected, selectedKart);
+  if (menuScene) menuScene.setShowcaseRacer(selected, selectedKart);
+  constructRace();
+  try { audio.ui('cursor'); } catch (e) {}
+}
+
+function startRaceWithTransition() {
+  if (race.state !== 'ready') return;
+  try { audio.ui('start'); } catch (e) {}
+  wheel.reset();
+
+  if ($('drawer-drivers')) $('drawer-drivers').hidden = true;
+  if ($('drawer-karts')) $('drawer-karts').hidden = true;
+  if ($('modal-settings')) $('modal-settings').hidden = true;
+  $('intro').classList.add('menu-hidden');
+
+  const p = race.player;
+  const basis = roadFrame(p.s, p.lateral, p.heading, p.surfaceForward, p.surfaceNormal);
+  const gridEye = new THREE.Vector3(
+    p.x - basis.forward.x * 6.8 + basis.up.x * 2.5,
+    p.y - basis.forward.y * 6.8 + basis.up.y * 2.5,
+    p.z - basis.forward.z * 6.8 + basis.up.z * 2.5,
+  );
+  const gridAim = new THREE.Vector3(
+    p.x + basis.forward.x * 4.0 + basis.up.x * 1.3,
+    p.y + basis.forward.y * 4.0 + basis.up.y * 1.3,
+    p.z + basis.forward.z * 4.0 + basis.up.z * 1.3,
+  );
+
+  menuCamera.startTransitionToGameplay(gridEye, gridAim, 1.2, () => {
+    menuScene.deactivate();
+    begin();
+  });
 }
 function selectLaps(laps) {
   if (race.state !== 'ready') return;
@@ -702,7 +797,7 @@ function confirm() {
     return;
   }
   if (race.state === 'ready') {
-    begin();
+    startRaceWithTransition();
   } else if (race.state === "results") {
     constructRace();
     begin();
@@ -730,6 +825,183 @@ for (const c of CHARACTERS) {
   addTapListener(b, () => chooseDriver(CHARACTERS.indexOf(c)));
   $("characters").append(b);
 }
+
+// Populate Karts Carousel
+const kartsCarousel = $("karts-carousel");
+if (kartsCarousel) {
+  kartsCarousel.innerHTML = "";
+  for (const k of KART_TYPES) {
+    const card = document.createElement("button");
+    card.type = "button";
+    card.className = "kart-card" + (k.id === selectedKart ? " selected" : "");
+    card.setAttribute("aria-label", k.name);
+    card.dataset.kartId = k.id;
+    card.innerHTML = `
+      <div class="kart-icon-box">🏎️</div>
+      <div class="kart-title">${k.name}</div>
+      <div class="kart-cat">${k.category}</div>
+    `;
+    addTapListener(card, () => chooseKart(k.id));
+    kartsCarousel.append(card);
+  }
+}
+
+// Navigation & Drawers Listeners
+addTapListener($("nav-btn-drivers"), () => {
+  if ($("drawer-drivers")) $("drawer-drivers").hidden = false;
+  if ($("drawer-karts")) $("drawer-karts").hidden = true;
+  if (menuCamera) menuCamera.setMode("driver");
+  try { audio.ui("cursor"); } catch (e) {}
+});
+
+addTapListener($("btn-close-drivers"), () => {
+  if ($("drawer-drivers")) $("drawer-drivers").hidden = true;
+  if (menuCamera) menuCamera.setMode("hub");
+  try { audio.ui("cancel"); } catch (e) {}
+});
+
+addTapListener($("nav-btn-karts"), () => {
+  if ($("drawer-karts")) $("drawer-karts").hidden = false;
+  if ($("drawer-drivers")) $("drawer-drivers").hidden = true;
+  if (menuCamera) menuCamera.setMode("kart");
+  try { audio.ui("cursor"); } catch (e) {}
+});
+
+addTapListener($("btn-close-karts"), () => {
+  if ($("drawer-karts")) $("drawer-karts").hidden = true;
+  if (menuCamera) menuCamera.setMode("hub");
+  try { audio.ui("cancel"); } catch (e) {}
+});
+
+addTapListener($("nav-btn-settings"), () => {
+  if ($("modal-settings")) $("modal-settings").hidden = false;
+  if (menuCamera) menuCamera.setMode("settings");
+  try { audio.ui("cursor"); } catch (e) {}
+});
+
+addTapListener($("menu-settings-btn"), () => {
+  if ($("modal-settings")) $("modal-settings").hidden = false;
+  if (menuCamera) menuCamera.setMode("settings");
+  try { audio.ui("cursor"); } catch (e) {}
+});
+
+addTapListener($("btn-close-settings"), () => {
+  if ($("modal-settings")) $("modal-settings").hidden = true;
+  if (menuCamera) menuCamera.setMode("hub");
+  try { audio.ui("cancel"); } catch (e) {}
+});
+
+addTapListener($("btn-save-settings"), () => {
+  if ($("modal-settings")) $("modal-settings").hidden = true;
+  if (menuCamera) menuCamera.setMode("hub");
+  try { audio.ui("confirm"); } catch (e) {}
+});
+
+// Settings Tabs
+addTapListener($("tab-btn-graphics"), () => {
+  $("tab-btn-graphics")?.classList.add("active");
+  $("tab-btn-audio")?.classList.remove("active");
+  if ($("settings-graphics-panel")) $("settings-graphics-panel").hidden = false;
+  if ($("settings-audio-panel")) $("settings-audio-panel").hidden = true;
+  try { audio.ui("cursor"); } catch (e) {}
+});
+
+addTapListener($("tab-btn-audio"), () => {
+  $("tab-btn-audio")?.classList.add("active");
+  $("tab-btn-graphics")?.classList.remove("active");
+  if ($("settings-audio-panel")) $("settings-audio-panel").hidden = false;
+  if ($("settings-graphics-panel")) $("settings-graphics-panel").hidden = true;
+  try { audio.ui("cursor"); } catch (e) {}
+});
+
+// Quality Preset buttons
+document.querySelectorAll(".preset-btn").forEach((btn) => {
+  addTapListener(btn, () => {
+    const preset = btn.dataset.preset;
+    setQualityPreset(preset, { renderer, camera, canvas, keyLight: key, postPipeline, effects });
+    document.querySelectorAll(".preset-btn").forEach((b) => b.classList.toggle("active", b === btn));
+    localStorage.setItem("mariokart.quality", preset);
+    if ($("preset-details-text")) {
+      const descriptions = {
+        low: "Low (Performance) · 0.85x Scale · Shadows Off · Fast Rendering",
+        medium: "Medium (Balanced) · 1.0x Scale · 1024 Soft Shadows · Low Battery Drain",
+        high: "High (HD) · 1.0x Scale · 1024 Soft Shadows · Bloom & FXAA",
+        ultra: "Ultra (Max Quality) · 1.0x Scale · 2048 Soft Shadows · Full HDR Bloom",
+      };
+      $("preset-details-text").textContent = descriptions[preset] || activeQuality.displayName;
+    }
+    try { audio.ui("cursor"); } catch (e) {}
+  });
+});
+
+// Bloom & Shadows Toggles
+const toggleBloomBtn = $("toggle-bloom");
+if (toggleBloomBtn) {
+  addTapListener(toggleBloomBtn, () => {
+    activeQuality.useBloom = !activeQuality.useBloom;
+    const w = Math.floor(innerWidth * (activeQuality.resolutionScale || 1.0));
+    const h = Math.floor(innerHeight * (activeQuality.resolutionScale || 1.0));
+    postPipeline.reconfigure(activeQuality, w, h);
+    toggleBloomBtn.textContent = activeQuality.useBloom ? "ON" : "OFF";
+    toggleBloomBtn.classList.toggle("active", activeQuality.useBloom);
+    try { audio.ui("cursor"); } catch (e) {}
+  });
+}
+
+const toggleShadowsBtn = $("toggle-shadows");
+if (toggleShadowsBtn) {
+  addTapListener(toggleShadowsBtn, () => {
+    activeQuality.shadows = !activeQuality.shadows;
+    renderer.shadowMap.enabled = activeQuality.shadows;
+    key.castShadow = activeQuality.shadows;
+    if (menuScene?.keyLight) menuScene.keyLight.castShadow = activeQuality.shadows;
+    toggleShadowsBtn.textContent = activeQuality.shadows ? "ON" : "OFF";
+    toggleShadowsBtn.classList.toggle("active", activeQuality.shadows);
+    try { audio.ui("cursor"); } catch (e) {}
+  });
+}
+
+// Audio Controls
+const sliderMaster = $("slider-volume-master");
+if (sliderMaster) {
+  sliderMaster.addEventListener("input", (e) => {
+    const val = Number(e.target.value);
+    audio.engine.volume = val / 100;
+    if (audio.engine.master && audio.engine.ctx) {
+      audio.engine.master.gain.setValueAtTime(audio.engine.enabled ? audio.engine.volume : 0, audio.engine.ctx.currentTime);
+    }
+    if ($("volume-master-val")) $("volume-master-val").textContent = val + "%";
+  });
+}
+
+const toggleAudioMaster = $("toggle-audio-master");
+if (toggleAudioMaster) {
+  addTapListener(toggleAudioMaster, () => {
+    audio.engine.enabled = !audio.engine.enabled;
+    if (audio.engine.master && audio.engine.ctx) {
+      audio.engine.master.gain.setValueAtTime(audio.engine.enabled ? audio.engine.volume : 0, audio.engine.ctx.currentTime);
+    }
+    toggleAudioMaster.textContent = audio.engine.enabled ? "SOUND ON" : "MUTE";
+    toggleAudioMaster.classList.toggle("active", audio.engine.enabled);
+    if ($("mute")) $("mute").textContent = audio.engine.enabled ? "♪ SOUND ON" : "♪ SOUND OFF";
+    try { audio.ui("cursor"); } catch (e) {}
+  });
+}
+
+const btnTestSound = $("btn-test-sound");
+if (btnTestSound) {
+  addTapListener(btnTestSound, () => {
+    try { audio.ui("start"); } catch (e) {}
+  });
+}
+
+// Diagnostics info
+if ($("device-renderer-info")) {
+  $("device-renderer-info").textContent = `${capabilities.rendererName || "Standard GPU"} · WebGL2: ${capabilities.webgl2 ? "YES" : "NO"} · DPR: ${(window.devicePixelRatio || 1).toFixed(1)}x`;
+}
+
+// Initialize showcase stat bars
+updateStatBars(selected, selectedKart);
 function pause(reason = "Take a breath. The race will wait.") {
   if (["ready", "results"].includes(race.state)) return;
   paused = true;
@@ -1059,8 +1331,12 @@ function draw(dt, now) {
     race.state === "countdown" ? race.count : race.state === "ready" ? 3 : 0,
   );
   for (const [i, r] of race.racers.entries()) {
-    const k = karts[i],
-      path = activeSurfaceTrack ? surfaceAt(r.s,r.lateral) : trackAt(r.s);
+    const k = karts[i];
+    if (race.state === "ready") {
+      k.root.visible = false;
+      k.shadow.visible = false;
+      continue;
+    }
     const cast = i === 0 || Math.hypot(r.x - p.x, r.z - p.z) < 18;
     if (k.cast !== cast) {
       k.model.traverse((o) => {
@@ -1241,52 +1517,50 @@ function draw(dt, now) {
       desired.aim[axis] = THREE.MathUtils.lerp(desired.aim[axis], p[axis] + basis.up[axis] * 1.4, finishBlend);
     }
   }
-  if (race.state === "ready") {
-    const t = -p.heading - Math.PI*.31 + Math.sin(now*.00008)*.045;
-    camTarget.set(p.x + Math.cos(t) * 7.6, p.y + 3.7, p.z + Math.sin(t) * 7.6);
-    cameraAimTarget.set(p.x-Math.sin(t)*2.65, p.y + 1.3, p.z+Math.cos(t)*2.65);
-    cameraUp.set(0, 1, 0);
+  if (race.state === "ready" || (menuCamera && menuCamera.isTransitioning)) {
+    menuScene.update(dt, now, camera);
+    menuCamera.update(dt, now);
+    initializedCamera = true;
   } else {
     camTarget.set(desired.eye.x, desired.eye.y, desired.eye.z);
     cameraAimTarget.set(desired.aim.x, desired.aim.y, desired.aim.z);
     const up = new V(desired.up.x, desired.up.y, desired.up.z);
     cameraUp.lerp(up, 1 - Math.exp(-dt * 7)).normalize();
+    if (!initializedCamera || debug.snapCamera) {
+      unconstrainedEye.copy(camTarget);
+      sceneryOffset.set(0,0,0);
+      cameraAim.copy(cameraAimTarget);
+      cameraUp.set(desired.up.x, desired.up.y, desired.up.z);
+      initializedCamera = true;
+      debug.snapCamera = false;
+    } else {
+      unconstrainedEye.lerp(camTarget, 1 - Math.exp(-dt * 13));
+      cameraAim.lerp(cameraAimTarget, 1 - Math.exp(-dt * 13));
+    }
+    // Smooth the intended rig independently. Feeding corrected eyes back into
+    // smoothing makes the camera repeatedly drift into and jump off the rail.
+    const safe = cameraClearance(unconstrainedEye, race.player.s);
+    camera.position.copy(safe);
+    const cameraNormal = activeSurfaceTrack && !p.gliding ? (p.surfaceNormal||surfaceAt(p.s,p.lateral).normal) : {x:0,y:1,z:0};
+    const cameraFocus = new V(p.x+cameraNormal.x*1.3,p.y+cameraNormal.y*1.3,p.z+cameraNormal.z*1.3);
+    const headFocus = driverCameraAnchor(karts[0].model,cameraFocus);
+    const upperHeadFocus = driverCameraAnchor(karts[0].model,cameraFocus,true);
+    const beforeClearance = camera.position.clone();
+    const resolvedEye = clearChaseView(cameraFocus,headFocus,camera.position,
+      new V(cameraNormal.x,cameraNormal.y,cameraNormal.z),avoidScenery,upperHeadFocus);
+    camera.position.copy(smoothChaseCorrection(beforeClearance,resolvedEye,cameraFocus,
+      upperHeadFocus,avoidScenery,sceneryOffset,dt));
+    camera.position.copy(cameraClearance(camera.position, race.player.s));
+    camera.up.copy(cameraUp);
+    camera.lookAt(clearanceLookTarget(beforeClearance,camera.position,headFocus,cameraAim));
+    camera.fov +=
+      (57 + boostFeedback.strength*5 + boostFeedback.kick*2 + (p.gliding ? 3 : 0) - camera.fov) *
+      (1 - Math.exp(-dt * 6));
+    // Leave the racer visible to the left of the results table.
+    if (finishBlend > 0) camera.setViewOffset(innerWidth, innerHeight, innerWidth * .22 * finishBlend, 0, innerWidth, innerHeight);
+    else camera.clearViewOffset();
+    camera.updateProjectionMatrix();
   }
-  if (!initializedCamera || debug.snapCamera) {
-    unconstrainedEye.copy(camTarget);
-    sceneryOffset.set(0,0,0);
-    cameraAim.copy(cameraAimTarget);
-    cameraUp.set(desired.up.x, desired.up.y, desired.up.z);
-    if (race.state === "ready") cameraUp.set(0, 1, 0);
-    initializedCamera = true;
-    debug.snapCamera = false;
-  } else {
-    unconstrainedEye.lerp(camTarget, 1 - Math.exp(-dt * 13));
-    cameraAim.lerp(cameraAimTarget, 1 - Math.exp(-dt * 13));
-  }
-  // Smooth the intended rig independently. Feeding corrected eyes back into
-  // smoothing makes the camera repeatedly drift into and jump off the rail.
-  const safe = cameraClearance(unconstrainedEye, race.player.s);
-  camera.position.copy(safe);
-  const cameraNormal = activeSurfaceTrack && !p.gliding ? (p.surfaceNormal||surfaceAt(p.s,p.lateral).normal) : {x:0,y:1,z:0};
-  const cameraFocus = new V(p.x+cameraNormal.x*1.3,p.y+cameraNormal.y*1.3,p.z+cameraNormal.z*1.3);
-  const headFocus = driverCameraAnchor(karts[0].model,cameraFocus);
-  const upperHeadFocus = driverCameraAnchor(karts[0].model,cameraFocus,true);
-  const beforeClearance = camera.position.clone();
-  const resolvedEye = clearChaseView(cameraFocus,headFocus,camera.position,
-    new V(cameraNormal.x,cameraNormal.y,cameraNormal.z),avoidScenery,upperHeadFocus);
-  camera.position.copy(smoothChaseCorrection(beforeClearance,resolvedEye,cameraFocus,
-    upperHeadFocus,avoidScenery,sceneryOffset,dt));
-  camera.position.copy(cameraClearance(camera.position, race.player.s));
-  camera.up.copy(cameraUp);
-  camera.lookAt(clearanceLookTarget(beforeClearance,camera.position,headFocus,cameraAim));
-  camera.fov +=
-    (57 + boostFeedback.strength*5 + boostFeedback.kick*2 + (p.gliding ? 3 : 0) - camera.fov) *
-    (1 - Math.exp(-dt * 6));
-  // Leave the racer visible to the left of the results table.
-  if (finishBlend > 0) camera.setViewOffset(innerWidth, innerHeight, innerWidth * .22 * finishBlend, 0, innerWidth, innerHeight);
-  else camera.clearViewOffset();
-  camera.updateProjectionMatrix();
   key.position.set(p.x - 30, p.y + 60, p.z + 25);
   for (let i = 0; i < trackLights.length; i++) {
     const stationIndex = Math.floor(p.s / 38) + i - 2,
@@ -1750,6 +2024,11 @@ window.__setLightingPreset = (presetName) => {
 window.__begin = begin;
 window.__karts = karts;
 window.__race = race;
+window.__menuScene = menuScene;
+window.__menuCamera = menuCamera;
+window.__chooseDriver = chooseDriver;
+window.__chooseKart = chooseKart;
+window.__startRaceWithTransition = startRaceWithTransition;
 
 if (new URLSearchParams(location.search).get('autostart') === '1') {
   setTimeout(() => begin(), 300);
