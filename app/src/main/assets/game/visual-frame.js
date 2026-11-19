@@ -78,19 +78,22 @@ export function chasePose(racer) {
     : roadFrame(racer.s, racer.lateral, racer.heading, racer.surfaceForward, racer.surfaceNormal);
   const { up: n, forward: f } = frame;
   // MK8-like composition: kart low in frame with room to read upcoming corners, road and landmarks ahead.
-  const back = racer.gliding ? 8.8 : 9.6,
-    height = racer.gliding ? 3.8 : 3.65;
+  const speedPull = Math.min(1.4, Math.max(0, ((racer.speed || 0) - 26) * 0.05)) + ((racer.boost || 0) > 0 ? 0.6 : 0);
+  const back = (racer.gliding ? 8.8 : 9.6) + speedPull;
+  const height = (racer.gliding ? 3.8 : 3.65) - Math.min(0.35, Math.max(0, ((racer.speed || 0) - 26) * 0.012));
+  const landingShock = (racer.landing > 0) ? Math.sin((racer.landing / 0.24) * Math.PI) * 0.28 : 0;
   const eye = cameraClearance(
     {
-      x: racer.x - f.x * back + n.x * height,
-      y: racer.y - f.y * back + n.y * height,
-      z: racer.z - f.z * back + n.z * height,
+      x: racer.x - f.x * back + n.x * (height - landingShock),
+      y: racer.y - f.y * back + n.y * (height - landingShock),
+      z: racer.z - f.z * back + n.z * (height - landingShock),
     },
     racer.s,
   );
-  const ahead = surfaceAt(racer.s + 14, racer.lateral * 0.55);
+  const driftLead = racer.drift ? racer.drift * 1.8 : 0;
+  const ahead = surfaceAt(racer.s + 14, racer.lateral * 0.55 + driftLead);
   const follow = racer.gliding ? 0 : 0.45;
-  const aimHeight=racer.gliding?1.3:3.1;
+  const aimHeight = racer.gliding ? 1.3 : 3.1;
   const aim = {
     x: (racer.x + f.x * 12) * (1 - follow) + ahead.x * follow + n.x * aimHeight,
     y: (racer.y + f.y * 12) * (1 - follow) + ahead.y * follow + n.y * aimHeight,

@@ -263,6 +263,101 @@ export function raceEffects(scene, random = Math.random, options = {}) {
     }
   }
 
+  function brakeSmoke(r, frame, dt) {
+    if (dt <= 0 || r.gliding || r.jump) return;
+    const { forward: f, right, up: n } = frame;
+    for (const side of [-1, 1]) {
+      const position = {
+        x: r.x - f.x * 1.15 + right.x * side * 1.05 + n.x * 0.12,
+        y: r.y - f.y * 1.15 + right.y * side * 1.05 + n.y * 0.12,
+        z: r.z - f.z * 1.15 + right.z * side * 1.05 + n.z * 0.12,
+      };
+      const velocity = {
+        x: -f.x * (1 + random() * 3) + right.x * (random() - 0.5) * 1.5 + n.x * (0.8 + random() * 1.2),
+        y: -f.y * (1 + random() * 3) + right.y * (random() - 0.5) * 1.5 + n.y * (0.8 + random() * 1.2),
+        z: -f.z * (1 + random() * 3) + right.z * (random() - 0.5) * 1.5 + n.z * (0.8 + random() * 1.2),
+      };
+      emit(position, velocity, '#d5dbe3', 0.55 + random() * 0.35, 0.32 + random() * 0.18, 1, n);
+    }
+  }
+
+  function burnoutPuff(r, frame) {
+    const { forward: f, right, up: n } = frame;
+    for (let i = 0; i < 18; i++) {
+      const side = (i % 2 ? 1 : -1) * (0.8 + random() * 0.5);
+      const position = {
+        x: r.x - f.x * 1.1 + right.x * side + n.x * 0.15,
+        y: r.y - f.y * 1.1 + right.y * side + n.y * 0.15,
+        z: r.z - f.z * 1.1 + right.z * side + n.z * 0.15,
+      };
+      const velocity = {
+        x: -f.x * (2 + random() * 4) + right.x * (random() - 0.5) * 3 + n.x * (1 + random() * 2),
+        y: -f.y * (2 + random() * 4) + right.y * (random() - 0.5) * 3 + n.y * (1 + random() * 2),
+        z: -f.z * (2 + random() * 4) + right.z * (random() - 0.5) * 3 + n.z * (1 + random() * 2),
+      };
+      emit(position, velocity, '#c8ced6', 0.8 + random() * 0.6, 0.45 + random() * 0.25, 1, n);
+    }
+  }
+
+  function offroadDust(r, frame, dt) {
+    if (dt <= 0 || r.gliding || r.jump) return;
+    const { forward: f, right, up: n } = frame;
+    const colors = ['#bf9e6f', '#9e8055', '#d4b383'];
+    for (const side of [-1, 1]) {
+      const position = {
+        x: r.x - f.x * 1.1 + right.x * side * 1.05 + n.x * 0.1,
+        y: r.y - f.y * 1.1 + right.y * side * 1.05 + n.y * 0.1,
+        z: r.z - f.z * 1.1 + right.z * side * 1.05 + n.z * 0.1,
+      };
+      const velocity = {
+        x: -f.x * (2 + random() * 4) + right.x * (random() - 0.5) * 2 + n.x * (1.2 + random() * 2),
+        y: -f.y * (2 + random() * 4) + right.y * (random() - 0.5) * 2 + n.y * (1.2 + random() * 2),
+        z: -f.z * (2 + random() * 4) + right.z * (random() - 0.5) * 2 + n.z * (1.2 + random() * 2),
+      };
+      emit(position, velocity, colors[Math.floor(random() * colors.length)], 0.5 + random() * 0.35, 0.3 + random() * 0.15, 1, n);
+    }
+  }
+
+  function wallSparks(r, frame, side = 1) {
+    const { forward: f, right, up: n } = frame;
+    const lateralOffset = (side < 0 ? -1 : 1) * 1.25;
+    const position = {
+      x: r.x + right.x * lateralOffset + n.x * 0.35,
+      y: r.y + right.y * lateralOffset + n.y * 0.35,
+      z: r.z + right.z * lateralOffset + n.z * 0.35,
+    };
+    const sparkColors = ['#ffea78', '#ffaa24', '#ffffff'];
+    for (let i = 0; i < 4; i++) {
+      const velocity = {
+        x: -f.x * (3 + random() * 6) - right.x * side * (1.5 + random() * 3) + n.x * (1 + random() * 3),
+        y: -f.y * (3 + random() * 6) - right.y * side * (1.5 + random() * 3) + n.y * (1 + random() * 3),
+        z: -f.z * (3 + random() * 6) - right.z * side * (1.5 + random() * 3) + n.z * (1 + random() * 3),
+      };
+      emit(position, velocity, sparkColors[i % sparkColors.length], 0.35 + random() * 0.25, 0.1 + random() * 0.12, 0, n);
+    }
+  }
+
+  function landingPuff(r, frame) {
+    const { forward: f, right, up: n } = frame;
+    for (let i = 0; i < 12; i++) {
+      const angle = (i / 12) * Math.PI * 2;
+      const dist = 1.3 + random() * 0.4;
+      const lateral = Math.cos(angle) * dist;
+      const along = Math.sin(angle) * dist;
+      const position = {
+        x: r.x + right.x * lateral + f.x * along + n.x * 0.1,
+        y: r.y + right.y * lateral + f.y * along + n.y * 0.1,
+        z: r.z + right.z * lateral + f.z * along + n.z * 0.1,
+      };
+      const velocity = {
+        x: (right.x * Math.cos(angle) + f.x * Math.sin(angle)) * (2 + random() * 3) + n.x * 0.5,
+        y: (right.y * Math.cos(angle) + f.y * Math.sin(angle)) * (2 + random() * 3) + n.y * 0.5,
+        z: (right.z * Math.cos(angle) + f.z * Math.sin(angle)) * (2 + random() * 3) + n.z * 0.5,
+      };
+      emit(position, velocity, '#e0e5eb', 0.65 + random() * 0.4, 0.35 + random() * 0.15, 1, n);
+    }
+  }
+
   function update(dt, height) {
     dt = Number.isFinite(dt) ? Math.max(0, dt) : 0;
     material.uniforms.viewport.value = height;
@@ -322,6 +417,11 @@ export function raceEffects(scene, random = Math.random, options = {}) {
   return {
     box,
     tire,
+    brakeSmoke,
+    burnoutPuff,
+    offroadDust,
+    wallSparks,
+    landingPuff,
     update,
     setParticleLimit,
     getParticleLimit: () => activeBudget,

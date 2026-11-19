@@ -57,6 +57,7 @@ import {
   makeGlider,
   rigWheels,
   disposeModel,
+  updateDriverAnimation,
 } from "./models.js";
 import { buildWorld, canvasTexture } from "./world.js";
 import { setMaterialCapabilities } from "./materials.js";
@@ -479,6 +480,72 @@ function addTapListener(el, handler) {
 }
 
 function setupTouchControls() {
+  const activeTouches = new Map();
+
+  const releaseAllTouch = () => {
+    wheel.setTouchSteer(0);
+    wheel.setTouchButton("gas", false);
+    wheel.setTouchButton("brake", false);
+    wheel.setTouchButton("drift", false);
+    wheel.setTouchButton("item", false);
+    activeTouches.clear();
+    document.querySelectorAll(".touch-btn").forEach((b) => b.classList.remove("active"));
+  };
+
+  const steerRow = document.querySelector(".steer-row");
+  const leftBtn = $("touch-steer-left");
+  const rightBtn = $("touch-steer-right");
+  if (steerRow && leftBtn && rightBtn) {
+    let steerPointerId = null;
+    const updateSteerFromPoint = (clientX) => {
+      const rect = steerRow.getBoundingClientRect();
+      const centerX = rect.left + rect.width / 2;
+      const norm = (clientX - centerX) / (rect.width / 2);
+      const deadzone = 0.1;
+      if (Math.abs(norm) < deadzone) {
+        wheel.setTouchSteer(0);
+        leftBtn.classList.remove("active");
+        rightBtn.classList.remove("active");
+      } else if (norm < 0) {
+        wheel.setTouchSteer(Math.max(-1, norm));
+        leftBtn.classList.add("active");
+        rightBtn.classList.remove("active");
+      } else {
+        wheel.setTouchSteer(Math.min(1, norm));
+        leftBtn.classList.remove("active");
+        rightBtn.classList.add("active");
+      }
+    };
+
+    const onSteerDown = (e) => {
+      if (e && e.cancelable) e.preventDefault();
+      steerPointerId = e.pointerId;
+      try { steerRow.setPointerCapture(e.pointerId); } catch (_) {}
+      updateSteerFromPoint(e.clientX);
+    };
+    const onSteerMove = (e) => {
+      if (steerPointerId !== null && e.pointerId === steerPointerId) {
+        if (e && e.cancelable) e.preventDefault();
+        updateSteerFromPoint(e.clientX);
+      }
+    };
+    const onSteerUp = (e) => {
+      if (steerPointerId !== null && (e.pointerId === undefined || e.pointerId === steerPointerId)) {
+        steerPointerId = null;
+        try { steerRow.releasePointerCapture(e.pointerId); } catch (_) {}
+        wheel.setTouchSteer(0);
+        leftBtn.classList.remove("active");
+        rightBtn.classList.remove("active");
+      }
+    };
+
+    steerRow.addEventListener("pointerdown", onSteerDown);
+    steerRow.addEventListener("pointermove", onSteerMove);
+    steerRow.addEventListener("pointerup", onSteerUp);
+    steerRow.addEventListener("pointercancel", onSteerUp);
+    steerRow.addEventListener("lostpointercapture", onSteerUp);
+  }
+
   const bindTouch = (id, onDown, onUp) => {
     const el = $(id);
     if (!el) return;
@@ -527,12 +594,8 @@ function setupTouchControls() {
       el.addEventListener("mousedown", press);
       el.addEventListener("mouseup", release);
     }
-
-    window.addEventListener("blur", release);
   };
 
-  bindTouch("touch-steer-left", () => wheel.setTouchSteer(-1), () => wheel.setTouchSteer(0));
-  bindTouch("touch-steer-right", () => wheel.setTouchSteer(1), () => wheel.setTouchSteer(0));
   bindTouch("touch-gas", () => wheel.setTouchButton("gas", true), () => wheel.setTouchButton("gas", false));
   bindTouch("touch-brake", () => wheel.setTouchButton("brake", true), () => wheel.setTouchButton("brake", false));
   bindTouch("touch-drift", () => wheel.setTouchButton("drift", true), () => wheel.setTouchButton("drift", false));
@@ -540,6 +603,13 @@ function setupTouchControls() {
     wheel.setTouchButton("item", true);
     itemPulse = true;
   }, () => wheel.setTouchButton("item", false));
+
+  window.addEventListener("pointercancel", releaseAllTouch);
+  window.addEventListener("blur", releaseAllTouch);
+  window.addEventListener("pagehide", releaseAllTouch);
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) releaseAllTouch();
+  });
 
   const tiltToggle = $("touch-tilt-toggle");
   if (tiltToggle) {
@@ -593,13 +663,35 @@ function onEvent(e) {
   if(e.type==='box' && race.boxes[e.box]){const b=race.boxes[e.box];effects.box(surfaceAt(b.s,b.lateral),race.time);}
   if(e.type==='contact'){
     burst(race.racers[e.racer],5,'#fff1b8');
-    if(e.racer===0)triggerRumble(35);
+    if(e.racer===0) {
+      triggerRumble(35);
+      cameraImpulse.set((Math.random() - 0.5) * 0.12, 0.04, -0.08);
+    }
+  }
+  if(e.type==='wall' && e.racer===0){
+    cameraImpulse.set((Math.random() - 0.5) * 0.16, 0.08, -0.12);
+    triggerRumble([40, 20]);
   }
   if(e.type==='hit' && race?.racers[e.racer]){
     const r=race.racers[e.racer];burst(r,28,e.cause==='blue'?'#98dbff':'#fff0a0');
     if(e.cause==='blue'){
       const ball=new THREE.Mesh(new THREE.SphereGeometry(1,32,20),new THREE.MeshBasicMaterial({color:'#b9eaff',transparent:true,opacity:.65,depthWrite:false,blending:THREE.AdditiveBlending}));
       ball.position.set(r.x,r.y+1,r.z);scene.add(ball);itemImpacts.push({mesh:ball,start:race.time});
+    }
+    if (e.racer === 0) {
+      cameraImpulse.set((Math.random() - 0.5) * 0.28, 0.18, -0.22);
+    }
+  }
+  if (e.type === 'burnout' && race?.racers[e.racer]) {
+    const r = race.racers[e.racer];
+    if (effects?.burnoutPuff) effects.burnoutPuff(r, roadFrame(r.s, r.lateral, r.heading, r.surfaceForward, r.surfaceNormal));
+  }
+  if (e.type === 'land' && race?.racers[e.racer]) {
+    const r = race.racers[e.racer];
+    if (effects?.landingPuff) effects.landingPuff(r, roadFrame(r.s, r.lateral, r.heading, r.surfaceForward, r.surfaceNormal));
+    if (e.racer === 0) {
+      cameraImpulse.set(0, -0.16, 0.06);
+      triggerRumble(25);
     }
   }
   audio.event(e, race);
@@ -1117,8 +1209,12 @@ window.addEventListener("blur", () => {
     pause("Window lost focus. Press Enter to resume.");
 });
 document.addEventListener("visibilitychange", () => {
-  if (document.hidden) pause("The race paused while this tab was hidden.");
-  else if (paused) queueMicrotask(() => audio.engine.ctx?.suspend());
+  if (document.hidden) {
+    pause("The race paused while this tab was hidden.");
+    audio.engine.ctx?.suspend();
+  } else if (!paused && race.state !== "ready") {
+    audio.engine.ctx?.resume();
+  }
 });
 window.addEventListener("pagehide", () => {
   audio.stop();
@@ -1344,6 +1440,7 @@ function burst(r, n, color) {
 }
 const objectMeshes = new Map();
 const itemImpacts=[];
+const cameraImpulse = new V();
 const camTarget = new V(),
   unconstrainedEye = new V(),
   sceneryOffset = new V(),
@@ -1416,11 +1513,18 @@ function draw(dt, now) {
     if(r.landing>0)k.root.position.y-=Math.sin((1-r.landing/.24)*Math.PI)*.16;
     k.wasGliding = r.gliding;
     if (!r.gliding) k.launchOrientation = null;
-    k.model.rotation.y = r.spin > 0 ? time * 15 : r.drift ? -r.drift * 0.25 : 0;
-    k.model.rotation.z = (r.gliding ? -r.steer * 0.15 : -r.steer * 0.07) + Math.sin((r.contactAnimation||0)/.42*Math.PI*2)*(r.contactAnimation||0)*.55*(r.contactSide||.4);
+    k.model.rotation.x = r.pitchSuspension || 0;
+    k.model.rotation.y = r.spin > 0 ? time * 15 : r.drift ? -r.drift * (0.22 + 0.08 * (r.steer * r.drift)) : 0;
+    k.model.rotation.z = (r.gliding ? -r.steer * 0.15 : -r.steer * 0.08)
+      + (r.rollSuspension || 0)
+      + Math.sin((r.contactAnimation||0)/.42*Math.PI*2)*(r.contactAnimation||0)*.55*(r.contactSide||.4);
     updateDriverLook(k, r, race.racers, paused ? 0 : dt, race.state === "racing");
+    if (!paused) updateDriverAnimation(k, r, race.state, dt);
     if (k.mixer && !paused) k.mixer.update(dt);
-    if (k.driver) k.driver.rotation.z = -r.steer * 0.12;
+    if (k.driver) {
+      k.driver.rotation.z = -r.steer * 0.16 + (r.drift ? -r.drift * 0.18 : 0);
+      k.driver.rotation.x = (r.pitchSuspension || 0) * 0.6;
+    }
     updateHeldItem(k.model, r, paused ? 0 : dt);
     updateBoostEffect(k.boostEffect,k.model,r.boost,time+i*.17);
     updateStarModel(k.model,r.star>0,(time*.65+i*.1)%1);
@@ -1433,8 +1537,8 @@ function draw(dt, now) {
         w.userData.rolling.rotation.x -= (r.speed * dt) / 0.39;
       const hover = w.userData.sourceTireMeshes ? (k.wheelHover||0) : r.anti?1:0;
       updateSourceWheel(w,hover);
-      w.rotation.z = hover * ((wi % 2 ? 1 : -1) * Math.PI) / 2;
-      w.rotation.y = wi < 2 ? -r.steer * 0.32 : 0;
+      w.rotation.z = hover * ((wi % 2 ? 1 : -1) * Math.PI) / 2 + (r.drift && wi < 2 ? (wi % 2 ? 1 : -1) * 0.06 : 0);
+      w.rotation.y = wi < 2 ? -r.steer * 0.38 + (r.drift ? -r.drift * 0.12 : 0) : 0;
     }
     updateHoverGlow(k, r, hop);
     updateGlider(k.glider,r,time);
@@ -1451,7 +1555,14 @@ function draw(dt, now) {
       k.shadow.quaternion.copy(k.root.quaternion);
       k.shadow.rotateX(-Math.PI / 2);
     } else k.shadow.rotation.set(-Math.PI / 2, 0, r.heading);
-    effects.tire(r,roadFrame(r.s,r.lateral,r.heading,r.surfaceForward,r.surfaceNormal),paused?0:dt);
+    const rFrame = roadFrame(r.s, r.lateral, r.heading, r.surfaceForward, r.surfaceNormal);
+    effects.tire(r, rFrame, paused ? 0 : dt);
+    if (!paused) {
+      if (r.lastInput?.brake && r.speed > 12) effects.brakeSmoke(r, rFrame, dt);
+      const isOffroad = !r.gliding && !r.jump && (activeSurfaceTrack ? !activeSurfaceTrack.onRoad(r.s, r.lateral, r) : Math.abs(r.lateral) > ROAD_HALF + 0.2);
+      if (isOffroad && r.speed > 8) effects.offroadDust(r, rFrame, dt);
+      if (r.wallScraping && r.speed > 8) effects.wallSparks(r, rFrame, r.lateral < 0 ? -1 : 1);
+    }
   }
   effects.update(paused?0:dt,innerHeight);
   for (const [i, m] of coinMeshes.entries()) {
@@ -1587,11 +1698,15 @@ function draw(dt, now) {
     camera.position.copy(smoothChaseCorrection(beforeClearance,resolvedEye,cameraFocus,
       upperHeadFocus,avoidScenery,sceneryOffset,dt));
     camera.position.copy(cameraClearance(camera.position, race.player.s));
+    camera.position.add(cameraImpulse);
+    cameraImpulse.multiplyScalar(Math.exp(-dt * 14));
     camera.up.copy(cameraUp);
     camera.lookAt(clearanceLookTarget(beforeClearance,camera.position,headFocus,cameraAim));
+    const speedFov = Math.min(8, Math.max(0, ((p.speed || 0) - 24) * 0.28));
+    const targetFov = 57 + speedFov + boostFeedback.strength * 5 + boostFeedback.kick * 2.5 + (p.gliding ? 3 : 0);
     camera.fov +=
-      (57 + boostFeedback.strength*5 + boostFeedback.kick*2 + (p.gliding ? 3 : 0) - camera.fov) *
-      (1 - Math.exp(-dt * 6));
+      (targetFov - camera.fov) *
+      (1 - Math.exp(-dt * 6.5));
     // Leave the racer visible to the left of the results table.
     if (finishBlend > 0) camera.setViewOffset(innerWidth, innerHeight, innerWidth * .22 * finishBlend, 0, innerWidth, innerHeight);
     else camera.clearViewOffset();

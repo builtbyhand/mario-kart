@@ -502,13 +502,28 @@ export function buildGLBKart(id, kartGltf, charGltf, customScale = null) {
 
     mixer = new THREE.AnimationMixer(driverScene);
 
+    const actions = {};
+    if (charGltf.animations) {
+      for (const clip of charGltf.animations) {
+        actions[clip.name] = mixer.clipAction(clip);
+      }
+    }
+
+    let initialAction = null;
+    let initialClipName = null;
     const driveClip =
       charGltf.animations?.find((a) => a.name === "drive") ||
       charGltf.animations?.[0];
     if (driveClip) {
-      const action = mixer.clipAction(driveClip);
-      action.play();
+      initialAction = actions[driveClip.name] || mixer.clipAction(driveClip);
+      initialAction.play();
+      initialClipName = driveClip.name;
     }
+    Object.defineProperties(driverScene.userData, {
+      currentAction: { value: initialAction, enumerable: false, writable: true },
+      actions: { value: actions, enumerable: false, writable: true },
+      currentClipName: { value: initialClipName, enumerable: true, writable: true },
+    });
 
     driverScene.scale.setScalar(spec.driverScale);
     driverScene.position.set(...spec.driverOffset);
@@ -550,6 +565,36 @@ export function buildGLBKart(id, kartGltf, charGltf, customScale = null) {
     driver: driverScene,
     driverHead,
   };
+}
+
+export function updateDriverAnimation(kart, racer, raceState, dt) {
+  if (!kart || !racer) return;
+  const driver = kart.driver || kart.model?.userData?.driver;
+  if (!driver || !driver.userData?.actions) return;
+
+  const actions = driver.userData.actions;
+  let targetClip = "drive";
+
+  if (racer.spin > 0) {
+    targetClip = actions["emote-no"] ? "emote-no" : actions["die"] ? "die" : "drive";
+  } else if (racer.jump || racer.gliding) {
+    targetClip = actions["jump"] ? "jump" : actions["fall"] ? "fall" : "drive";
+  } else if (racer.landing > 0) {
+    targetClip = actions["crouch"] ? "crouch" : "drive";
+  } else if (raceState === "finishing" || raceState === "results") {
+    targetClip = actions["emote-yes"] ? "emote-yes" : "drive";
+  }
+
+  const current = driver.userData.currentAction;
+  const target = actions[targetClip];
+
+  if (target && target !== current) {
+    const fade = targetClip === "emote-yes" ? 0.3 : 0.18;
+    target.reset().fadeIn(fade).play();
+    if (current) current.fadeOut(fade);
+    driver.userData.currentAction = target;
+    driver.userData.currentClipName = targetClip;
+  }
 }
 
 export function rigWheels(model) {

@@ -32,6 +32,7 @@ export class KartAudio {
     this.sfxVolume = this.engine.sfxVolume;
     this.original = new SampledKartAudio(this.engine);
     this.motor = null;
+    this.screech = null;
     this.music = null;
     this.musicGain = null;
     this.stopped = false;
@@ -39,7 +40,10 @@ export class KartAudio {
     this.nextBeat = 0;
     for (const [i, type] of EVENT_TYPES.entries())
       this.engine.register("mk-" + type, (a, opts = {}) => {
-        if (["hit", "wall", "burnout", "bump"].includes(type)) {
+        if (type === "wall") {
+          a.noise({ dur: 0.22, gain: 0.16, freq: 2400, sweepTo: 600 });
+          a.tone({ freq: 110, slideTo: 65, dur: 0.2, type: "triangle", gain: 0.08 });
+        } else if (["hit", "burnout", "bump"].includes(type)) {
           a.noise({ dur: 0.3, gain: 0.23, freq: 500, sweepTo: 90 });
           a.tone({
             freq: 145,
@@ -47,6 +51,19 @@ export class KartAudio {
             dur: 0.35,
             type: "sawtooth",
             gain: 0.09,
+          });
+        } else if (type === "hop") {
+          a.tone({ freq: 220, slideTo: 360, dur: 0.08, gain: 0.06, type: "sine" });
+        } else if (type === "drift") {
+          const tier = opts.tier || 1;
+          const chimeNotes = [
+            [],
+            [880, 1174],
+            [1046, 1318, 1568],
+            [1318, 1568, 1760, 2093]
+          ][Math.min(3, tier)] || [880, 1174];
+          chimeNotes.forEach((freq, ci) => {
+            a.tone({ freq, delay: ci * 0.045, dur: 0.18, gain: 0.09, type: "triangle" });
           });
         } else if (
           ["boost", "turbo", "rocket", "glider", "antigrav"].includes(type)
@@ -113,7 +130,21 @@ export class KartAudio {
       osc.frequency.value = 48;
       osc.connect(filter).connect(g).connect(this.engine.sfxBus || this.engine.master);
       osc.start();
-      this.motor = { osc, g, override: null };
+      this.motor = { osc, g, filter, override: null };
+
+      // Tire screech & brake squeal synthesizer
+      const screechG = ctx.createGain();
+      screechG.gain.value = 0;
+      const screechFilter = ctx.createBiquadFilter();
+      screechFilter.type = "bandpass";
+      screechFilter.frequency.value = 850;
+      if (screechFilter.Q) screechFilter.Q.value = 3.0;
+      const screechOsc = ctx.createOscillator();
+      screechOsc.type = "sawtooth";
+      screechOsc.frequency.value = 700;
+      screechOsc.connect(screechFilter).connect(screechG).connect(this.engine.sfxBus || this.engine.master);
+      screechOsc.start();
+      this.screech = { osc: screechOsc, filter: screechFilter, g: screechG };
       this.engine.loadOverride("mk-engine").then((buffer) => {
         if (!buffer || !this.motor) return;
         const s = ctx.createBufferSource();
@@ -185,8 +216,18 @@ export class KartAudio {
     if (!ctx || !this.motor) return;
     const r = race.player,
       active = !["ready", "results"].includes(race.state);
+    const isGas = Boolean(r.lastInput?.gas);
+    const isBrake = Boolean(r.lastInput?.brake);
+
+    if (this.motor.filter) {
+      this.motor.filter.frequency.setTargetAtTime(
+        isGas ? 720 : 460,
+        ctx.currentTime,
+        0.08
+      );
+    }
     this.motor.osc.frequency.setTargetAtTime(
-      engineFrequency(r.speed),
+      engineFrequency(r.speed) + (isGas ? 8 : 0),
       ctx.currentTime,
       0.045,
     );
@@ -207,6 +248,23 @@ export class KartAudio {
       ctx.currentTime,
       0.15,
     );
+
+    // Dynamic screech / squeal sound
+    if (this.screech) {
+      if (r.drift && active && r.speed > 8) {
+        const targetFreq = 700 + ((r.charge || 0) / 3.4) * 450;
+        this.screech.osc.frequency.setTargetAtTime(targetFreq, ctx.currentTime, 0.05);
+        this.screech.filter.frequency.setTargetAtTime(targetFreq, ctx.currentTime, 0.05);
+        this.screech.g.gain.setTargetAtTime(0.04 * this.sfxVolume, ctx.currentTime, 0.05);
+      } else if (isBrake && r.speed > 12 && active) {
+        this.screech.osc.frequency.setTargetAtTime(1250, ctx.currentTime, 0.05);
+        this.screech.filter.frequency.setTargetAtTime(1250, ctx.currentTime, 0.05);
+        this.screech.g.gain.setTargetAtTime(0.03 * this.sfxVolume, ctx.currentTime, 0.05);
+      } else {
+        this.screech.g.gain.setTargetAtTime(0, ctx.currentTime, 0.06);
+      }
+    }
+
     if (
       !this.music &&
       active &&
@@ -238,11 +296,17 @@ export class KartAudio {
         this.music.stop();
       } catch {}
     }
+    if (this.screech) {
+      try {
+        this.screech.osc.stop();
+      } catch {}
+      this.screech = null;
+    }
     if (this.motor) {
       this.motor.osc.stop();
       this.motor.override?.stop();
       this.motor = null;
     }
-    this.engine.ctx?.suspend();
+    this.engine.ctx?.suspend?.();
   }
 }

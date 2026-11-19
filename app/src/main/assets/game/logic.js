@@ -136,6 +136,10 @@ function makeRacer(character, i) {
     itemDelay: 3 + i * 0.37,
     wallCooldown: 0,
     bumpCooldown: 0,
+    pitchSuspension: 0,
+    rollSuspension: 0,
+    landingBounce: 0,
+    wallScraping: false,
   };
 }
 export class Race {
@@ -309,7 +313,7 @@ export class Race {
     if (input.item && !r.lastInput.item) this.useItem(r);
     const spinning = r.spin > 0;
     const steer = spinning ? 0 : input.steer;
-    r.steer += (steer - r.steer) * (1 - Math.exp(-dt * 20));
+    r.steer += (steer - r.steer) * (1 - Math.exp(-dt * 24));
     if (
       input.drift &&
       !r.lastInput.drift &&
@@ -323,8 +327,9 @@ export class Race {
     if (
       input.drift &&
       !r.drift &&
-      Math.abs(steer) > 0.14 &&
-      r.speed > 12 &&
+      (r.hop > 0 || !r.lastInput.drift) &&
+      Math.abs(steer) > 0.12 &&
+      r.speed > 10 &&
       !r.gliding &&
       !spinning
     ) {
@@ -334,7 +339,8 @@ export class Race {
     if (r.drift && (!input.drift || r.speed < 8 || spinning || r.gliding)) {
       const tier = turboTier(r.charge);
       if (tier && !spinning) {
-        r.boost = Math.max(r.boost, [0, 0.65, 1.35, 2.15][tier]);
+        r.boost = Math.max(r.boost, [0, 0.75, 1.45, 2.25][tier]);
+        r.speed = Math.min(topSpeed(r.coins) + 8, r.speed + [0, 3.5, 7.0, 10.5][tier]);
         this.emit("turbo", r, { tier });
       }
       r.drift = 0;
@@ -342,7 +348,9 @@ export class Race {
       r.tier = 0;
     }
     if (r.drift) {
-      r.charge += dt * (0.7 + 0.7 * Math.abs(steer));
+      // Faster charge when steering aggressively into the apex of the drift
+      const inwardSteer = Math.max(0, steer * r.drift);
+      r.charge += dt * (0.75 + 0.9 * inwardSteer);
       const tier = turboTier(r.charge);
       if (tier > r.tier) {
         r.tier = tier;
@@ -362,18 +370,41 @@ export class Race {
     if (offroad && r.boost <= 0 && r.star <= 0) max *= 0.43;
     if (spinning) r.speed *= Math.exp(-5 * dt);
     else if (input.brake) {
-      r.speed = Math.max(-10, r.speed - 28 * dt);
+      if (r.speed > 3) {
+        // High speed braking: firm traction deceleration
+        r.speed = Math.max(0, r.speed - 32 * dt);
+      } else {
+        // Low speed: smooth reverse up to -10 m/s
+        r.speed = Math.max(-10, r.speed - 16 * dt);
+      }
     } else if (input.gas) {
-      r.speed += (r.boost > 0 || r.star > 0 ? 35 : 15) * dt;
+      // Punchier low-end torque curve tapering to top speed
+      const accelRate = (r.boost > 0 || r.star > 0 ? 36 : (18 * Math.max(0.65, 1 - (r.speed / Math.max(1, max)) * 0.45)));
+      r.speed += accelRate * dt;
       r.speed = Math.min(r.speed, max);
     } else {
-      r.speed = Math.sign(r.speed) * Math.max(0, Math.abs(r.speed) - 5.5 * dt);
+      r.speed = Math.sign(r.speed) * Math.max(0, Math.abs(r.speed) - 5.8 * dt);
     }
     if (r.speed > max) r.speed = Math.max(max, r.speed - 36 * dt);
-    // No sensor angular integration, yaw momentum or centrifugal term: zero wheel
-    // means exactly straight in world space. Turn rate is bounded at every speed.
-    const turn = (r.drift ? r.drift * 0.12 + r.steer * 0.92 : r.steer) * 1.48;
+    // Drift counter-steering: steering inward tightens; counter-steering outward widens the line
+    const driftSteerMod = r.drift ? (0.72 + 0.38 * (r.steer * r.drift)) : 1.0;
+    const turn = (r.drift ? r.drift * 0.16 + r.steer * 0.88 * driftSteerMod : r.steer) * 1.52;
     const turnAngle = turn * clamp(r.speed / 20, -0.5, 1) * dt * (r.gliding ? 0.52 : 1);
+
+    // Dynamic suspension pitch & roll
+    let targetPitch = 0;
+    if (spinning) targetPitch = 0;
+    else if (input.brake && r.speed > 1) targetPitch = 0.07;
+    else if (r.boost > 0) targetPitch = -0.06;
+    else if (input.gas && r.speed < max) targetPitch = -0.035;
+    r.pitchSuspension = (r.pitchSuspension || 0) + (targetPitch - (r.pitchSuspension || 0)) * (1 - Math.exp(-dt * 14));
+
+    const targetRoll = r.gliding ? -r.steer * 0.12 : (-turn * 0.08 - (r.drift ? r.drift * 0.14 : 0));
+    r.rollSuspension = (r.rollSuspension || 0) + (targetRoll - (r.rollSuspension || 0)) * (1 - Math.exp(-dt * 16));
+
+    if (r.landingBounce > 0) {
+      r.landingBounce = Math.max(0, r.landingBounce - dt * 3.5);
+    }
     const previousS = r.s,
       previousProgress = r.progress;
     if(activeSurfaceTrack?.hasRoadMesh){const launch=sourceJumpLaunch(r,dt);if(launch){r.jump=launch;r.drift=0;r.charge=0;this.emit('rampJump',r);}}
@@ -412,10 +443,13 @@ export class Race {
         else r.heading=angle(tangent+error*.6);
         r.speed *= 0.86;
       }
+      r.wallScraping = true;
       if (r.wallCooldown <= 0) {
-        this.emit("wall", r);
+        this.emit("wall", r, { side });
         r.wallCooldown = 0.5;
       }
+    } else {
+      r.wallScraping = false;
     }
     let advance = wrap(r.s - previousS + L / 2, L) - L / 2;
     advance = clamp(
@@ -488,6 +522,7 @@ export class Race {
         r.y = ground.y;
         if(activeSurfaceTrack){const support=activeSurfaceTrack.support(r,ground.normal)||ground;r.x=support.x;r.y=support.y;r.z=support.z;r.surfaceNormal=support.normal;}
         r.boost = Math.max(r.boost, 0.3);
+        r.landingBounce = 1.0;
         this.emit("land", r);
       }
     } else if(!activeSurfaceTrack) r.y = surfaceAt(r.s, r.lateral).y;
@@ -496,7 +531,7 @@ export class Race {
       const ground=activeSurfaceTrack.support(r,{x:0,y:1,z:0})||surfaceAt(r.s,r.lateral);
       if(j.velocity<0 && r.y<=ground.y){
         r.y=ground.y;r.surfaceNormal=ground.normal;r.surfaceForward=null;r.jump=null;r.jumpCooldown=.35;
-        r.landing=.24;r.boost=Math.max(r.boost,.55);this.emit('land',r);
+        r.landing=.24;r.landingBounce = 1.0;r.boost=Math.max(r.boost,.55);this.emit('land',r);
       }
     }
     if(activeSurfaceTrack&&!r.gliding&&!r.jump&&activeSurfaceTrack.onBoost(r.s,r.lateral,r)){
