@@ -25,13 +25,16 @@ import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.webkit.WebViewAssetLoader
 import org.json.JSONArray
 
 class MainActivity : AppCompatActivity(), SensorEventListener {
@@ -85,17 +88,32 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         setupWebView()
         setContentView(webView)
 
+        // Handle modern gesture/hardware back navigation cleanly
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                webView.evaluateJavascript("document.getElementById('pause-btn')?.click();", null)
+            }
+        })
+
         hideSystemUI()
     }
 
     @SuppressLint("SetJavaScriptEnabled")
     private fun setupWebView() {
+        val assetLoader = WebViewAssetLoader.Builder()
+            .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(this))
+            .build()
+
         webView = WebView(this).apply {
             setLayerType(View.LAYER_TYPE_HARDWARE, null)
             setBackgroundColor(0xFF081325.toInt())
             isFocusable = true
             isFocusableInTouchMode = true
             requestFocus()
+            scrollBarStyle = View.SCROLLBARS_INSIDE_OVERLAY
+            isVerticalScrollBarEnabled = false
+            isHorizontalScrollBarEnabled = false
+            overScrollMode = View.OVER_SCROLL_NEVER
 
             settings.apply {
                 javaScriptEnabled = true
@@ -103,6 +121,10 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
                 mediaPlaybackRequiresUserGesture = false
                 allowFileAccess = true
                 allowContentAccess = true
+                @Suppress("DEPRECATION")
+                allowFileAccessFromFileURLs = true
+                @Suppress("DEPRECATION")
+                allowUniversalAccessFromFileURLs = true
                 useWideViewPort = true
                 loadWithOverviewMode = true
                 cacheMode = WebSettings.LOAD_DEFAULT
@@ -121,6 +143,16 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
             }
 
             webViewClient = object : WebViewClient() {
+                override fun shouldInterceptRequest(
+                    view: WebView?,
+                    request: WebResourceRequest?
+                ): WebResourceResponse? {
+                    val uri = request?.url ?: return null
+                    val response = assetLoader.shouldInterceptRequest(uri)
+                    Log.d("MarioKartLoader", "Intercepted: $uri -> response: $response")
+                    return response
+                }
+
                 override fun onPageFinished(view: WebView?, url: String?) {
                     super.onPageFinished(view, url)
                     hideSystemUI()
@@ -132,11 +164,11 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
                     error: WebResourceError?
                 ) {
                     super.onReceivedError(view, request, error)
-                    Log.e("MarioKart", "WebView error: ${error?.description}")
+                    Log.e("MarioKart", "WebView error: ${error?.description} for ${request?.url}")
                 }
             }
 
-            loadUrl("file:///android_asset/game/index.html")
+            loadUrl("https://appassets.androidplatform.net/assets/game/index.html")
         }
     }
 
@@ -152,6 +184,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         super.onResume()
         hideSystemUI()
         webView.onResume()
+        webView.resumeTimers()
         accelerometer?.let {
             sensorManager?.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME)
         }
@@ -159,7 +192,9 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
 
     override fun onPause() {
         super.onPause()
+        webView.evaluateJavascript("window.dispatchEvent(new Event('blur'));", null)
         webView.onPause()
+        webView.pauseTimers()
         sensorManager?.unregisterListener(this)
     }
 

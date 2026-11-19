@@ -120,7 +120,7 @@ export const QUALITY_PRESETS = {
     resolutionScale: 1.0,
     shadows: true,
     shadowMapSize: 1024,
-    shadowMapType: "pcfsoft",
+    shadowMapType: "pcf",
     antialias: true,
     useBloom: false,
     useFXAA: false,
@@ -136,7 +136,7 @@ export const QUALITY_PRESETS = {
     resolutionScale: 1.0,
     shadows: true,
     shadowMapSize: 1024,
-    shadowMapType: "pcfsoft",
+    shadowMapType: "pcf",
     antialias: true,
     useBloom: true,
     useFXAA: true,
@@ -152,7 +152,7 @@ export const QUALITY_PRESETS = {
     resolutionScale: 1.0,
     shadows: true,
     shadowMapSize: 2048,
-    shadowMapType: "pcfsoft",
+    shadowMapType: "pcf",
     antialias: true,
     useBloom: true,
     useFXAA: true,
@@ -230,11 +230,21 @@ export const LIGHTING_PRESETS = {
 /**
  * Resolve quality preset from URL query override or device environment.
  */
-export function getDefaultQualityPreset() {
+export function getDefaultQualityPreset(capabilities = null) {
   if (typeof location !== "undefined") {
     const param = new URLSearchParams(location.search).get("quality")?.toLowerCase();
     if (param && QUALITY_PRESETS[param]) {
       return QUALITY_PRESETS[param];
+    }
+  }
+  // Automatic profile detection based on GPU capabilities
+  if (capabilities) {
+    if (!capabilities.webgl2 || capabilities.maxTextureSize < 4096 || capabilities.maxAnisotropy <= 1) {
+      return QUALITY_PRESETS.low;
+    }
+    const renderer = (capabilities.rendererName || "").toLowerCase();
+    if (/mali-4|mali-t|adreno 3|adreno 505|adreno 506|powervr/i.test(renderer)) {
+      return QUALITY_PRESETS.low;
     }
   }
   if (isTv) return QUALITY_PRESETS.medium;

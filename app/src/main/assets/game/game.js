@@ -38,6 +38,7 @@ import {
 import {
   activeSurfaceTrack,
   useSourceTrack,
+  ROAD_HALF,
   trackAt,
   surfaceAt,
   TRACK_LENGTH as L,
@@ -121,7 +122,7 @@ canvas.style.height = innerHeight + "px";
 
 renderer.shadowMap.enabled = activeQuality.shadows;
 if (renderer.shadowMap.enabled) {
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.type = THREE.PCFShadowMap;
 }
 renderer.toneMapping = THREE.AgXToneMapping;
 renderer.toneMappingExposure = activeQuality.toneMappingExposure || RENDER_CONFIG.toneMappingExposure;
@@ -143,7 +144,7 @@ canvas.addEventListener("webglcontextrestored", () => {
   renderer.toneMapping = THREE.AgXToneMapping;
   renderer.toneMappingExposure = activeQuality.toneMappingExposure;
   if (renderer.shadowMap.enabled) {
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.shadowMap.type = THREE.PCFShadowMap;
   }
 });
 
@@ -2018,6 +2019,44 @@ window.__menuCamera = menuCamera;
 window.__chooseDriver = chooseDriver;
 window.__chooseKart = chooseKart;
 window.__startRaceWithTransition = startRaceWithTransition;
+window.__renderer = renderer;
+window.__setQualityPreset = (key) => setQualityPreset(key, { renderer, camera, canvas, keyLight: key, postPipeline, effects });
+window.__resetPerfMetrics = function () {
+  frameTimes.length = 0;
+};
+window.__getPerfMetrics = function () {
+  const times = frameTimes.slice(-120);
+  if (times.length === 0) return null;
+  const sorted = [...times].sort((a, b) => a - b);
+  const sum = sorted.reduce((a, b) => a + b, 0);
+  const mean = sum / sorted.length;
+  const p50 = sorted[Math.floor(sorted.length * 0.5)];
+  const p95 = sorted[Math.floor(sorted.length * 0.95)];
+  const p99 = sorted[Math.floor(sorted.length * 0.99)];
+  const min = sorted[0];
+  const max = sorted[sorted.length - 1];
+  const fps = mean > 0 ? 1000 / mean : 0;
+  return {
+    fps: Number(fps.toFixed(1)),
+    meanMs: Number(mean.toFixed(2)),
+    p50Ms: Number(p50.toFixed(2)),
+    p95Ms: Number(p95.toFixed(2)),
+    p99Ms: Number(p99.toFixed(2)),
+    minMs: Number(min.toFixed(2)),
+    maxMs: Number(max.toFixed(2)),
+    sampleCount: times.length,
+    totalFrames: renderCount,
+    drawCalls: renderer.info.render.calls,
+    triangles: renderer.info.render.triangles,
+    geometries: renderer.info.memory.geometries,
+    textures: renderer.info.memory.textures,
+    preset: activeQuality.name,
+    resolutionScale: activeQuality.resolutionScale,
+    maxPixelRatio: activeQuality.maxPixelRatio,
+    shadows: activeQuality.shadows,
+    particleLimit: activeQuality.particleLimit,
+  };
+};
 
 if (new URLSearchParams(location.search).get('autostart') === '1') {
   setTimeout(() => begin(), 300);
