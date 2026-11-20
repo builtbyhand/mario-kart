@@ -700,6 +700,7 @@ export async function loadKartPack(karts, onProgress = () => {}) {
         kartObj.root.remove(kartObj.model);
         disposeModel(kartObj.model);
         kartObj.root.add(glbResult.model);
+        glbResult.model.traverse((o) => { if (o.isMesh) o.frustumCulled = false; });
         kartObj.model = glbResult.model;
         kartObj.wheels = glbResult.wheels;
         kartObj.mixer = glbResult.mixer;

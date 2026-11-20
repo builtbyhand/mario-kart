@@ -738,6 +738,17 @@ function begin() {
   wheel.reset();
   captureUntil = performance.now() + 3000;
   document.body.classList.remove("in-menu");
+  document.body.classList.remove("results-screen", "paused");
+  setTimeout(() => {
+    const k = karts[0], e = $("error");
+    if (!k || !e) return;
+    let meshes = 0, hidden = 0;
+    k.model.traverse((o) => { if (o.isMesh) { meshes++; if (!o.visible) hidden++; } });
+    const s = new THREE.Box3().setFromObject(k.model).getSize(new THREE.Vector3());
+    e.hidden = false;
+    e.textContent = `DEBUG kart src=${k.source} rootVis=${k.root.visible} meshes=${meshes} hidden=${hidden} size=${s.x.toFixed(1)},${s.y.toFixed(1)},${s.z.toFixed(1)}`;
+    setTimeout(() => { e.hidden = true; }, 8000);
+  }, 1500);
   document.body.classList.add("racing");
   race.start();
   $("intro").hidden = true;
