@@ -128,7 +128,6 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
             .build()
 
         webView = WebView(this).apply {
-            setLayerType(View.LAYER_TYPE_HARDWARE, null)
             setBackgroundColor(0xFF081325.toInt())
             isFocusable = true
             isFocusableInTouchMode = true
@@ -169,6 +168,15 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
                     return request?.url?.let { assetLoader.shouldInterceptRequest(it) }
                 }
 
+                                override fun onRenderProcessGone(
+                    view: WebView?,
+                    detail: android.webkit.RenderProcessGoneDetail?
+                ): Boolean {
+                    Log.e("MarioKart", "WebView render process gone, crashed=${detail?.didCrash()}")
+                    runOnUiThread { recreate() }
+                    return true
+                }
+
                 override fun onPageFinished(view: WebView?, url: String?) {
                     super.onPageFinished(view, url)
                     hideSystemUI()
@@ -184,7 +192,17 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
                 }
             }
 
-            loadUrl("https://appassets.androidplatform.net/assets/game/index.html")
+                        val wvMajor = WebView.getCurrentWebViewPackage()?.versionName
+                ?.substringBefore('.')?.toIntOrNull() ?: 0
+            if (wvMajor in 1..88) {
+                loadData(
+                    "<html><body style='background:#081325;color:#fff;font-family:sans-serif;padding:32px'><h2>Update needed</h2><p>Please update <b>Android System WebView</b> (or Chrome) in Google Play, then reopen the game.</p></body></html>",
+                    "text/html",
+                    "UTF-8"
+                )
+            } else {
+                loadUrl("https://appassets.androidplatform.net/assets/game/index.html")
+            }
         }
     }
 

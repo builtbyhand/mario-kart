@@ -267,7 +267,12 @@ export function getDefaultQualityPreset(capabilities = null) {
   }
 
   if (isTv) return QUALITY_PRESETS.medium;
-  if (isMobile) return QUALITY_PRESETS.medium;
+  if (isMobile) {
+    const mem = typeof navigator !== "undefined" ? navigator.deviceMemory : undefined;
+    const cores = typeof navigator !== "undefined" ? navigator.hardwareConcurrency : undefined;
+    if ((mem && mem <= 4) || (cores && cores <= 4)) return QUALITY_PRESETS.low;
+    return QUALITY_PRESETS.medium;
+  }
   return QUALITY_PRESETS.high;
 }
 
