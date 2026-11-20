@@ -922,13 +922,22 @@ export async function buildWorld(scene, capabilities = null, envAssets = null) {
   const largeTreeMatrices = [];
 
   // Infield and parkway trees (oak & large trees)
+    const treeBasis = (s, lat, pos, yaw) => {
+    const f = roadFrame(s, lat, pos.heading);
+    const m = new THREE.Matrix4().makeBasis(
+      new V(f.right.x, f.right.y, f.right.z),
+      new V(f.up.x, f.up.y, f.up.z),
+      new V(-f.forward.x, -f.forward.y, -f.forward.z),
+    );
+    return m.multiply(new THREE.Matrix4().makeRotationY(yaw));
+  };
   for (let s = 30; s < 340; s += 22) {
     for (const lat of [-32, -45, 38, 52]) {
       const pos = surfaceAt(s, lat);
       const m4 = new THREE.Matrix4();
       const yaw = rng() * Math.PI * 2;
       const scale = 0.85 + rng() * 0.35;
-      m4.makeRotationY(yaw);
+      m4.copy(treeBasis(s, lat, pos, yaw));
       m4.scale(new V(scale, scale, scale));
       m4.setPosition(pos.x, pos.y, pos.z);
       if (Math.abs(lat) > 40) {
@@ -947,7 +956,7 @@ export async function buildWorld(scene, capabilities = null, envAssets = null) {
       const m4 = new THREE.Matrix4();
       const yaw = rng() * Math.PI * 2;
       const scale = 0.9 + rng() * 0.35;
-      m4.makeRotationY(yaw);
+      m4.copy(treeBasis(s, lat, pos, yaw));
       m4.scale(new V(scale, scale, scale));
       m4.setPosition(pos.x, pos.y, pos.z);
       pineMatrices.push(m4);

@@ -13,8 +13,8 @@ export function kartWallLimits(track,racer,time=0) {
   for(const corner of kartCorners(racer,frame,time)){
     const near=track.project(corner,racer.s),edge=track.bounds(near.s,near.lateral);
     const offset=near.lateral-racer.lateral;
-    min=Math.max(min,edge.min+.15-offset);
-    max=Math.min(max,edge.max-.15-offset);
+    min=Math.max(min,edge.min+.75-offset);
+    max=Math.min(max,edge.max-.75-offset);
   }
   // Extremely narrow malformed strips cannot invert the interval.
   if(min>max){const center=(min+max)/2;return {min:center,max:center};}

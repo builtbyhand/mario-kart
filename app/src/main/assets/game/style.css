@@ -1686,3 +1686,12 @@ body.in-menu #bottomline {
   font-weight: 700;
   z-index: 200;
 }
+
+/* HUD overlap fixes while racing */
+body.racing #brand-tag,
+body.racing #bottomline {
+  display: none !important;
+}
+body.racing #lap-panel {
+  top: calc(max(14px, var(--safe-top)) + 46px);
+}
