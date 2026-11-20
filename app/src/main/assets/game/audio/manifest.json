@@ -1,0 +1,19 @@
+{
+  "mk-music": "audio/music.ogg",
+  "mk-engine": "audio/engine.ogg",
+  "mk-countdown": "audio/countdown.ogg",
+  "mk-go": "audio/go.ogg",
+  "mk-coin": "audio/coin.ogg",
+  "mk-box": "audio/box.ogg",
+  "mk-boost": "audio/boost.ogg",
+  "mk-turbo": "audio/turbo.ogg",
+  "mk-hit": "audio/hit.ogg",
+  "mk-wall": "audio/wall.ogg",
+  "mk-drift": "audio/drift.ogg",
+  "mk-lap": "audio/lap.ogg",
+  "mk-finalLap": "audio/finalLap.ogg",
+  "mk-finish": "audio/finish.ogg",
+  "ui-cursor": "audio/ui-cursor.ogg",
+  "ui-confirm": "audio/ui-confirm.ogg",
+  "ui-start": "audio/ui-start.ogg"
+}

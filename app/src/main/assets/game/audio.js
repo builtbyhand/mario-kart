@@ -108,7 +108,8 @@ export class KartAudio {
   prepare() { return this.original.prepare(); }
   async unlock() {
     await this.engine.unlock();
-    if (!this.engine.ctx) return;
+        if (!this.engine.ctx) return;
+    await this.engine.loadFiles();
     if (await this.prepare()) {
       this.engine.master.gain.setValueAtTime(this.engine.enabled ? this.engine.volume : 0, this.engine.ctx.currentTime);
       return;
@@ -201,6 +202,7 @@ export class KartAudio {
       if (!this.engine.enabled) return;
       const key={cursor:'uiCursor',confirm:'uiConfirm',cancel:'uiCancel',start:'uiStart'}[kind];
       if(this.original.ready&&this.original.buffers.has(key))this.original.play(key,{bus:'ui'});
+            else if (this.engine.sfxFiles?.has('ui-' + kind)) this.engine.play('ui-' + kind);
       else this.engine.tone({freq:kind==='cursor'?880:660,dur:.055,gain:.06,type:'sine'});
     } catch (e) {}
   }
@@ -218,6 +220,7 @@ export class KartAudio {
       active = !["ready", "results"].includes(race.state);
     const isGas = Boolean(r.lastInput?.gas);
     const isBrake = Boolean(r.lastInput?.brake);
+    if (this.motor.override) this.motor.override.playbackRate.setTargetAtTime(0.7 + Math.min(1.2, Math.abs(r.speed) / 45), ctx.currentTime, 0.08);
 
     if (this.motor.filter) {
       this.motor.filter.frequency.setTargetAtTime(

@@ -72,6 +72,36 @@ export class AudioEngine {
     }
   }
 
+    async loadFiles(manifestUrl = "audio/manifest.json") {
+    if (!this.ctx) return;
+    if (this._filesLoading) return this._filesLoading;
+    this._filesLoading = (async () => {
+      let manifest;
+      try {
+        const res = await fetch(manifestUrl);
+        if (!res.ok) return;
+        manifest = await res.json();
+      } catch (e) {
+        return;
+      }
+      this.sfxFiles = this.sfxFiles || new Map();
+      await Promise.all(
+        Object.entries(manifest).map(async ([name, url]) => {
+          try {
+            const res = await fetch(url);
+            if (!res.ok) throw new Error("HTTP " + res.status);
+            const buf = await this.ctx.decodeAudioData(await res.arrayBuffer());
+            if (name === "mk-music" || name === "mk-engine") this.overrides.set(name, buf);
+            else this.sfxFiles.set(name, buf);
+          } catch (e) {
+            console.warn("[audio] failed to load", name, url, e);
+          }
+        })
+      );
+    })();
+    return this._filesLoading;
+  }
+
   register(name, fn) {
     this.registry.set(name, fn);
   }
@@ -80,6 +110,15 @@ export class AudioEngine {
     if (!this.enabled) return;
     this.ensureCtx();
     if (!this.ctx) return;
+        const file = this.sfxFiles && this.sfxFiles.get(name);
+    if (file) {
+      const src = this.ctx.createBufferSource();
+      src.buffer = file;
+      src.connect(this.sfxBus || this.master);
+      src.start();
+      return;
+    }
+    
     const handler = this.registry.get(name);
     if (handler) {
       handler(this, opts);
