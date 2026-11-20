@@ -958,6 +958,7 @@ export async function buildWorld(scene, capabilities = null, envAssets = null) {
     world.add(
       createInstancedModel("tree_oak", oakMatrices, {
         targetSize: new THREE.Vector3(6.5, 7.5, 6.5),
+        keepProportions: true,
       })
     );
   }
@@ -965,6 +966,7 @@ export async function buildWorld(scene, capabilities = null, envAssets = null) {
     world.add(
       createInstancedModel("tree_pineRoundA", pineMatrices, {
         targetSize: new THREE.Vector3(5.0, 8.5, 5.0),
+        keepProportions: true,
       })
     );
   }
@@ -972,6 +974,7 @@ export async function buildWorld(scene, capabilities = null, envAssets = null) {
     world.add(
       createInstancedModel("treeLarge", largeTreeMatrices, {
         targetSize: new THREE.Vector3(5.5, 8.0, 5.5),
+        keepProportions: true,
       })
     );
   }
@@ -1013,6 +1016,7 @@ export async function buildWorld(scene, capabilities = null, envAssets = null) {
     world.add(
       createInstancedModel("lightPostModern", floodlightMatrices, {
         targetSize: new THREE.Vector3(4.5, 18.0, 4.5),
+        keepProportions: true,
       })
     );
   }

@@ -69,7 +69,9 @@ export function getNormalizedLocalTransform(gltfScene, targetSize, options = {})
   const sx = targetSize.x / (currentX || 1);
   const sy = targetSize.y / (currentY || 1);
   const sz = targetSize.z / (currentZ || 1);
-  const scaleM = new THREE.Matrix4().makeScale(sx, sy, sz);
+  const scaleM = options.keepProportions
+  ? new THREE.Matrix4().makeScale(sy, sy, sy)
+  : new THREE.Matrix4().makeScale(sx, sy, sz);
 
   return new THREE.Matrix4().multiply(scaleM).multiply(rotY).multiply(centerT);
 }
@@ -114,7 +116,26 @@ export async function loadEnvironmentAsset(assetKey) {
       gltfPromise = gltfLoader.loadAsync(assetPath);
     }
 
-    const gltf = await gltfPromise;
+        const gltf = await gltfPromise;
+
+    gltf.scene?.traverse((o) => {
+      if (!o.isMesh || !o.material) return;
+      const swap = (m) => {
+        if (!m || !m.isMeshBasicMaterial) return m;
+        const lit = new THREE.MeshLambertMaterial({
+          color: m.color,
+          map: m.map,
+          vertexColors: m.vertexColors,
+          side: m.side,
+          transparent: m.transparent,
+          opacity: m.opacity,
+          alphaTest: m.alphaTest,
+        });
+        lit.name = m.name;
+        return lit;
+      };
+      o.material = Array.isArray(o.material) ? o.material.map(swap) : swap(o.material);
+    });
 
     // Register master cached resources to protect from disposal
     gltf.scene?.traverse((o) => {
