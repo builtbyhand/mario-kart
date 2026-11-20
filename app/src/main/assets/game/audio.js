@@ -220,7 +220,6 @@ export class KartAudio {
       active = !["ready", "results"].includes(race.state);
     const isGas = Boolean(r.lastInput?.gas);
     const isBrake = Boolean(r.lastInput?.brake);
-    if (this.motor.override) this.motor.override.playbackRate.setTargetAtTime(0.7 + Math.min(1.2, Math.abs(r.speed) / 45), ctx.currentTime, 0.08);
 
     if (this.motor.filter) {
       this.motor.filter.frequency.setTargetAtTime(
@@ -242,7 +241,7 @@ export class KartAudio {
       );
     if (this.musicGain)
       this.musicGain.gain.setTargetAtTime(
-        active ? (0.3 * this.musicVolume) : 0,
+        active ? (0.6 * this.musicVolume) : 0,
         ctx.currentTime,
         0.25,
       );
