@@ -1695,3 +1695,7 @@ body.racing #bottomline {
 body.racing #lap-panel {
   top: calc(max(14px, var(--safe-top)) + 46px);
 }
+
+body.racing #topline-actions {
+  margin-left: auto;
+}
