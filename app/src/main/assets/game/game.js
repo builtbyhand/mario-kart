@@ -150,11 +150,20 @@ let isContextLost = false;
 canvas.addEventListener("webglcontextlost", (e) => {
   e.preventDefault();
   isContextLost = true;
+  const errEl = $("error");
+  if (errEl) { errEl.hidden = false; errEl.textContent = "Graphics paused, restoring..."; }
   logger.warn("WebGL context lost! Rendering paused.");
 });
 canvas.addEventListener("webglcontextrestored", () => {
   logger.info("WebGL context restored! Restoring renderer.");
   isContextLost = false;
+  { const errEl = $("error"); if (errEl) errEl.hidden = true; }
+  buildEnvironmentMap();
+  scene.traverse((o) => {
+    if (!o.material) return;
+    for (const m of Array.isArray(o.material) ? o.material : [o.material]) m.needsUpdate = true;
+  });
+  postPipeline.reconfigure(activeQuality, initialWidth, initialHeight);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.AgXToneMapping;
   renderer.toneMappingExposure = activeQuality.toneMappingExposure;
@@ -174,12 +183,18 @@ const camera = new THREE.PerspectiveCamera(
   RENDER_CONFIG.camera.near,
   RENDER_CONFIG.camera.far,
 );
-const pmrem = new THREE.PMREMGenerator(renderer);
-const room = new RoomEnvironment();
-scene.environment = pmrem.fromScene(room, 0.04).texture;
+
+function buildEnvironmentMap() {
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const room = new RoomEnvironment();
+  const old = scene.environment;
+  scene.environment = pmrem.fromScene(room, 0.04).texture;
+  if (old && old.dispose) old.dispose();
+  room.dispose();
+  pmrem.dispose();
+}
+buildEnvironmentMap();
 scene.environmentIntensity = 0.28;
-room.dispose();
-pmrem.dispose();
 
 const hemi = new THREE.HemisphereLight(
   activeLightingPreset.hemiSkyColor,
@@ -209,7 +224,7 @@ const fill = new THREE.DirectionalLight(activeLightingPreset.fillColor, activeLi
 fill.position.set(-80, 70, 20);
 scene.add(fill);
 
-const trackLights = [-2, -1, 0, 1, 2].map((side) => {
+const trackLights = (activeQuality.name === "low" ? [-1, 1] : [-2, -1, 0, 1, 2]).map((side) => {
   const light = new THREE.SpotLight(
     side < 0 ? "#c0dbff" : "#fff0d9",
     1500,

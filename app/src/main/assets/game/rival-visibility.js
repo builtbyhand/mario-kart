@@ -19,6 +19,10 @@ export function rivalBodyBounds(model) {
       bounds.expandByPoint(point);
     }
   });
+    const size = bounds.getSize(new THREE.Vector3());
+  if (bounds.isEmpty() || size.x > 12 || size.y > 12 || size.z > 12) {
+    bounds.set(new THREE.Vector3(-1.5, 0, -2.5), new THREE.Vector3(1.5, 3, 2.5));
+  }
   bodies.set(model, bounds);
   return bounds;
 }

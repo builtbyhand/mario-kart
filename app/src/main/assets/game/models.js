@@ -489,7 +489,8 @@ export function buildGLBKart(id, kartGltf, charGltf, customScale = null) {
 
   if (charGltf && charGltf.scene) {
     driverScene = cloneSkeleton(charGltf.scene);
-    driverScene.traverse((o) => {
+        driverScene.traverse((o) => {
+      if (o.isSkinnedMesh) o.frustumCulled = false;
       if (o.isMesh) {
         if (o.geometry) o.geometry = o.geometry.clone();
         if (o.material) {
@@ -709,6 +710,7 @@ export async function loadKartPack(karts, onProgress = () => {}) {
       loaded++;
     } catch (err) {
       console.warn(`[loadKartPack] Fallback to procedural model for ${id}:`, err?.message || err);
+    { const e = document.getElementById("error"); if (e) { e.hidden = false; e.textContent = `Model failed: ${id} - ${err?.message || err}`; setTimeout(() => { e.hidden = true; }, 6000); } }
       fallback++;
     }
 
