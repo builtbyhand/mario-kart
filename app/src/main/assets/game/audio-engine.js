@@ -72,7 +72,48 @@ export class AudioEngine {
     }
   }
 
-    async loadFiles(manifestUrl = "audio/manifest.json") {
+      async playTrack(url, { loop = true, gain = 0.8, fade = 0.6 } = {}) {
+    if (!this.ctx) return;
+    this._trackToken = (this._trackToken || 0) + 1;
+    const token = this._trackToken;
+    let buf = this._trackBuf && this._trackBuf.url === url ? this._trackBuf.buf : null;
+    if (!buf) {
+      const res = await fetch(url);
+      if (!res.ok) return;
+      buf = await this.ctx.decodeAudioData(await res.arrayBuffer());
+      if (token !== this._trackToken) return;
+      this._trackBuf = { url, buf };
+    }
+    this._fadeOutTrack(fade);
+    const src = this.ctx.createBufferSource();
+    const g = this.ctx.createGain();
+    src.buffer = buf;
+    src.loop = loop;
+    g.gain.setValueAtTime(0, this.ctx.currentTime);
+    g.gain.linearRampToValueAtTime(gain, this.ctx.currentTime + fade);
+    src.connect(g).connect(this.musicBus || this.master);
+    src.start();
+    this._track = { src, g };
+  }
+
+  _fadeOutTrack(fade = 0.4) {
+    const t = this._track;
+    this._track = null;
+    if (!t || !this.ctx) return;
+    const now = this.ctx.currentTime;
+    t.g.gain.cancelScheduledValues(now);
+    t.g.gain.setValueAtTime(t.g.gain.value, now);
+    t.g.gain.linearRampToValueAtTime(0, now + fade);
+    try { t.src.stop(now + fade + 0.05); } catch (e) {}
+  }
+
+  stopTrack(fade = 0.4) {
+    this._trackToken = (this._trackToken || 0) + 1;
+    this._fadeOutTrack(fade);
+    this._trackBuf = null;
+  }
+
+  async loadFiles(manifestUrl = "audio/manifest.json") {
     if (!this.ctx) return;
     if (this._filesLoading) return this._filesLoading;
     this._filesLoading = (async () => {

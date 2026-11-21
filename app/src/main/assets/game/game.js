@@ -493,7 +493,8 @@ function showMenu() {
     menuScene.activate();
     menuScene.setShowcaseRacer(selected, selectedKart);
   }
-  if (menuCamera) menuCamera.resetToHub();
+    if (menuCamera) menuCamera.resetToHub();
+  audio.playTrack("audio/music/menu.ogg", { gain: 0.8 });
   updateStatBars(selected, selectedKart);
 }
 
@@ -736,7 +737,8 @@ function begin() {
   if (race.state !== 'ready' && race.state !== 'results') return;
   try { audio.ui('start'); } catch (e) {}
   wheel.reset();
-  captureUntil = performance.now() + 3000;
+    captureUntil = performance.now() + 3000;
+  audio.stopTrack(0.4);
   document.body.classList.remove("in-menu");
   document.body.classList.remove("results-screen", "paused");
   let dbg = document.getElementById("dbg");
@@ -1738,7 +1740,8 @@ function updateHUD() {
     const standings=race.standings.slice();
     resultsPresentation={started:performance.now(),duration:1.2,done:false,times:standings.map(r=>r.finishTime)};
     $('again').disabled=true;
-    audio.presentResults(race,resultsPresentation.duration);
+        audio.presentResults(race,resultsPresentation.duration);
+    audio.playTrack(position === 1 ? "audio/music/results-best.ogg" : position <= 4 ? "audio/music/results-good.ogg" : "audio/music/results-bad.ogg", { gain: 0.8 });
     $("standings").innerHTML = standings
       .map(
         (r, i) =>

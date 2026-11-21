@@ -105,6 +105,19 @@ export class KartAudio {
         }
       });
   }
+    async playTrack(url, opts) {
+    try {
+      await this.unlock();
+      const ctx = this.engine.ctx;
+      if (!ctx || ctx.state !== "running") { this._pendingTrack = [url, opts]; return; }
+      this._pendingTrack = null;
+      await this.engine.playTrack(url, opts);
+    } catch (e) {}
+  }
+  stopTrack(fade) {
+    this._pendingTrack = null;
+    this.engine.stopTrack(fade);
+  }
   prepare() { return this.original.prepare(); }
   async unlock() {
     await this.engine.unlock();
@@ -199,6 +212,11 @@ export class KartAudio {
   async ui(kind='confirm') {
     try {
       await this.unlock();
+            if (this._pendingTrack && this.engine.ctx && this.engine.ctx.state === "running") {
+        const p = this._pendingTrack;
+        this._pendingTrack = null;
+        this.playTrack(p[0], p[1]);
+      }
       if (!this.engine.enabled) return;
       const key={cursor:'uiCursor',confirm:'uiConfirm',cancel:'uiCancel',start:'uiStart'}[kind];
       if(this.original.ready&&this.original.buffers.has(key))this.original.play(key,{bus:'ui'});
