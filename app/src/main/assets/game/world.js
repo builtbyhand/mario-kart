@@ -1002,6 +1002,46 @@ export async function buildWorld(scene, capabilities = null, envAssets = null) {
     );
   }
 
+    // Nature Kit scenery beside the track: rocks, bushes, flowers and extra trees
+  const sceneryRanges = [
+    [30, 340],
+    [controlDistances[9], SECTIONS.glideStart - 20],
+  ];
+  const scatter = (key, count, latMin, latMax, minScale, maxScale, height) => {
+    if (!environmentCache.has(key)) return;
+    const mats = [];
+    for (let i = 0; i < count; i++) {
+      const range = sceneryRanges[rng() < 0.6 ? 0 : 1];
+      const s = range[0] + rng() * (range[1] - range[0]);
+      const lat = (rng() < 0.5 ? -1 : 1) * (latMin + rng() * (latMax - latMin));
+      const pos = surfaceAt(s, lat);
+      const m4 = new THREE.Matrix4();
+      const scale = minScale + rng() * (maxScale - minScale);
+      m4.copy(treeBasis(s, lat, pos, rng() * Math.PI * 2));
+      m4.scale(new V(scale, scale, scale));
+      m4.setPosition(pos.x, pos.y, pos.z);
+      mats.push(m4);
+    }
+    world.add(
+      createInstancedModel(key, mats, {
+        targetSize: new THREE.Vector3(height, height, height),
+        keepProportions: true,
+      })
+    );
+  };
+  scatter("rock_largeA", 18, 17, 32, 0.8, 1.3, 2.6);
+  scatter("rock_largeC", 18, 17, 32, 0.8, 1.3, 2.2);
+  scatter("rock_tallA", 14, 18, 34, 0.8, 1.3, 3.4);
+  scatter("rock_smallA", 60, 16, 28, 0.8, 1.5, 0.9);
+  scatter("rock_smallC", 60, 16, 28, 0.8, 1.5, 0.7);
+  scatter("plant_bush", 70, 16, 30, 0.8, 1.4, 1.2);
+  scatter("plant_bushLarge", 50, 17, 32, 0.8, 1.4, 2.0);
+  scatter("flower_redA", 60, 15.5, 24, 0.8, 1.2, 0.8);
+  scatter("flower_yellowA", 60, 15.5, 24, 0.8, 1.2, 0.8);
+  scatter("flower_purpleA", 60, 15.5, 24, 0.8, 1.2, 0.8);
+  scatter("tree_fat", 24, 34, 60, 0.9, 1.3, 6.5);
+  scatter("tree_simple", 24, 34, 60, 0.9, 1.3, 7.5);
+
   // Stadium Bowl
   buildStadiumBowl(world, { mesh, box, standard, basic, canvasTexture });
 
