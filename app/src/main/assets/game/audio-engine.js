@@ -129,7 +129,8 @@ export class AudioEngine {
       await Promise.all(
         Object.entries(manifest).map(async ([name, url]) => {
           try {
-            const res = await fetch(url);
+            const musicPool = ["audio/music.ogg", "audio/music/race-sunny-city.ogg", "audio/music/race-pure-raceway.ogg"];
+            const res = await fetch(name === "mk-music" ? musicPool[Math.floor(Math.random() * musicPool.length)] : url);
             if (!res.ok) throw new Error("HTTP " + res.status);
             const buf = await this.ctx.decodeAudioData(await res.arrayBuffer());
             if (name === "mk-music" || name === "mk-engine") this.overrides.set(name, buf);
