@@ -711,7 +711,7 @@ export async function loadKartPack(karts, onProgress = () => {}) {
       loaded++;
     } catch (err) {
       console.warn(`[loadKartPack] Fallback to procedural model for ${id}:`, err?.message || err);
-    { const e = document.getElementById("error"); if (e) { e.hidden = false; e.textContent = `Model failed: ${id} - ${err?.message || err}`; setTimeout(() => { e.hidden = true; }, 6000); } }
+    { const e = typeof document !== "undefined" && typeof document.getElementById === "function" ? document.getElementById("error") : null; if (e) { e.hidden = false; e.textContent = `Model failed: ${id} - ${err?.message || err}`; setTimeout(() => { e.hidden = true; }, 6000); } }
       fallback++;
     }
 

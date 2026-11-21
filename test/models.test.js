@@ -8,6 +8,9 @@ globalThis.window = globalThis;
 globalThis.self = globalThis;
 if (typeof globalThis.document === "undefined") {
   globalThis.document = {
+    getElementById(id) {
+      return null;
+    },
     createElement(tag) {
       return {
         width: 512,
