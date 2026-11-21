@@ -341,3 +341,27 @@ export function createGrassMaterial(options = {}) {
   if (map) mat.map = map;
   return mat;
 }
+
+export function applyPhotoTextures(mat, urls, { repeat = [1, 1], color = null } = {}) {
+  if (typeof window === "undefined" || activeQuality?.name === "low") return mat;
+  const loader = new THREE.TextureLoader();
+  const slots = { map: true, normalMap: false, roughnessMap: false };
+  for (const [slot, isColor] of Object.entries(slots)) {
+    if (!urls[slot]) continue;
+    loader.load(
+      urls[slot],
+      (t) => {
+        t.wrapS = t.wrapT = THREE.RepeatWrapping;
+        t.colorSpace = isColor ? THREE.SRGBColorSpace : THREE.NoColorSpace;
+        t.anisotropy = (mat.map && mat.map.anisotropy) || 8;
+        t.repeat.set(repeat[0], repeat[1]);
+        mat[slot] = t;
+        if (slot === "map" && color) mat.color.set(color);
+        mat.needsUpdate = true;
+      },
+      undefined,
+      () => {},
+    );
+  }
+  return mat;
+}

@@ -20,7 +20,7 @@ import {
 } from "./track.js";
 import { seeded } from "./logic.js";
 import { proceduralKart } from "./models.js";
-import { pavementMaps, roadMaterial } from "./materials.js";
+import { pavementMaps, roadMaterial, applyPhotoTextures } from "./materials.js";
 import { roadFrame } from "./visual-frame.js";
 import { buildArchitecture } from "./stadium-architecture.js";
 import {
@@ -228,6 +228,15 @@ export async function buildWorld(scene, capabilities = null, envAssets = null) {
   lawn.receiveShadow = true;
 
   const road = roadMaterial(pavement);
+  applyPhotoTextures(
+    road,
+    {
+      map: "textures/asphalt_02/asphalt_02_diff_2k.jpg",
+      normalMap: "textures/asphalt_02/asphalt_02_nor_gl_2k.jpg",
+      roughnessMap: "textures/asphalt_02/asphalt_02_rough_2k.jpg",
+    },
+    { repeat: [3, 1.5], color: "#f2f2f2" },
+  );
   const blue = roadMaterial(pavement, "#278cbd", true),
     yellow = roadMaterial(pavement, "#dcc555", true),
     red = roadMaterial(pavement, "#ba4250", true);
@@ -296,6 +305,11 @@ export async function buildWorld(scene, capabilities = null, envAssets = null) {
   sandMap.wrapS = sandMap.wrapT = THREE.RepeatWrapping;
   sandMap.repeat.set(2, 2);
   const landingSand = standard("#fff2ce", { map: sandMap, roughness: 1 });
+  applyPhotoTextures(
+    landingSand,
+    { map: "textures/aerial_beach_01/aerial_beach_01_diff_2k.jpg" },
+    { repeat: [2, 2], color: "#fff2ce" },
+  );
 
   // Glider landing corridor
   for (const [left, right, material] of [
