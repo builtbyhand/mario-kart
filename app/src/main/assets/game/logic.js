@@ -426,7 +426,7 @@ export class Race {
     r.lateral = near.lateral;
     const walls=activeSurfaceTrack?.hasRoadMesh&&!r.gliding
       ?kartWallLimits(activeSurfaceTrack,r,this.time)
-      :activeSurfaceTrack?activeSurfaceTrack.wallBounds(r.s,r.lateral):{min:-WALL_HALF,max:WALL_HALF};
+      :activeSurfaceTrack?activeSurfaceTrack.wallBounds(r.s,r.lateral):{min:-WALL_HALF+1.8,max:WALL_HALF-1.8};
     if (!r.jump && (r.lateral<walls.min||r.lateral>walls.max)) {
       const side=r.lateral<walls.min?-1:1,edge=clamp(r.lateral,walls.min,walls.max),p = activeSurfaceTrack&&!r.gliding?activeSurfaceTrack.constrainLateral(r,edge):surfaceAt(r.s,edge);
       r.x = p.x;
@@ -657,7 +657,7 @@ export class Race {
             const near = activeSurfaceTrack && !r.gliding ? activeSurfaceTrack.project(r, r.s) : project(r.x, r.z, r.s);
             const walls=activeSurfaceTrack?.hasRoadMesh&&!r.gliding
               ?kartWallLimits(activeSurfaceTrack,{...r,s:near.s,lateral:near.lateral},this.time)
-              :activeSurfaceTrack?activeSurfaceTrack.wallBounds(near.s,near.lateral):{min:-WALL_HALF,max:WALL_HALF};
+              :activeSurfaceTrack?activeSurfaceTrack.wallBounds(near.s,near.lateral):{min:-WALL_HALF+1.8,max:WALL_HALF-1.8};
             const lateral = clamp(near.lateral,walls.min,walls.max);
             let p = surfaceAt(near.s, lateral);
             if(activeSurfaceTrack&&!r.gliding)p=activeSurfaceTrack.constrainLateral({...r,s:near.s,lateral:near.lateral},lateral);

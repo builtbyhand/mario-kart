@@ -75,13 +75,13 @@ export class MenuCamera {
         // Close-up on driver torso and helmet
         this.targetRadius = 3.6;
         this.targetPhi = 1.32;
-        this.targetHeight = 1.15;
+        this.targetHeight = 0.1;
         break;
       case "kart":
         // Lower angle showcasing chassis lines, wheels, and spoilers
         this.targetRadius = 4.2;
         this.targetPhi = 1.38;
-        this.targetHeight = 0.65;
+        this.targetHeight = -0.35;
         break;
       case "settings":
         // Slightly pulled-back cinematic overview

@@ -630,6 +630,21 @@ function updateStatBars(driverId, kartId) {
   if ($("stat-bar-weight")) $("stat-bar-weight").style.width = weight + "%";
 }
 
+let constructTimer = null;
+function scheduleConstructRace() {
+  clearTimeout(constructTimer);
+  constructTimer = setTimeout(() => {
+    constructTimer = null;
+    constructRace();
+  }, 450);
+}
+function flushConstructRace() {
+  if (!constructTimer) return;
+  clearTimeout(constructTimer);
+  constructTimer = null;
+  constructRace();
+}
+
 function chooseDriver(index) {
   if (race.state !== 'ready') return;
   const c = CHARACTERS[(index + CHARACTERS.length) % CHARACTERS.length];
@@ -648,7 +663,7 @@ function chooseDriver(index) {
 
   updateStatBars(selected, selectedKart);
   if (menuScene) menuScene.setShowcaseRacer(selected, selectedKart);
-  constructRace();
+  scheduleConstructRace();
   try { audio.ui('cursor'); } catch (e) {}
 }
 
@@ -672,12 +687,13 @@ function chooseKart(kartId) {
 
   updateStatBars(selected, selectedKart);
   if (menuScene) menuScene.setShowcaseRacer(selected, selectedKart);
-  constructRace();
+  scheduleConstructRace();
   try { audio.ui('cursor'); } catch (e) {}
 }
 
 function startRaceWithTransition() {
   if (race.state !== 'ready') return;
+  flushConstructRace();
   try { audio.ui('start'); } catch (e) {}
   wheel.reset();
 
@@ -742,24 +758,6 @@ function begin() {
   audio.stopTrack(0.4);
   document.body.classList.remove("in-menu");
   document.body.classList.remove("results-screen", "paused");
-  let dbg = document.getElementById("dbg");
-  if (!dbg) {
-    dbg = document.createElement("div");
-    dbg.id = "dbg";
-    dbg.style.cssText = "position:fixed;left:50%;bottom:90px;transform:translateX(-50%);z-index:99999;background:rgba(0,0,0,.75);color:#0f0;font:11px monospace;padding:4px 8px;pointer-events:none;max-width:90vw";
-    document.body.appendChild(dbg);
-  }
-  if (!window.__dbgTimer) {
-    window.__dbgTimer = setInterval(() => {
-      const k = karts[0];
-      if (!k) return;
-      let meshes = 0, hidden = 0;
-      k.model.traverse((o) => { if (o.isMesh) { meshes++; if (!o.visible) hidden++; } });
-      const s = new THREE.Box3().setFromObject(k.model).getSize(new THREE.Vector3());
-      const wp = k.root.getWorldPosition(new THREE.Vector3());
-      dbg.textContent = `st=${race.state} src=${k.source} rv=${k.root.visible} mv=${k.model.visible} inScene=${!!k.root.parent} mesh=${meshes}/${hidden}h size=${s.x.toFixed(1)},${s.y.toFixed(1)},${s.z.toFixed(1)} pos=${wp.x.toFixed(0)},${wp.y.toFixed(0)},${wp.z.toFixed(0)} cam=${camera.position.distanceTo(wp).toFixed(1)} drv=${k.driver ? k.driver.visible : "none"}`;
-    }, 500);
-  }
   document.body.classList.add("racing");
   race.start();
   $("intro").hidden = true;

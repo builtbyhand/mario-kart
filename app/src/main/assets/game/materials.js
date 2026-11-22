@@ -344,7 +344,23 @@ export function createGrassMaterial(options = {}) {
 
 export function applyPhotoTextures(mat, urls, { repeat = [1, 1], color = null } = {}) {
   if (typeof window === "undefined" || activeQuality?.name === "low") return mat;
-  const loader = new THREE.TextureLoader();
+  const photoCache = (globalThis.__photoTextureCache ||= new Map());
+  const loader = {
+    load(url, onLoad) {
+      let entry = photoCache.get(url);
+      if (!entry) {
+        entry = { texture: null, waiting: [] };
+        photoCache.set(url, entry);
+        new THREE.TextureLoader().load(url, (t) => {
+          entry.texture = t;
+          for (const cb of entry.waiting) cb(t);
+          entry.waiting.length = 0;
+        });
+      }
+      if (entry.texture) onLoad(entry.texture);
+      else entry.waiting.push(onLoad);
+    },
+  };
   const slots = { map: true, normalMap: false, roughnessMap: false };
   for (const [slot, isColor] of Object.entries(slots)) {
     if (!urls[slot]) continue;

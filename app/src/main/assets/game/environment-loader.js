@@ -72,7 +72,7 @@ export const ENVIRONMENT_ASSETS = {
   flagTankco: "models/racing/flagTankco.glb",
   bannerTowerGreen: "models/racing/bannerTowerGreen.glb",
   tentLong: "models/racing/tentLong.glb",
-  pylon: "models/racing/pylon.glb",
+  pylonRacing: "models/racing/pylon.glb",
   // Surrounding cityscape skyscrapers
   skyscraperA: "models/environment/building-skyscraper-a.glb",
   skyscraperB: "models/environment/building-skyscraper-b.glb",
@@ -201,13 +201,15 @@ export async function preloadEnvironmentPack(onProgress = null) {
   let loaded = 0;
   const results = {};
 
-  for (const key of keys) {
-    const gltf = await loadEnvironmentAsset(key);
-    results[key] = gltf;
-    loaded++;
-    if (typeof onProgress === "function") {
-      onProgress(loaded, keys.length, key);
-    }
+  const BATCH = 8;
+  for (let i = 0; i < keys.length; i += BATCH) {
+    await Promise.all(
+      keys.slice(i, i + BATCH).map(async (key) => {
+        results[key] = await loadEnvironmentAsset(key);
+        loaded++;
+        if (typeof onProgress === "function") onProgress(loaded, keys.length, key);
+      }),
+    );
   }
 
   return results;
@@ -269,7 +271,7 @@ export function createInstancedModel(assetKey, matrices, options = {}, fallbackF
 
   for (const origMesh of meshes) {
     const im = new THREE.InstancedMesh(origMesh.geometry, origMesh.material, count);
-    im.castShadow = true;
+    im.castShadow = options.castShadow !== false;
     im.receiveShadow = true;
 
     const baseMeshMatrix = normTransform.clone().multiply(origMesh.matrixWorld);

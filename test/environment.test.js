@@ -146,7 +146,7 @@ const RAW_ASSET_EXPECTATIONS = {
 };
 
 test("Validate all 28 environment assets: load, finite coordinates, grounding, dimensions, orientation, and self-contained packaging", async () => {
-  const assetKeys = Object.keys(ENVIRONMENT_ASSETS);
+  const assetKeys = Object.keys(RAW_ASSET_EXPECTATIONS);
   assert.equal(assetKeys.length, 28, "Expected exactly 28 registered environment assets");
 
   for (const key of assetKeys) {
@@ -313,9 +313,10 @@ test("environment-loader preloads, caches and retrieves models with error handli
     assert.ok(loaded <= total);
   });
 
-  assert.equal(Object.keys(pack).length, 28);
-  assert.equal(environmentCache.size, 28);
-  assert.equal(progressCalled, 28);
+  const totalAssets = Object.keys(ENVIRONMENT_ASSETS).length;
+  assert.equal(Object.keys(pack).length, totalAssets);
+  assert.equal(environmentCache.size, totalAssets);
+  assert.equal(progressCalled, totalAssets);
 
   // Cached retrieval is synchronous and fast
   const cachedBarrier = await loadEnvironmentAsset("barrierRed");

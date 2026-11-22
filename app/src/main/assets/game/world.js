@@ -962,11 +962,35 @@ export async function buildWorld(scene, capabilities = null, envAssets = null) {
       new V(f.up.x, f.up.y, f.up.z),
       new V(-f.forward.x, -f.forward.y, -f.forward.z),
     );
-    return m.multiply(new THREE.Matrix4().makeRotationY(yaw));
+    return new THREE.Matrix4().makeRotationY(yaw);
   };
+
+    const roadPts = [];
+  for (let s = 0; s < L; s += 5) {
+    const c = trackAt(s);
+    roadPts.push([c.x, c.z, s]);
+  }
+  // Scenery sits on the flat lawn (y = -0.3), never on the road's extended plane.
+  const groundSpot = (s, lat) => {
+    const c = trackAt(s);
+    return { x: c.x + c.rx * lat, y: -0.3, z: c.z + c.rz * lat };
+  };
+  // Skip spots over other parts of the circuit or off the lawn.
+  const clearOfRoad = (x, z, s) => {
+    if (Math.abs(x) > 370 || Math.abs(z) > 370) return false;
+    for (const p of roadPts) {
+      const d = Math.abs(p[2] - s);
+      if (Math.min(d, L - d) < 80) continue;
+      const dx = p[0] - x, dz = p[1] - z;
+      if (dx * dx + dz * dz < 22 * 22) return false;
+    }
+    return true;
+  };
+
   for (let s = 30; s < 340; s += 22) {
     for (const lat of [-32, -45, 38, 52]) {
-      const pos = surfaceAt(s, lat);
+    const pos = groundSpot(s, lat);
+      if (!clearOfRoad(pos.x, pos.z, s)) continue;
       const m4 = new THREE.Matrix4();
       const yaw = rng() * Math.PI * 2;
       const scale = 0.85 + rng() * 0.35;
@@ -985,7 +1009,8 @@ export async function buildWorld(scene, capabilities = null, envAssets = null) {
   for (let s = controlDistances[9]; s < SECTIONS.glideStart - 20; s += 16) {
     for (const side of [-1, 1]) {
       const lat = side * (26 + rng() * 18);
-      const pos = surfaceAt(s, lat);
+      const pos = groundSpot(s, lat);
+      if (!clearOfRoad(pos.x, pos.z, s)) continue;
       const m4 = new THREE.Matrix4();
       const yaw = rng() * Math.PI * 2;
       const scale = 0.9 + rng() * 0.35;
@@ -1029,11 +1054,13 @@ export async function buildWorld(scene, capabilities = null, envAssets = null) {
   const scatter = (key, count, latMin, latMax, minScale, maxScale, height) => {
     if (!environmentCache.has(key)) return;
     const mats = [];
-    for (let i = 0; i < count; i++) {
+    const density = (typeof navigator !== "undefined" && ((navigator.deviceMemory && navigator.deviceMemory <= 4) || (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4))) ? 0.5 : 0.8;
+    for (let i = 0; i < Math.round(count * density); i++) {
       const range = sceneryRanges[rng() < 0.6 ? 0 : 1];
       const s = range[0] + rng() * (range[1] - range[0]);
       const lat = (rng() < 0.5 ? -1 : 1) * (latMin + rng() * (latMax - latMin));
-      const pos = surfaceAt(s, lat);
+      const pos = groundSpot(s, lat);
+        if (!clearOfRoad(pos.x, pos.z, s)) continue;
       const m4 = new THREE.Matrix4();
       const scale = minScale + rng() * (maxScale - minScale);
       m4.copy(treeBasis(s, lat, pos, rng() * Math.PI * 2));
@@ -1045,6 +1072,7 @@ export async function buildWorld(scene, capabilities = null, envAssets = null) {
       createInstancedModel(key, mats, {
         targetSize: new THREE.Vector3(height, height, height),
         keepProportions: true,
+        castShadow: height >= 5,
       })
     );
   };
@@ -1084,7 +1112,7 @@ export async function buildWorld(scene, capabilities = null, envAssets = null) {
   scatter("flagTankco", 6, 15.5, 18, 0.9, 1.1, 6.5);
   scatter("bannerTowerGreen", 8, 16, 20, 0.9, 1.1, 8.0);
   scatter("tentLong", 6, 22, 34, 0.9, 1.1, 3.5);
-  scatter("pylon", 30, 15.3, 17, 0.9, 1.1, 1.4);
+  scatter("pylonRacing", 30, 15.3, 17, 0.9, 1.1, 1.4);
 
   // Stadium Bowl
   buildStadiumBowl(world, { mesh, box, standard, basic, canvasTexture });

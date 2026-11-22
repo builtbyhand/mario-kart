@@ -99,13 +99,13 @@ test("MenuCamera view framing modes configure distinct inspection targets", () =
   menuCam.setMode("driver");
   assert.equal(menuCam.mode, "driver");
   assert.equal(menuCam.targetRadius, 3.6);
-  assert.equal(menuCam.targetHeight, 1.15);
+  assert.equal(menuCam.targetHeight, 0.1);
 
   // Kart mode: lower angle showcasing wheels and chassis
   menuCam.setMode("kart");
   assert.equal(menuCam.mode, "kart");
   assert.equal(menuCam.targetRadius, 4.2);
-  assert.equal(menuCam.targetHeight, 0.65);
+  assert.equal(menuCam.targetHeight, -0.35);
 
   // Settings mode: pulled-back backdrop view
   menuCam.setMode("settings");
