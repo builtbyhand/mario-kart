@@ -254,6 +254,7 @@ if (courseDescriptor) {
   catch (error) { console.warn('Local course pack unavailable; using built-in course:', error.message); }
 }
 if (!world) world = await buildWorld(scene, capabilities);
+document.getElementById("boot")?.remove();
 if (world.source) {
   useSourceTrack(world.route);
   camera.far = 2500;
@@ -1363,6 +1364,8 @@ function draw(dt, now) {
       k.shadow.visible = false;
       continue;
     }
+    k.root.visible = true;
+    k.shadow.visible = true;
     const cast = i === 0 || Math.hypot(r.x - p.x, r.z - p.z) < 18;
     if (k.cast !== cast) {
       k.model.traverse((o) => {

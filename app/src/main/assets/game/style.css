@@ -1699,3 +1699,32 @@ body.racing #lap-panel {
 body.racing #topline-actions {
   margin-left: auto;
 }
+
+/* Loading screen */
+#boot {
+  position: fixed; inset: 0; z-index: 9999; background: #081325;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 14px; color: #ffde59; font-weight: 900; letter-spacing: 3px; font-size: 14px;
+  animation: bootgone 0s 45s forwards;
+}
+#boot::after {
+  content: ""; width: 34px; height: 34px; border-radius: 50%;
+  border: 4px solid rgba(255, 255, 255, 0.2); border-top-color: #ffde59;
+  animation: bootspin 0.9s linear infinite;
+}
+@keyframes bootspin { to { transform: rotate(360deg); } }
+@keyframes bootgone { to { opacity: 0; visibility: hidden; } }
+
+/* Menu: keep Sound button on the right, drop duplicate Settings and the clipped hint */
+#topline-actions { margin-left: auto; }
+body.in-menu #menu-top-actions,
+body.in-menu #menu-hint { display: none !important; }
+
+/* Results card on short landscape phones: show all 8 racers in two columns */
+@media (max-height: 520px) {
+  .results-panel { width: min(92vw, 680px); padding: 10px 20px; }
+  #standings {
+    display: grid; grid-auto-flow: column; grid-template-rows: repeat(4, auto);
+    gap: 4px 12px; max-height: none; overflow: visible; margin-bottom: 8px;
+  }
+}

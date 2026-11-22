@@ -179,6 +179,15 @@ export async function buildWorld(scene, capabilities = null, envAssets = null) {
   grassTex.repeat.set(250, 250);
 
   const lawnMaterial = standard("#c6d4ad", { map: grassTex, roughness: 1 });
+  applyPhotoTextures(
+    lawnMaterial,
+    {
+      normalMap: "textures/forrest_ground_01/forrest_ground_01_nor_gl_2k.jpg",
+      roughnessMap: "textures/forrest_ground_01/forrest_ground_01_rough_2k.jpg",
+    },
+    { repeat: [150, 150] },
+  );
+
   const shoulderFallback = grassTex.clone();
   shoulderFallback.repeat.set(1.5, 8 / 3);
   const shoulderGrass = standard("#d1d9b9", {
@@ -240,6 +249,16 @@ export async function buildWorld(scene, capabilities = null, envAssets = null) {
   const blue = roadMaterial(pavement, "#278cbd", true),
     yellow = roadMaterial(pavement, "#dcc555", true),
     red = roadMaterial(pavement, "#ba4250", true);
+  for (const lane of [blue, yellow, red]) {
+    applyPhotoTextures(
+      lane,
+      {
+        normalMap: "textures/aerial_asphalt_01/aerial_asphalt_01_nor_gl_2k.jpg",
+        roughnessMap: "textures/aerial_asphalt_01/aerial_asphalt_01_rough_2k.jpg",
+      },
+      { repeat: [3, 1.5] },
+    );
+  }
 
   // Continuous paved shoulders carry the barrier all the way to the road.
   for (const [a, b] of [
@@ -1041,6 +1060,31 @@ export async function buildWorld(scene, capabilities = null, envAssets = null) {
   scatter("flower_purpleA", 60, 15.5, 24, 0.8, 1.2, 0.8);
   scatter("tree_fat", 24, 34, 60, 0.9, 1.3, 6.5);
   scatter("tree_simple", 24, 34, 60, 0.9, 1.3, 7.5);
+  scatter("mushroom_red", 40, 16, 26, 0.8, 1.4, 1.3);
+  scatter("mushroom_redGroup", 24, 16, 28, 0.8, 1.3, 1.5);
+  scatter("mushroom_redTall", 18, 17, 30, 0.8, 1.3, 2.0);
+  scatter("mushroom_tan", 30, 16, 26, 0.8, 1.4, 1.2);
+  scatter("mushroom_tanGroup", 20, 16, 28, 0.8, 1.3, 1.4);
+  scatter("stump_old", 24, 17, 32, 0.8, 1.3, 1.3);
+  scatter("stump_round", 24, 17, 32, 0.8, 1.3, 1.1);
+  scatter("log", 24, 17, 32, 0.8, 1.3, 1.0);
+  scatter("log_large", 14, 18, 34, 0.8, 1.2, 1.6);
+  scatter("grass_large", 120, 15.5, 26, 0.8, 1.5, 0.9);
+  scatter("grass_leafsLarge", 100, 15.5, 26, 0.8, 1.5, 0.9);
+  scatter("plant_bushSmall", 60, 16, 28, 0.8, 1.4, 1.0);
+  scatter("stone_largeA", 20, 17, 32, 0.8, 1.3, 1.6);
+  scatter("stone_tallA", 14, 18, 34, 0.8, 1.3, 2.4);
+  scatter("tree_pineDefaultA", 20, 34, 60, 0.9, 1.3, 7.5);
+  scatter("tree_pineRoundB", 20, 34, 60, 0.9, 1.3, 7.0);
+  scatter("tree_pineTallB", 20, 36, 62, 0.9, 1.3, 9.0);
+  scatter("tree_palm", 16, 34, 58, 0.9, 1.3, 7.0);
+  scatter("tree_thin", 16, 34, 58, 0.9, 1.3, 7.5);
+  scatter("flagRed", 10, 15.5, 18, 0.9, 1.1, 6.5);
+  scatter("flagGreen", 10, 15.5, 18, 0.9, 1.1, 6.5);
+  scatter("flagTankco", 6, 15.5, 18, 0.9, 1.1, 6.5);
+  scatter("bannerTowerGreen", 8, 16, 20, 0.9, 1.1, 8.0);
+  scatter("tentLong", 6, 22, 34, 0.9, 1.1, 3.5);
+  scatter("pylon", 30, 15.3, 17, 0.9, 1.1, 1.4);
 
   // Stadium Bowl
   buildStadiumBowl(world, { mesh, box, standard, basic, canvasTexture });

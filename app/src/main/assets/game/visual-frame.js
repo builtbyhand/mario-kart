@@ -79,8 +79,8 @@ export function chasePose(racer) {
   const { up: n, forward: f } = frame;
   // MK8-like composition: kart low in frame with room to read upcoming corners, road and landmarks ahead.
   const speedPull = Math.min(1.4, Math.max(0, ((racer.speed || 0) - 26) * 0.05)) + ((racer.boost || 0) > 0 ? 0.6 : 0);
-  const back = (racer.gliding ? 8.8 : 9.6) + speedPull;
-  const height = (racer.gliding ? 3.8 : 3.65) - Math.min(0.35, Math.max(0, ((racer.speed || 0) - 26) * 0.012));
+  const back = (racer.gliding ? 7.2 : 7.8) + speedPull;
+  const height = (racer.gliding ? 3.4 : 3.2) - Math.min(0.35, Math.max(0, ((racer.speed || 0) - 26) * 0.012));
   const landingShock = (racer.landing > 0) ? Math.sin((racer.landing / 0.24) * Math.PI) * 0.28 : 0;
   const eye = cameraClearance(
     {
@@ -99,6 +99,6 @@ export function chasePose(racer) {
     y: (racer.y + f.y * 12) * (1 - follow) + ahead.y * follow + n.y * aimHeight,
     z: (racer.z + f.z * 12) * (1 - follow) + ahead.z * follow + n.z * aimHeight,
   };
-  const viewUp = norm({ x: n.x * 0.72, y: n.y * 0.72 + 0.28, z: n.z * 0.72 });
+  const viewUp = norm({ x: n.x * 0.45, y: n.y * 0.45 + 0.55, z: n.z * 0.45 });
   return { eye, aim, up: viewUp };
 }
