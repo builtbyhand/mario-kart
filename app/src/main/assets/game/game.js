@@ -369,6 +369,7 @@ const shadowTexture = canvasTexture(64, 64, (ctx, w, h) => {
 
 export const menuCamera = new MenuCamera(camera, canvas);
 export const menuScene = new MenuScene({ scene, renderer, camera, keyLight: key, postPipeline });
+menuScene.onModelFit = (width) => { menuCamera.fitScale = Math.min(1.35, Math.max(0.85, width / 3.4)); };
 menuCamera.setTurntableCenter(menuScene.origin.x, menuScene.origin.y, menuScene.origin.z);
 menuScene.setShowcaseRacer(selected, selectedKart);
 

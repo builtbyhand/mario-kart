@@ -497,6 +497,10 @@ export class MenuScene {
 
       // Position kart on top of showcase turntable
       this.showcaseModel.position.set(0, 0.16, 0);
+      {
+        const fit = new THREE.Box3().setFromObject(this.showcaseModel).getSize(new THREE.Vector3());
+        if (this.onModelFit) this.onModelFit(Math.max(fit.x, fit.z));
+      }
 
       // Initial orientation: angled slightly towards camera
       this.showcaseModel.rotation.y = 0.25;

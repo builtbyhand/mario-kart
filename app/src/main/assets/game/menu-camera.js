@@ -228,7 +228,7 @@ export class MenuCamera {
     }
 
     // Smoothly damp radius, polar elevation, and target height toward framing goals
-    this.radius += (this.targetRadius - this.radius) * (1 - Math.exp(-step * 6));
+    this.radius += (this.targetRadius * (this.fitScale || 1) - this.radius) * (1 - Math.exp(-step * 6));
     this.phi += (this.targetPhi - this.phi) * (1 - Math.exp(-step * 6));
 
     const desiredAimY = this.center.y + this.targetHeight;

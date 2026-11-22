@@ -99,6 +99,6 @@ export function chasePose(racer) {
     y: (racer.y + f.y * 12) * (1 - follow) + ahead.y * follow + n.y * aimHeight,
     z: (racer.z + f.z * 12) * (1 - follow) + ahead.z * follow + n.z * aimHeight,
   };
-  const viewUp = norm({ x: n.x * 0.45, y: n.y * 0.45 + 0.55, z: n.z * 0.45 });
+  const viewUp = norm({ x: n.x * 0.3, y: n.y * 0.3 + 0.7, z: n.z * 0.3 });
   return { eye, aim, up: viewUp };
 }
