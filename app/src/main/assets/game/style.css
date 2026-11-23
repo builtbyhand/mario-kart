@@ -1088,6 +1088,53 @@ input[type="range"]::-webkit-slider-thumb {
   z-index: 20;
 }
 
+/* Race notifications and lap banner */
+#notice {
+  position: absolute;
+  top: 22%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(38vw, 280px);
+  max-height: 24vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: #fff;
+  font-size: clamp(16px, 3vw, 28px);
+  font-weight: 900;
+  letter-spacing: 1.5px;
+  line-height: 1.15;
+  text-shadow: 0 3px 10px rgba(0, 0, 0, 0.9);
+  pointer-events: none;
+  z-index: 35;
+}
+
+#notice .lap-sign {
+  width: clamp(76px, 13vw, 132px);
+  height: auto;
+  max-height: 20vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#notice .lap-sign svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 20vh;
+  object-fit: contain;
+}
+
+#notice .race-lettering {
+  display: block;
+  width: min(38vw, 280px);
+  height: auto;
+  max-height: 18vh;
+  object-fit: contain;
+}
+
 #item-frame {
   position: absolute;
   top: max(14px, var(--safe-top));
