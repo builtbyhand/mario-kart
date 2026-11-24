@@ -692,6 +692,7 @@ export async function loadKartPack(karts, onProgress = () => {}) {
   let fallback = 0;
 
   for (const [index, kartObj] of karts.entries()) {
+        if (index > 0) await new Promise((r) => setTimeout(r, 40));
     const id = kartObj.id;
     const spec = KART_SPECS[id] || KART_SPECS.mario;
 

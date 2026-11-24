@@ -61,6 +61,8 @@ import {
   disposeModel,
   updateDriverAnimation,
 } from "./models.js";
+import { loadGLB, KART_SPECS } from "./models.js";
+
 import { buildWorld, canvasTexture } from "./world.js";
 import { setMaterialCapabilities } from "./materials.js";
 import { ITEM_ICONS, portrait, loadSourcePortraits } from "./icons.js";
@@ -374,6 +376,7 @@ menuCamera.setTurntableCenter(menuScene.origin.x, menuScene.origin.y, menuScene.
 menuScene.setShowcaseRacer(selected, selectedKart);
 
 function constructRace() {
+  raceDirty = false;
   race = new Race({
     character: selected,
     laps: selectedLaps,
@@ -632,18 +635,14 @@ function updateStatBars(driverId, kartId) {
   if ($("stat-bar-weight")) $("stat-bar-weight").style.width = weight + "%";
 }
 
-let constructTimer = null;
+
+let raceDirty = false;
 function scheduleConstructRace() {
-  clearTimeout(constructTimer);
-  constructTimer = setTimeout(() => {
-    constructTimer = null;
-    constructRace();
-  }, 450);
+  raceDirty = true;
 }
 function flushConstructRace() {
-  if (!constructTimer) return;
-  clearTimeout(constructTimer);
-  constructTimer = null;
+  if (!raceDirty) return;
+  raceDirty = false;
   constructRace();
 }
 
@@ -2022,6 +2021,12 @@ function controlDistancesFor() {
   return 310;
 }
 constructRace();
+(async () => {
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  await wait(2500);
+  for (const k of KART_TYPES) { try { await loadGLB(k.glb); } catch (e) {} await wait(150); }
+  for (const spec of Object.values(KART_SPECS)) { try { await loadGLB(spec.character); } catch (e) {} await wait(150); }
+})();
 syncPickupPools();
 audio.prepare();
 requestAnimationFrame(frame);
