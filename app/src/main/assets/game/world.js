@@ -931,8 +931,7 @@ export async function buildWorld(scene, capabilities = null, envAssets = null) {
     { type: "billboard", s: 145, lateral: -24, size: new THREE.Vector3(14, 12, 5), rotY: 0 },
     { type: "billboardLow", s: 310, lateral: 24, size: new THREE.Vector3(12, 8, 4), rotY: Math.PI },
     { type: "bannerTowerRed", s: 5, lateral: -22, size: new THREE.Vector3(4.5, 16, 4.5), rotY: 0 },
-    { type: "billboard", s: 785, lateral: -25, size: new THREE.Vector3(14, 12, 5), rotY: 0 },
-    { type: "billboardLow", s: 1010, lateral: 24, size: new THREE.Vector3(12, 8, 4), rotY: Math.PI },
+    
   ];
 
   for (const bc of billboardConfigs) {
@@ -1111,7 +1110,7 @@ export async function buildWorld(scene, capabilities = null, envAssets = null) {
   scatter("flagGreen", 10, 15.5, 18, 0.9, 1.1, 6.5);
   scatter("flagTankco", 6, 15.5, 18, 0.9, 1.1, 6.5);
   scatter("bannerTowerGreen", 8, 16, 20, 0.9, 1.1, 8.0);
-  scatter("tentLong", 6, 22, 34, 0.9, 1.1, 3.5);
+  
   scatter("pylonRacing", 30, 15.3, 17, 0.9, 1.1, 1.4);
 
   // Stadium Bowl

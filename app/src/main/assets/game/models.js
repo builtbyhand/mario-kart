@@ -341,7 +341,7 @@ export async function loadGLB(pathUrl) {
   return gltf;
 }
 
-export function buildGLBKart(id, kartGltf, charGltf, customScale = null) {
+export function buildGLBKart(id, kartGltf, charGltf, customScale = null, tint = null) {
   const spec = KART_SPECS[id] || KART_SPECS.mario;
   const root = new THREE.Group();
   root.name = "glb-kart";
@@ -360,6 +360,14 @@ export function buildGLBKart(id, kartGltf, charGltf, customScale = null) {
       }
     }
   });
+
+    if (tint) {
+    kartScene.traverse((o) => {
+      if (!o.isMesh || !o.material) return;
+      for (let p = o; p; p = p.parent) if (/wheel|tire|character/i.test(p.name)) return;
+      for (const m of Array.isArray(o.material) ? o.material : [o.material]) if (m.color) m.color.set(tint);
+    });
+  }
 
   // Hide static driver in kart mesh if present
   const staticDriver = kartScene.getObjectByName("character");
@@ -693,7 +701,7 @@ export async function loadKartPack(karts, onProgress = () => {}) {
       const kartGltf = await loadGLB(kartPath);
       const charGltf = await loadGLB(spec.character);
 
-      const glbResult = buildGLBKart(id, kartGltf, charGltf, kartScale);
+      const glbResult = buildGLBKart(id, kartGltf, charGltf, kartScale, kartObj.customKartTint);
 
       // Replace procedural model in kartObj.root
       if (kartObj.model && kartObj.root) {

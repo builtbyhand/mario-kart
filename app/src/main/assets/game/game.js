@@ -414,6 +414,7 @@ function constructRace() {
       id: r.character.id,
       customKartGlb: i === 0 ? customKartConfig.glb : null,
       customKartScale: i === 0 ? customKartConfig.scale : null,
+      customKartTint: i === 0 ? customKartConfig.tint : null,
       root,
       model,
       glider,

@@ -13,7 +13,7 @@ export function buildUnderpass(world, { box, standard }) {
       emissiveIntensity: 0.045,
     }),
     blue = standard("#31567a", { roughness: 0.65 }),
-    trim = standard("#d3d3bd"),
+    trim = standard("#8d9187"),
     recess = standard("#29352e"),
     warm = new THREE.MeshBasicMaterial({
       color: new THREE.Color("#fff2c7").multiplyScalar(2),
@@ -21,7 +21,7 @@ export function buildUnderpass(world, { box, standard }) {
   const at = (s) => {
     const p = trackAt(s),
       g = new THREE.Group();
-    g.position.set(p.x, 0, p.z);
+    g.position.set(p.x, -0.65, p.z);
     g.rotation.y = -p.heading;
     world.add(g);
     return g;

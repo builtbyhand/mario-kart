@@ -10,6 +10,7 @@ export const KART_TYPES = [
     id: "kart-oobi",
     name: "Red Speedster",
     glb: "models/kart-oobi.glb",
+    tint: "#ff5d5d",
     scale: 2.2,
     stats: { speed: 85, accel: 80, weight: 70, drift: 75 },
     category: "Standard",
@@ -19,6 +20,7 @@ export const KART_TYPES = [
     id: "kart-oodi",
     name: "Green Aero",
     glb: "models/kart-oodi.glb",
+    tint: "#6ee06e",
     scale: 2.2,
     stats: { speed: 80, accel: 85, weight: 65, drift: 85 },
     category: "Aero",
@@ -28,6 +30,7 @@ export const KART_TYPES = [
     id: "kart-ooli",
     name: "Pink Sport",
     glb: "models/kart-ooli.glb",
+    tint: "#ff8fcf",
     scale: 2.2,
     stats: { speed: 75, accel: 90, weight: 60, drift: 90 },
     category: "Sport",
@@ -37,6 +40,7 @@ export const KART_TYPES = [
     id: "kart-oopi",
     name: "Lime Turbo",
     glb: "models/kart-oopi.glb",
+    tint: "#c6f23a",
     scale: 2.2,
     stats: { speed: 88, accel: 78, weight: 75, drift: 72 },
     category: "Turbo",
@@ -46,6 +50,7 @@ export const KART_TYPES = [
     id: "kart-oozi",
     name: "Blue Comet",
     glb: "models/kart-oozi.glb",
+    tint: "#5aa9ff",
     scale: 2.2,
     stats: { speed: 82, accel: 85, weight: 70, drift: 80 },
     category: "Comet",
@@ -55,6 +60,7 @@ export const KART_TYPES = [
     id: "race-future",
     name: "Cyber Beast",
     glb: "models/race-future.glb",
+    tint: "#b57cff",
     scale: 1.25,
     stats: { speed: 94, accel: 70, weight: 90, drift: 68 },
     category: "Hyper",
@@ -64,6 +70,7 @@ export const KART_TYPES = [
     id: "race",
     name: "Classic GT",
     glb: "models/race.glb",
+    tint: "#ffb347",
     scale: 1.25,
     stats: { speed: 90, accel: 75, weight: 85, drift: 72 },
     category: "Formula",
@@ -73,6 +80,7 @@ export const KART_TYPES = [
     id: "sedan-sports",
     name: "Yellow Sprint",
     glb: "models/sedan-sports.glb",
+    tint: "#ffe14d",
     scale: 1.25,
     stats: { speed: 84, accel: 82, weight: 75, drift: 82 },
     category: "Touring",
@@ -474,7 +482,7 @@ export class MenuScene {
       }
 
       // Build articulated GLB kart with driver sitting in cockpit
-      const built = buildGLBKart(characterId, kartGltf, charGltf, kartConfig.scale);
+            const built = buildGLBKart(characterId, kartGltf, charGltf, kartConfig.scale, kartConfig.tint);
 
       // Guard: Ensure still latest before attaching to scene graph
       if (currentRequestId !== this.showcaseRequestId) {
