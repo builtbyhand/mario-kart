@@ -415,6 +415,7 @@ function constructRace() {
     scene.add(shadow);
     karts.push({
       id: r.character.id,
+      useSourcePack: i === 0 && Boolean(customKartConfig.isSourcePack),
       customKartGlb: i === 0 ? customKartConfig.glb : null,
       customKartScale: i === 0 ? customKartConfig.scale : null,
       customKartTint: i === 0 ? customKartConfig.tint : null,

@@ -208,6 +208,7 @@ export const KART_SPECS = {
   mario: {
     kart: "models/kart-oobi.glb",
     character: "models/character-male-a.glb",
+    sourceKart: "models/mario-source.glb",
     name: "Red Speedster",
     scale: 2.2,
     driverOffset: [0, 0.56, 0.14],
@@ -216,6 +217,7 @@ export const KART_SPECS = {
   luigi: {
     kart: "models/kart-oodi.glb",
     character: "models/character-male-b.glb",
+    sourceKart: "models/luigi-source.glb",
     name: "Green Aero",
     scale: 2.2,
     driverOffset: [0, 0.56, 0.14],
@@ -224,6 +226,7 @@ export const KART_SPECS = {
   peach: {
     kart: "models/kart-ooli.glb",
     character: "models/character-female-a.glb",
+    sourceKart: "models/peach-source.glb",
     name: "Pink Sport",
     scale: 2.2,
     driverOffset: [0, 0.54, 0.08],
@@ -232,6 +235,7 @@ export const KART_SPECS = {
   yoshi: {
     kart: "models/kart-oopi.glb",
     character: "models/character-female-b.glb",
+    sourceKart: "models/yoshi-source.glb",
     name: "Lime Turbo",
     scale: 2.2,
     driverOffset: [0, 0.56, 0.14],
@@ -240,6 +244,7 @@ export const KART_SPECS = {
   toad: {
     kart: "models/kart-oozi.glb",
     character: "models/character-male-c.glb",
+    sourceKart: "models/toad-source.glb",
     name: "Blue Comet",
     scale: 2.2,
     driverOffset: [0, 0.56, 0.14],
@@ -248,6 +253,7 @@ export const KART_SPECS = {
   bowser: {
     kart: "models/race-future.glb",
     character: "models/character-male-d.glb",
+    sourceKart: "models/bowser-source.glb",
     name: "Cyber Beast",
     scale: 1.25,
     driverOffset: [0, 0.52, -0.18],
@@ -256,6 +262,7 @@ export const KART_SPECS = {
   "donkey-kong": {
     kart: "models/race.glb",
     character: "models/character-male-d.glb",
+    sourceKart: "models/donkey-kong-source.glb",
     name: "Classic GT",
     scale: 1.25,
     driverOffset: [0, 0.46, -0.38],
@@ -264,6 +271,7 @@ export const KART_SPECS = {
   koopa: {
     kart: "models/sedan-sports.glb",
     character: "models/character-female-c.glb",
+    sourceKart: "models/koopa-source.glb",
     name: "Yellow Sprint",
     scale: 1.25,
     driverOffset: [0, 0.45, -0.15],
@@ -350,6 +358,10 @@ export function buildGLBKart(id, kartGltf, charGltf, customScale = null, tint = 
 
   // Clone kart hierarchy with cloned geometry and materials for full instance isolation
   const kartScene = cloneSkeleton(kartGltf.scene);
+  const isSourceModel = Boolean(
+    kartScene.getObjectByName("openwii-source-kart") ||
+      kartScene.getObjectByName("source-chassis"),
+  );
   kartScene.traverse((o) => {
     if (o.isMesh) {
       if (o.geometry) o.geometry = o.geometry.clone();
@@ -361,7 +373,7 @@ export function buildGLBKart(id, kartGltf, charGltf, customScale = null, tint = 
     }
   });
 
-    if (tint) {
+  if (tint && !isSourceModel) {
     kartScene.traverse((o) => {
       if (!o.isMesh || !o.material) return;
       for (let p = o; p; p = p.parent) if (/wheel|tire|character/i.test(p.name)) return;
@@ -369,13 +381,15 @@ export function buildGLBKart(id, kartGltf, charGltf, customScale = null, tint = 
     });
   }
 
-  // Hide static driver in kart mesh if present
-  const staticDriver = kartScene.getObjectByName("character");
-  if (staticDriver) staticDriver.visible = false;
+  // Hide static driver in kart mesh if present (split GLBs use separate charGltf)
+  if (!isSourceModel) {
+    const staticDriver = kartScene.getObjectByName("character");
+    if (staticDriver) staticDriver.visible = false;
+  }
 
-  // Scale and orient kart chassis: Rotate by Math.PI around Y so nose faces -Z
-  kartScene.scale.setScalar(customScale || spec.scale);
-  kartScene.rotation.y = Math.PI;
+  // Scale and orient kart chassis: split GLBs face +Z and rotate Math.PI; source GLBs already face -Z at scale 1.0
+  kartScene.scale.setScalar(customScale || (isSourceModel ? 1.0 : spec.scale));
+  kartScene.rotation.y = isSourceModel ? 0 : Math.PI;
   root.add(kartScene);
   root.updateMatrixWorld(true);
 
@@ -388,8 +402,15 @@ export function buildGLBKart(id, kartGltf, charGltf, customScale = null, tint = 
   ];
 
   const wheels = wheelAliases.map(([name, alias], i) => {
-    const mesh = kartScene.getObjectByName(name) || kartScene.getObjectByName(alias);
-    if (!mesh) return null;
+    const wheelNode = kartScene.getObjectByName(name) || kartScene.getObjectByName(alias);
+    if (!wheelNode) return null;
+    let mesh = wheelNode.isMesh ? wheelNode : null;
+    if (!mesh) {
+      wheelNode.traverse((c) => {
+        if (!mesh && c.isMesh) mesh = c;
+      });
+    }
+    if (!mesh || !mesh.geometry) return null;
 
     // 1. Calculate axle center and direction using complete source GLTF hierarchy and its updated matrixWorld
     mesh.geometry.computeBoundingBox();
@@ -487,6 +508,11 @@ export function buildGLBKart(id, kartGltf, charGltf, customScale = null, tint = 
     wheelPivot.add(glow);
     Object.defineProperty(wheelPivot.userData, "glow", { value: glow, enumerable: false, writable: true });
 
+    if (isSourceModel && mesh.material && !Array.isArray(mesh.material) && mesh.material.emissiveMap) {
+      sourceWheelMaterial(mesh.material);
+      wheelPivot.userData.sourceTireMeshes = [mesh];
+    }
+
     return wheelPivot;
   });
 
@@ -495,7 +521,33 @@ export function buildGLBKart(id, kartGltf, charGltf, customScale = null, tint = 
   let driverScene = null;
   let driverHead = null;
 
-  if (charGltf && charGltf.scene) {
+  if (isSourceModel) {
+    driverScene = kartScene.getObjectByName("source-driver") || null;
+    if (driverScene) {
+      driverScene.traverse((o) => {
+        if (o.isSkinnedMesh) o.frustumCulled = false;
+      });
+      const spine =
+        driverScene.getObjectByName("Spine1_1") ||
+        driverScene.getObjectByName("Spine1_2") ||
+        null;
+      if (spine) {
+        spine.userData.restQuaternion = spine.quaternion.toArray();
+      }
+      Object.defineProperties(driverScene.userData, {
+        isSourceDriver: { value: true, enumerable: false, writable: true },
+        restPosition: { value: driverScene.position.toArray(), enumerable: false, writable: true },
+        restRotation: { value: driverScene.rotation.toArray(), enumerable: false, writable: true },
+        spine: { value: spine, enumerable: false, writable: true },
+        swayPhase: { value: 0, enumerable: false, writable: true },
+        swayRoll: { value: 0, enumerable: false, writable: true },
+      });
+    }
+    driverHead = kartScene.getObjectByName("driver-head") || driverScene;
+    if (driverHead) {
+      driverHead.userData.lookRestQuaternion = driverHead.quaternion.toArray();
+    }
+  } else if (charGltf && charGltf.scene) {
     driverScene = cloneSkeleton(charGltf.scene);
         driverScene.traverse((o) => {
       if (o.isSkinnedMesh) o.frustumCulled = false;
@@ -563,7 +615,7 @@ export function buildGLBKart(id, kartGltf, charGltf, customScale = null, tint = 
   Object.defineProperties(root.userData, {
     wheels: { value: wheels, enumerable: false, writable: true },
     mixer: { value: mixer, enumerable: false, writable: true },
-    driver: { value: charGltf ? charGltf.scene : null, enumerable: false, writable: true },
+    driver: { value: driverScene || (charGltf ? charGltf.scene : null), enumerable: false, writable: true },
     driverHead: { value: driverHead, enumerable: false, writable: true },
   });
 
@@ -576,10 +628,58 @@ export function buildGLBKart(id, kartGltf, charGltf, customScale = null, tint = 
   };
 }
 
+const _swayQ = new THREE.Quaternion();
+const _swayEuler = new THREE.Euler();
+
 export function updateDriverAnimation(kart, racer, raceState, dt) {
   if (!kart || !racer) return;
   const driver = kart.driver || kart.model?.userData?.driver;
-  if (!driver || !driver.userData?.actions) return;
+  if (!driver) return;
+
+  if (driver.userData?.isSourceDriver) {
+    const step = Math.min(0.05, dt || 0.016);
+    const speed = Math.abs(racer.speed || 0);
+    const steer = racer.steer || 0;
+    const drift = racer.drift || 0;
+    const targetRoll = THREE.MathUtils.clamp(-(steer * 0.16 + drift * 0.12), -0.24, 0.24);
+    const blend = Math.min(1, step * 10);
+    driver.userData.swayRoll = THREE.MathUtils.lerp(driver.userData.swayRoll || 0, targetRoll, blend);
+    driver.userData.swayPhase = (driver.userData.swayPhase || 0) + step * (3.5 + speed * 0.18);
+
+    const restPos = driver.userData.restPosition || [0, 0, 0];
+    const restRot = driver.userData.restRotation || [0, 0, 0];
+    const bounce =
+      racer.jump || racer.gliding
+        ? 0.035
+        : racer.landing > 0
+          ? -0.025
+          : raceState === "finishing" || raceState === "results"
+            ? Math.abs(Math.sin(driver.userData.swayPhase * 1.4)) * 0.04
+            : Math.sin(driver.userData.swayPhase) * (0.004 + Math.min(0.008, speed * 0.0002));
+    const spinPitch = racer.spin > 0 ? Math.sin(driver.userData.swayPhase * 3.0) * 0.16 : 0;
+
+    driver.position.set(restPos[0], restPos[1] + bounce, restPos[2]);
+    driver.rotation.set(
+      restRot[0] + spinPitch + (racer.boost > 0 ? -0.06 : 0),
+      restRot[1] + steer * 0.06,
+      restRot[2] + driver.userData.swayRoll,
+    );
+
+    const spine = driver.userData.spine;
+    if (spine && spine.userData?.restQuaternion) {
+      _swayEuler.set(
+        spinPitch * 0.5,
+        steer * 0.08,
+        driver.userData.swayRoll * 0.7,
+        "YXZ",
+      );
+      _swayQ.setFromEuler(_swayEuler);
+      spine.quaternion.fromArray(spine.userData.restQuaternion).multiply(_swayQ);
+    }
+    return;
+  }
+
+  if (!driver.userData?.actions) return;
 
   const actions = driver.userData.actions;
   let targetClip = "drive";
@@ -697,12 +797,19 @@ export async function loadKartPack(karts, onProgress = () => {}) {
     const spec = KART_SPECS[id] || KART_SPECS.mario;
 
     try {
-      const kartPath = kartObj.customKartGlb || spec.kart;
-      const kartScale = kartObj.customKartScale || spec.scale;
+      const useSourcePack = Boolean(kartObj.useSourcePack && spec.sourceKart);
+      const kartPath = useSourcePack ? spec.sourceKart : (kartObj.customKartGlb || spec.kart);
+      const kartScale = useSourcePack ? 1.0 : (kartObj.customKartScale || spec.scale);
       const kartGltf = await loadGLB(kartPath);
-      const charGltf = await loadGLB(spec.character);
+      const charGltf = useSourcePack ? null : await loadGLB(spec.character);
 
-      const glbResult = buildGLBKart(id, kartGltf, charGltf, kartScale, kartObj.customKartTint);
+      const glbResult = buildGLBKart(
+        id,
+        kartGltf,
+        charGltf,
+        kartScale,
+        useSourcePack ? null : kartObj.customKartTint,
+      );
 
       // Replace procedural model in kartObj.root
       if (kartObj.model && kartObj.root) {

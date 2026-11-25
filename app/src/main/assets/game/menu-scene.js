@@ -3,9 +3,19 @@ import { loadGLB, buildGLBKart, disposeModel, KART_SPECS } from "./models.js";
 import { instantiateEnvironmentModel } from "./environment-loader.js";
 
 /**
- * 8 Fully articulated Karts with distinct visual profiles, chassis geometry, and driving stats.
+ * Articulated Karts with distinct visual profiles, chassis geometry, and driving stats.
  */
 export const KART_TYPES = [
+  {
+    id: "classic-source",
+    name: "Classic Kart",
+    glb: "models/mario-source.glb",
+    isSourcePack: true,
+    scale: 1.0,
+    stats: { speed: 86, accel: 84, weight: 74, drift: 84 },
+    category: "Classic",
+    desc: "Original Mario Kart character & standard kart model with signature styling.",
+  },
   {
     id: "kart-oobi",
     name: "Red Speedster",
@@ -470,10 +480,12 @@ export class MenuScene {
     const kartConfig = KART_TYPES.find((k) => k.id === kartId) || KART_TYPES[0];
 
     try {
-      // Load both GLTF models from memory cache (or disk if first run)
+      const isSourcePack = Boolean(kartConfig.isSourcePack && charSpec.sourceKart);
+      const kartPath = isSourcePack ? charSpec.sourceKart : kartConfig.glb;
+      // Load GLTF model(s) from memory cache (or disk if first run)
       const [kartGltf, charGltf] = await Promise.all([
-        loadGLB(kartConfig.glb),
-        loadGLB(charSpec.character),
+        loadGLB(kartPath),
+        isSourcePack ? Promise.resolve(null) : loadGLB(charSpec.character),
       ]);
 
       // Guard: If another racer selection was made while awaiting assets, discard outdated load
@@ -482,7 +494,13 @@ export class MenuScene {
       }
 
       // Build articulated GLB kart with driver sitting in cockpit
-            const built = buildGLBKart(characterId, kartGltf, charGltf, kartConfig.scale, kartConfig.tint);
+      const built = buildGLBKart(
+        characterId,
+        kartGltf,
+        charGltf,
+        isSourcePack ? 1.0 : kartConfig.scale,
+        isSourcePack ? null : kartConfig.tint,
+      );
 
       // Guard: Ensure still latest before attaching to scene graph
       if (currentRequestId !== this.showcaseRequestId) {
@@ -602,6 +620,21 @@ export class MenuScene {
         } else {
           this.showcaseHead.rotation.y = this.headYaw;
         }
+      }
+
+      if (this.showcaseDriver?.userData?.isSourceDriver) {
+        const restPos = this.showcaseDriver.userData.restPosition || [0, 0, 0];
+        const restRot = this.showcaseDriver.userData.restRotation || [0, 0, 0];
+        this.showcaseDriver.position.set(
+          restPos[0],
+          restPos[1] + Math.sin(time * 2.4) * 0.008,
+          restPos[2],
+        );
+        this.showcaseDriver.rotation.set(
+          restRot[0] + Math.sin(time * 1.6) * 0.025,
+          restRot[1] + Math.sin(time * 1.1) * 0.03,
+          restRot[2],
+        );
       }
     }
 

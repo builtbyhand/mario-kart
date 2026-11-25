@@ -169,8 +169,8 @@ test("MenuCamera executes smooth cinematic transition to gameplay grid", () => {
   assert.ok(camera.position.distanceTo(gridEye) < 0.05);
 });
 
-test("KART_TYPES and DRIVER_PROFILES define all 8 vehicles and characters with complete metadata", () => {
-  assert.equal(KART_TYPES.length, 8);
+test("KART_TYPES and DRIVER_PROFILES define all 9 vehicles and 8 characters with complete metadata", () => {
+  assert.equal(KART_TYPES.length, 9);
   for (const kart of KART_TYPES) {
     assert.ok(kart.id, "Kart must have id");
     assert.ok(kart.name, "Kart must have name");
