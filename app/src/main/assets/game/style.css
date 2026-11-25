@@ -2,6 +2,18 @@
    Mario Kart — Android Mobile & TV Game Stylesheet
    ───────────────────────────────────────────────────────────────────────────── */
 
+@font-face {
+  font-family: "MKCounter";
+  src: url("ui/counter.woff") format("woff");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "MKMessage";
+  src: url("ui/message.woff") format("woff");
+  font-display: swap;
+}
+
 *, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
@@ -442,6 +454,7 @@ body.in-menu #pause-btn {
   font-size: 15px;
   font-weight: 900;
   letter-spacing: 1.8px;
+  font-family: "MKMessage", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   cursor: pointer;
   box-shadow: 0 8px 24px rgba(34, 197, 94, 0.65), inset 0 2px 4px rgba(255, 255, 255, 0.4);
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.7);
@@ -1106,6 +1119,7 @@ input[type="range"]::-webkit-slider-thumb {
   letter-spacing: 1.5px;
   line-height: 1.15;
   text-shadow: 0 3px 10px rgba(0, 0, 0, 0.9);
+  font-family: "MKMessage", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   pointer-events: none;
   z-index: 35;
 }
@@ -1228,6 +1242,7 @@ input[type="range"]::-webkit-slider-thumb {
   font-size: 16px;
   font-weight: 900;
   color: #ffd700;
+  font-family: "MKCounter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
 .flag {
@@ -1244,6 +1259,7 @@ input[type="range"]::-webkit-slider-thumb {
   font-size: 16px;
   font-weight: 900;
   color: #ffffff;
+  font-family: "MKCounter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
 #lap small {
@@ -1260,6 +1276,7 @@ input[type="range"]::-webkit-slider-thumb {
   color: #ffd700;
   text-shadow: 0 3px 12px rgba(0, 0, 0, 0.9);
   line-height: 1;
+  font-family: "MKCounter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
 #position sup {
@@ -1302,6 +1319,7 @@ input[type="range"]::-webkit-slider-thumb {
   font-size: 22px;
   font-weight: 900;
   color: #ffffff;
+  font-family: "MKCounter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
 #speed span {
@@ -1392,6 +1410,7 @@ input[type="range"]::-webkit-slider-thumb {
   font-weight: 900;
   color: #ffd700;
   text-shadow: 0 4px 16px rgba(0, 0, 0, 0.9);
+  font-family: "MKCounter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
 #count-number .race-lettering {

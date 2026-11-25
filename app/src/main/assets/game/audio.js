@@ -108,6 +108,11 @@ export class KartAudio {
     async playTrack(url, opts) {
     try {
       await this.unlock();
+      if (this.original?.ready) {
+        this._pendingTrack = null;
+        this.engine.stopTrack(0.1);
+        return;
+      }
       const ctx = this.engine.ctx;
       if (!ctx || ctx.state !== "running") { this._pendingTrack = [url, opts]; return; }
       this._pendingTrack = null;

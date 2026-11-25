@@ -8,8 +8,46 @@ export class SampledKartAudio {
     this.musicKey=null;this.musicEpoch=0;this.musicOrigins={};this.finalAt=0;this.finishAt=0;this.finishUntil=0;this.finishCueUntil=0;this.impactUntil=0;this.lead=0;
   }
   async prepare() {
-    this.ready = false;
-    return false;
+    if (this.ready) return true;
+    const ctx = this.engine?.ctx;
+    if (!ctx || typeof fetch !== 'function') return false;
+    if (this._preparing) return this._preparing;
+    this._preparing = (async () => {
+      try {
+        const res = await fetch('audio/sampled/manifest.json');
+        if (!res.ok) return false;
+        const manifest = await res.json();
+        if (!manifest?.cues || typeof manifest.cues !== 'object') return false;
+        this.manifest = manifest;
+        const entries = Object.entries(manifest.cues);
+        const concurrency = 8;
+        let idx = 0;
+        const worker = async () => {
+          while (idx < entries.length) {
+            const [key, cue] = entries[idx++];
+            if (!cue?.file || this.buffers.has(key)) continue;
+            try {
+              const r = await fetch(`audio/sampled/${cue.file}`);
+              if (!r.ok) throw new Error(`HTTP ${r.status}`);
+              const buf = await ctx.decodeAudioData(await r.arrayBuffer());
+              this.buffers.set(key, buf);
+            } catch (err) {
+              this.failures.push({ key, file: cue.file, error: err?.message || String(err) });
+            }
+          }
+        };
+        await Promise.all(Array.from({ length: Math.min(concurrency, entries.length) }, worker));
+        if (this.buffers.size === 0) return false;
+        this.buildGraph();
+        this.ready = true;
+        return true;
+      } catch {
+        return false;
+      } finally {
+        this._preparing = null;
+      }
+    })();
+    return this._preparing;
   }
   buildGraph(){
     const ctx=this.engine.ctx;
@@ -21,7 +59,9 @@ export class SampledKartAudio {
       g.gain.value=level * mult;
       g.connect(this.mix);this.buses[key]=g;
     }
-    this.capture=this.engine.ctx.createMediaStreamDestination();this.engine.master.connect(this.capture);
+    try {
+      this.capture=this.engine.ctx.createMediaStreamDestination();this.engine.master.connect(this.capture);
+    } catch {}
   }
   note(key,extra={}){this.log.push({key,at:this.engine.ctx.currentTime,...extra});if(this.log.length>240)this.log.shift();}
   play(key,{bus='effects',gain=1,loop=false,offset=0,pan=0,delay=0,when,record=true}={}){
@@ -194,12 +234,13 @@ export class SampledKartAudio {
     const base=this.loops.get('music'),lead=this.loops.get('musicLead');
     if(base&&lead){const amount=Math.max(0,Math.min(1,(this.lead-.3)/.4));base.g.gain.setTargetAtTime(this.manifest.cues[key].gain*(1-amount),now,.15);lead.g.gain.setTargetAtTime(this.manifest.cues[key+'Lead'].gain*amount,now,.15);}
     const star=running && r.star>0,impact=now<this.impactUntil,results=race.state==='results';
+    const mVol = this.engine.musicVolume ?? 1, sVol = this.engine.sfxVolume ?? 1;
     // Results keep driving as b-roll; their gameplay mix sits behind menu UI.
-    this.buses.effects.gain.setTargetAtTime(results?.18:1,now,.16);
-    this.buses.music.gain.setTargetAtTime(results?.32:star?1.05:impact?.38:now<this.voiceAt?.54:.72,now,.07);
-    this.buses.engine.gain.setTargetAtTime(results?.12:star?.42:impact?.4:.8,now,.08);
-    this.buses.ambience.gain.setTargetAtTime(results?.10:star?.25:.6,now,.12);
-    this.buses.voice.gain.setTargetAtTime(results?.18:star?.55:.9,now,.08);
+    this.buses.effects.gain.setTargetAtTime((results?.18:1)*sVol,now,.16);
+    this.buses.music.gain.setTargetAtTime((results?.32:star?1.05:impact?.38:now<this.voiceAt?.54:.72)*mVol,now,.07);
+    this.buses.engine.gain.setTargetAtTime((results?.12:star?.42:impact?.4:.8)*sVol,now,.08);
+    this.buses.ambience.gain.setTargetAtTime((results?.10:star?.25:.6)*sVol,now,.12);
+    this.buses.voice.gain.setTargetAtTime((results?.18:star?.55:.9)*sVol,now,.08);
   }
   stop(){for(const node of this.nodes)this.end(node,.01);this.loops.clear();this.projectiles.clear();this.musicKey=null;}
   get state(){return {context:this.engine.ctx?.state,mix:Object.fromEntries(Object.entries(this.buses||{}).map(([k,v])=>[k,v.gain.value])),ready:this.ready,finishCueUntil:this.finishCueUntil,finishUntil:this.finishUntil,now:this.engine.ctx?.currentTime,loaded:this.buffers.size,failures:this.failures,loops:[...this.loops].map(([slot,n])=>({slot,key:n.key,gain:n.g.gain.value,rate:n.src.playbackRate.value})),projectiles:[...this.projectiles.keys()],activeNodes:this.nodes.size,events:this.log.slice(-100),music:this.musicKey};}
