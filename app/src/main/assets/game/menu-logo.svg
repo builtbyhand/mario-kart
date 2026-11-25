@@ -1,1 +1,47 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 726 96" role="img" aria-label="Mario Kart"><defs><linearGradient id="metal" x2="0" y2="1"><stop stop-color="#fff"/><stop offset=".45" stop-color="#fff"/><stop offset=".47" stop-color="#c4c8ca"/><stop offset="1" stop-color="#e6e8e8"/></linearGradient></defs><g fill-rule="evenodd" stroke-linejoin="miter"><g transform="translate(0 5)" fill="#121416" stroke="#121416" stroke-width="13"><path transform="translate(12,18)" d="M0 0H20L40 19 60 0H80V58H59V27L40 44 21 27V58H0Z"/><path transform="translate(96,18)" d="M19 0H57L80 58H56L52 46H25L21 58H0ZM32 29H46L39 10Z"/><path transform="translate(180,18)" d="M0 0H55L70 12V30L58 39 78 58H48L30 40H22V58H0ZM22 14V26H46L50 23V17L46 14Z"/><path transform="translate(264,18)" d="M0 0H25V58H0Z"/><path transform="translate(298,18)" d="M17 0H59L76 14V44L59 58H17L0 44V14ZM24 16V42H52V16Z"/><path transform="translate(382,18)" d="M0 0H23V21L45 0H74L44 28 77 58H45L23 37V58H0Z"/><path transform="translate(466,18)" d="M19 0H57L80 58H56L52 46H25L21 58H0ZM32 29H46L39 10Z"/><path transform="translate(550,18)" d="M0 0H55L70 12V30L58 39 78 58H48L30 40H22V58H0ZM22 14V26H46L50 23V17L46 14Z"/><path transform="translate(634,18)" d="M0 0H75V18H50V58H25V18H0Z"/></g><g fill="url(#metal)" stroke="#6c7477" stroke-width="5" paint-order="stroke"><path transform="translate(12,18)" d="M0 0H20L40 19 60 0H80V58H59V27L40 44 21 27V58H0Z"/><path transform="translate(96,18)" d="M19 0H57L80 58H56L52 46H25L21 58H0ZM32 29H46L39 10Z"/><path transform="translate(180,18)" d="M0 0H55L70 12V30L58 39 78 58H48L30 40H22V58H0ZM22 14V26H46L50 23V17L46 14Z"/><path transform="translate(264,18)" d="M0 0H25V58H0Z"/><path transform="translate(298,18)" d="M17 0H59L76 14V44L59 58H17L0 44V14ZM24 16V42H52V16Z"/><path transform="translate(382,18)" d="M0 0H23V21L45 0H74L44 28 77 58H45L23 37V58H0Z"/><path transform="translate(466,18)" d="M19 0H57L80 58H56L52 46H25L21 58H0ZM32 29H46L39 10Z"/><path transform="translate(550,18)" d="M0 0H55L70 12V30L58 39 78 58H48L30 40H22V58H0ZM22 14V26H46L50 23V17L46 14Z"/><path transform="translate(634,18)" d="M0 0H75V18H50V58H25V18H0Z"/></g></g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 620 96" role="img" aria-label="Mario Kart">
+  <defs>
+    <clipPath id="ml-upper">
+      <polygon points="0,0 256,0 256,118 0,158"/>
+    </clipPath>
+    <clipPath id="ml-lower">
+      <polygon points="0,170 256,130 256,256 0,256"/>
+    </clipPath>
+  </defs>
+
+  <!-- Velocity MK Badge -->
+  <g transform="translate(2, 2) scale(0.36)">
+    <rect x="12" y="12" width="232" height="232" rx="44" fill="#0E1629" stroke="#F5C842" stroke-width="8"/>
+    <g clip-path="url(#ml-upper)" fill="#E62E2D">
+      <path d="M36,204 L36,52 L60,52 L82,102 L104,52 L128,52 L128,204 L104,204 L104,112 L82,158 L60,112 L60,204 Z"/>
+      <rect x="142" y="52" width="24" height="152"/>
+      <polygon points="166,126 166,100 198,52 224,52 178,126"/>
+      <polygon points="166,126 178,126 224,204 198,204 166,152"/>
+    </g>
+    <g clip-path="url(#ml-lower)" transform="translate(-4, 0)">
+      <path fill="#F5C842" d="M36,204 L36,52 L60,52 L82,102 L104,52 L128,52 L128,204 L104,204 L104,112 L82,158 L60,112 L60,204 Z"/>
+      <rect fill="#FFFFFF" x="142" y="52" width="24" height="152"/>
+      <polygon fill="#FFFFFF" points="166,126 166,100 198,52 224,52 178,126"/>
+      <polygon fill="#FFFFFF" points="166,126 178,126 224,204 198,204 166,152"/>
+    </g>
+    <polygon points="24,162 232,122 232,129 24,169" fill="#00D4FF"/>
+  </g>
+
+  <!-- MARIO (Red #E62E2D) -->
+  <g transform="translate(108, 22) scale(0.88)" fill="#E62E2D" stroke="#0E1629" stroke-width="5" paint-order="stroke">
+    <path transform="translate(0,0)" d="M0 0H20L40 19 60 0H80V58H59V27L40 44 21 27V58H0Z"/>
+    <path transform="translate(84,0)" d="M19 0H57L80 58H56L52 46H25L21 58H0ZM32 29H46L39 10Z"/>
+    <path transform="translate(166,0)" d="M0 0H55L70 12V30L58 39 78 58H48L30 40H22V58H0ZM22 14V26H46L50 23V17L46 14Z"/>
+    <path transform="translate(248,0)" d="M0 0H25V58H0Z"/>
+    <path transform="translate(280,0)" d="M17 0H59L76 14V44L59 58H17L0 44V14ZM24 16V42H52V16Z"/>
+  </g>
+
+  <!-- KART (White #FFFFFF with subtle gold accent) -->
+  <g transform="translate(432, 22) scale(0.54)" fill="#FFFFFF" stroke="#0E1629" stroke-width="6" paint-order="stroke">
+    <path transform="translate(0,0)" d="M0 0H23V21L45 0H74L44 28 77 58H45L23 37V58H0Z"/>
+    <path transform="translate(82,0)" d="M19 0H57L80 58H56L52 46H25L21 58H0ZM32 29H46L39 10Z"/>
+    <path transform="translate(164,0)" d="M0 0H55L70 12V30L58 39 78 58H48L30 40H22V58H0ZM22 14V26H46L50 23V17L46 14Z"/>
+    <path transform="translate(246,0)" d="M0 0H75V18H50V58H25V18H0Z"/>
+  </g>
+  <rect x="434" y="61" width="112" height="5" rx="2.5" fill="#F5C842"/>
+  <rect x="550" y="61" width="40" height="5" rx="2.5" fill="#00D4FF"/>
+</svg>

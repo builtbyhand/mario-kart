@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 180" width="680" height="180">
+  <title>Mario Kart (Android) — Brand Banner</title>
+  <defs>
+    <clipPath id="banner-upper-cut">
+      <polygon points="0,0 256,0 256,118 0,158"/>
+    </clipPath>
+    <clipPath id="banner-lower-cut">
+      <polygon points="0,170 256,130 256,256 0,256"/>
+    </clipPath>
+  </defs>
+
+  <!-- Full-bleed Dark Stadium Card so it looks great on both GitHub light & dark themes -->
+  <rect x="4" y="4" width="672" height="172" rx="24" fill="#0E1629"/>
+  <rect x="4" y="4" width="672" height="172" rx="24" fill="none" stroke="#1E2C4D" stroke-width="2"/>
+
+  <!-- Velocity MK Symbol on Left -->
+  <g transform="translate(22, 18) scale(0.56)">
+    <rect x="12" y="12" width="232" height="232" rx="44" fill="#131E38"/>
+    <g clip-path="url(#banner-upper-cut)" fill="#E62E2D">
+      <path d="M36,204 L36,52 L60,52 L82,102 L104,52 L128,52 L128,204 L104,204 L104,112 L82,158 L60,112 L60,204 Z"/>
+      <rect x="142" y="52" width="24" height="152"/>
+      <polygon points="166,126 166,100 198,52 224,52 178,126"/>
+      <polygon points="166,126 178,126 224,204 198,204 166,152"/>
+    </g>
+    <g clip-path="url(#banner-lower-cut)" transform="translate(-4, 0)">
+      <path fill="#F5C842" d="M36,204 L36,52 L60,52 L82,102 L104,52 L128,52 L128,204 L104,204 L104,112 L82,158 L60,112 L60,204 Z"/>
+      <rect fill="#FFFFFF" x="142" y="52" width="24" height="152"/>
+      <polygon fill="#FFFFFF" points="166,126 166,100 198,52 224,52 178,126"/>
+      <polygon fill="#FFFFFF" points="166,126 178,126 224,204 198,204 166,152"/>
+    </g>
+    <polygon points="24,162 232,122 232,129 24,169" fill="#00D4FF"/>
+  </g>
+
+  <!-- Pure Vector Wordmark: MARIO (Red) + KART (White) -->
+  <!-- MARIO -->
+  <g transform="translate(184, 38) scale(1.02)" fill="#E62E2D">
+    <path transform="translate(0,0)" d="M0 0H20L40 19 60 0H80V58H59V27L40 44 21 27V58H0Z"/>
+    <path transform="translate(86,0)" d="M19 0H57L80 58H56L52 46H25L21 58H0ZM32 29H46L39 10Z"/>
+    <path transform="translate(170,0)" d="M0 0H55L70 12V30L58 39 78 58H48L30 40H22V58H0ZM22 14V26H46L50 23V17L46 14Z"/>
+    <path transform="translate(254,0)" d="M0 0H25V58H0Z"/>
+    <path transform="translate(288,0)" d="M17 0H59L76 14V44L59 58H17L0 44V14ZM24 16V42H52V16Z"/>
+  </g>
+
+  <!-- KART -->
+  <g transform="translate(186, 108) scale(0.55)" fill="#FFFFFF">
+    <path transform="translate(0,0)" d="M0 0H23V21L45 0H74L44 28 77 58H45L23 37V58H0Z"/>
+    <path transform="translate(92,0)" d="M19 0H57L80 58H56L52 46H25L21 58H0ZM32 29H46L39 10Z"/>
+    <path transform="translate(184,0)" d="M0 0H55L70 12V30L58 39 78 58H48L30 40H22V58H0ZM22 14V26H46L50 23V17L46 14Z"/>
+    <path transform="translate(274,0)" d="M0 0H75V18H50V58H25V18H0Z"/>
+  </g>
+
+  <!-- Gold & Cyan Racing Stripe Accent -->
+  <rect x="404" y="121" width="160" height="7" rx="3.5" fill="#F5C842"/>
+  <rect x="572" y="121" width="64" height="7" rx="3.5" fill="#00D4FF"/>
+</svg>

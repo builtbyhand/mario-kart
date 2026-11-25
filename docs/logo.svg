@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <title>Mario Kart — Velocity MK Logo</title>
+  <defs>
+    <clipPath id="mk-upper-cut">
+      <polygon points="0,0 256,0 256,118 0,158"/>
+    </clipPath>
+    <clipPath id="mk-lower-cut">
+      <polygon points="0,170 256,130 256,256 0,256"/>
+    </clipPath>
+  </defs>
+
+  <!-- Dark Stadium Badge -->
+  <rect x="12" y="12" width="232" height="232" rx="44" fill="#0E1629"/>
+
+  <!-- Upper Half: Mario Red (#E62E2D) -->
+  <g clip-path="url(#mk-upper-cut)" fill="#E62E2D">
+    <path d="M36,204 L36,52 L60,52 L82,102 L104,52 L128,52 L128,204 L104,204 L104,112 L82,158 L60,112 L60,204 Z"/>
+    <rect x="142" y="52" width="24" height="152"/>
+    <polygon points="166,126 166,100 198,52 224,52 178,126"/>
+    <polygon points="166,126 178,126 224,204 198,204 166,152"/>
+  </g>
+
+  <!-- Lower Half: Championship Gold (#F5C842) + Crisp White (#FFFFFF) -->
+  <g clip-path="url(#mk-lower-cut)" transform="translate(-4, 0)">
+    <path fill="#F5C842" d="M36,204 L36,52 L60,52 L82,102 L104,52 L128,52 L128,204 L104,204 L104,112 L82,158 L60,112 L60,204 Z"/>
+    <rect fill="#FFFFFF" x="142" y="52" width="24" height="152"/>
+    <polygon fill="#FFFFFF" points="166,126 166,100 198,52 224,52 178,126"/>
+    <polygon fill="#FFFFFF" points="166,126 178,126 224,204 198,204 166,152"/>
+  </g>
+
+  <!-- Anti-Gravity Cyan Speed Streak (#00D4FF) -->
+  <polygon points="24,162 232,122 232,129 24,169" fill="#00D4FF"/>
+</svg>

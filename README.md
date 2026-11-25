@@ -1,97 +1,190 @@
+<p align="center">
+  <a href="https://github.com/builtbyhand/mario-kart">
+    <img src="./docs/logo.svg" alt="Mario Kart Logo" width="120" height="120">
+  </a>
+</p>
+
+<div align="center">
+
 # Mario Kart (Android)
 
-[![Release](https://img.shields.io/github/v/release/builtbyhand/mario-kart?color=brightgreen&label=Release)](https://github.com/builtbyhand/mario-kart/releases)
-[![Android](https://img.shields.io/badge/Platform-Android%20Mobile%20%7C%20Tablet%20%7C%20TV-blue.svg)](https://github.com/builtbyhand/mario-kart)
-[![Min SDK](https://img.shields.io/badge/Min%20SDK-26%20(Android%208.0)-orange.svg)](https://developer.android.com/about/versions/oreo)
-[![Target SDK](https://img.shields.io/badge/Target%20SDK-35%20(Android%2015)-green.svg)](https://developer.android.com)
-[![Offline](https://img.shields.io/badge/Network-100%25%20Offline-success.svg)](https://github.com/builtbyhand/mario-kart)
-[![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen.svg)](https://github.com/builtbyhand/mario-kart/actions)
+### High-performance 3D kart racing engineered for Android phones, tablets, foldables, Chromebooks, and Android TV. Real-time Three.js WebGL rendering, 3-tier drift physics, 104-cue sampled OGG audio, and 100% offline APK delivery.
 
-A high-performance 3D Mario Kart racing game engineered specifically for Android devices, including mobile phones, tablets, foldables, Chromebooks, and Android TVs.
+<br/>
 
-- **Game Name:** Mario Kart
-- **Package Name:** `com.mizan.mariokart`
-- **Version:** `1.3.0` (`versionCode 6`)
-- **Orientation:** Sensor Landscape (Horizontal form factor)
-- **Minimum SDK:** 26 (Android 8.0 Oreo)
-- **Target SDK:** 35 (Android 15)
-- **Compile SDK:** 36 (Android 16)
-- **Distribution:** 100% self-contained offline APK served via Android `WebViewAssetLoader`
+<a href="#-quick-start"><img src="https://img.shields.io/badge/Docs-Quickstart-E62E2D?style=for-the-badge&logo=gitbook&logoColor=white" alt="Docs"></a>
+<a href="https://github.com/builtbyhand/mario-kart/releases"><img src="https://img.shields.io/badge/Download-Releases-f0f0f0?style=for-the-badge&logoColor=000000" alt="Releases"></a>
+<a href="https://github.com/builtbyhand/mario-kart/issues"><img src="https://img.shields.io/badge/Community-Issues-E62E2D?style=for-the-badge&logo=github&logoColor=white" alt="Issues"></a>
+
+<a href="#-mario-kart-overview"><img src="https://img.shields.io/badge/Platform-Android%208.0%2B%20(API%2026%2B)-0E1629?style=for-the-badge&logo=android&logoColor=white" alt="Android"></a>
+<a href="#-runtime--race-loop-flow"><img src="https://img.shields.io/badge/Engine-Three.js%20WebGL%20%2B%20Kotlin-E62E2D?style=for-the-badge&logoColor=white" alt="Engine"></a>
+
+<a href="https://github.com/builtbyhand/mario-kart/releases"><img src="https://img.shields.io/github/v/release/builtbyhand/mario-kart?style=flat-square&color=brightgreen&label=Release" alt="Release"></a>
+<a href="https://developer.android.com/about/versions/oreo"><img src="https://img.shields.io/badge/Min%20SDK-26%20(Android%208.0)-orange?style=flat-square" alt="Min SDK"></a>
+<a href="https://developer.android.com"><img src="https://img.shields.io/badge/Target%20SDK-35%20(Android%2015)-green?style=flat-square" alt="Target SDK"></a>
+<a href="https://github.com/builtbyhand/mario-kart"><img src="https://img.shields.io/badge/Network-100%25%20Offline-success?style=flat-square" alt="Offline"></a>
+<a href="https://github.com/builtbyhand/mario-kart/actions"><img src="https://img.shields.io/badge/Build-Passing-brightgreen?style=flat-square" alt="Build Status"></a>
+
+</div>
+
+> [!TIP]
+> **100% Self-Contained Offline Racing!** Mario Kart (`com.mizan.mariokart`, v`1.3.0`) bundles all 3D GLB courses, karts, 104-cue sampled OGG audio, and custom racing fonts directly inside the APK via Android `WebViewAssetLoader` — zero network requests, zero accounts, and instant sensor-landscape play on mobile and Android TV. [Build & install in under 60 seconds](#-quick-start).
 
 ---
 
-## 📸 Headless Visual Regression Captures (1280 × 720 HD Landscape)
+## Mario Kart Overview
+
+**Mario Kart (Android)** is a hardware-accelerated 3D arcade kart racer built with a native **Kotlin** Android host and a custom **Three.js WebGL** game engine. Designed for responsive sensor-landscape play across phones, tablets, Chromebooks, and Android TV Leanback, it pairs AgX tone-mapped PBR rendering and bloom post-processing with native haptic feedback, multi-touch pointer capture, and full D-pad/gamepad support.
+
+Unlike stripped-down mobile clones, every race runs locally with zero external asset streaming: players can toggle between **MK Stadium** (`stadium-source.glb`, texture-optimized to 9.28 MB for mobile GPU VRAM) and the procedural **Circuit** track, pick from 8 racers and 9 karts (including character-matched **Classic Kart** models with procedural driver sway), and race competitive 8-racer AI fields.
+
+**Key Capabilities:**
+
+- **Selectable Courses (`TRACK` Toggle)** — Race **MK Stadium** (default, driven by a measured 3D `roadMesh` in `stadium-route.json` with an anti-gravity banked hairpin, glider ramp jump, boost pads, jumbotrons, and animated crowds) or switch to the lightweight **Circuit** course (`world.js` + `track.js`).
+- **8 Playable Racers & 9 Kart Options** — Mario, Luigi, Peach, Yoshi, Toad, Bowser, Donkey Kong, and Koopa Troopa; choose **Classic Kart** (character-matched `*-source.glb` models with procedural driver/head sway and anti-gravity wheel rim shaders) or 8 customizable karts (*Red Speedster*, *Green Aero*, *Pink Sport*, *Lime Turbo*, *Blue Comet*, *Cyber Beast*, *Classic GT*, *Yellow Sprint*).
+- **Real-Time 3D Engine & Physics** — Hardware-rasterized Three.js WebGL with AgX tone mapping, soft shadows, bloom post-processing, FXAA, and a 3-tier drift turbo system (Mini-Turbo Blue, Super Mini-Turbo Orange, Ultra Mini-Turbo Purple).
+- **Item Arsenal & Competitive AI** — Green Shell, Red Shell, Spiny Blue Shell, Banana Peel, Dash Mushroom, and Super Star across an 8-racer AI field with racing-line tracking and rubber-banding.
+- **104-Cue Sampled OGG Audio & Custom Fonts** — Dynamic frontrunning music stems (`race`/`raceLead`, `final`/`finalLead`), multi-layer engine RPM/boost loops, terrain & drift loops, character voice clips (`audio/sampled/`) with automatic Web Audio synth fallback, plus bundled `counter.woff` and `message.woff` display fonts.
+- **Native Android Hardware Integration** — Native haptic vibration (`Vibrator` / `VibratorManager`), sticky immersive fullscreen, Android TV Leanback & D-pad/gamepad support, hardened multi-touch pointer capture, and full Android back-button navigation.
+
+<br>
+
+<div align="center">
+  <pre>
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                                  MARIO KART                                     │
+│      Kotlin Native Host ➔ WebViewAssetLoader ➔ Three.js WebGL ➔ Physics/AI      │
+├───────────────────────────────┬─────────────────────────────────────────────────┤
+│  📱 Android Native Shell      │  🏎️ 3D Race & Physics Engine                    │
+│   • Sensor-landscape & TV UI  │    [MK Stadium / Circuit]                       │
+│   • Haptics & Gamepad/D-Pad   │       ├── 3-Tier Drift & Anti-Gravity Zones     │
+│   • 100% Offline Asset Bundle │       ├── 8-Racer AI & Item Combat System       │
+├───────────────────────────────┼─────────────────────────────────────────────────┤
+│  🔊 Sampled Audio Engine      │  🎨 Scalable Mobile Renderer                    │
+│   • 104 OGG stems & voice SFX │    • AgX Tone Mapping, Bloom & FXAA             │
+│   • Web Audio synth fallback  │    • 4 Auto/Manual GPU Presets (Low ➔ Ultra)    │
+└───────────────────────────────┴─────────────────────────────────────────────────┘
+  </pre>
+</div>
+
+---
+
+## UI & Gameplay Preview
+
+<p align="center">
+  <img src="./docs/screenshots/release/05_gameplay_action.png" alt="Mario Kart Android Gameplay Action" width="100%" />
+</p>
+
+<div align="center">
+  <table>
+    <tr>
+      <td width="50%" align="center">
+        <img src="./docs/screenshots/release/01_main_menu.png" alt="High-Definition 3D Main Menu" width="100%" />
+        <br />
+        <em>1. High-Definition 3D Main Menu</em>
+      </td>
+      <td width="50%" align="center">
+        <img src="./docs/screenshots/release/02_character_showcase.png" alt="Character Showcase Pedestal" width="100%" />
+        <br />
+        <em>2. Character Showcase Pedestal</em>
+      </td>
+    </tr>
+    <tr>
+      <td width="50%" align="center">
+        <img src="./docs/screenshots/release/03_kart_showcase.png" alt="Kart Customization Showcase" width="100%" />
+        <br />
+        <em>3. Kart Customization Showcase</em>
+      </td>
+      <td width="50%" align="center">
+        <img src="./docs/screenshots/release/04_graphics_settings.png" alt="Scalable Graphics Settings" width="100%" />
+        <br />
+        <em>4. Scalable Graphics Settings</em>
+      </td>
+    </tr>
+    <tr>
+      <td width="50%" align="center">
+        <img src="./docs/screenshots/release/06_camera_chase.png" alt="Third-Person Chase Camera" width="100%" />
+        <br />
+        <em>5. Third-Person Chase Camera</em>
+      </td>
+      <td width="50%" align="center">
+        <img src="./docs/screenshots/release/07_hud_and_controls.png" alt="Touch HUD Overlay" width="100%" />
+        <br />
+        <em>6. Touch HUD Overlay</em>
+      </td>
+    </tr>
+    <tr>
+      <td width="50%" align="center">
+        <img src="./docs/screenshots/release/08_race_finish_results.png" alt="Race Completion Standings" width="100%" />
+        <br />
+        <em>7. Race Completion Standings</em>
+      </td>
+      <td width="50%" align="center">
+        <img src="./docs/logo-banner.svg" alt="Velocity MK Brand Banner" width="100%" />
+        <br />
+        <em>8. Velocity MK Brand Identity</em>
+      </td>
+    </tr>
+  </table>
+</div>
 
 > [!NOTE]
-> The screenshots below are headless visual regression captures rendered at 1280 × 720 via Chromium SwiftShader using the project's automated capture tool (`scripts/capture-release-screenshots.js`). They validate visual presentation, shaders, PBR materials, responsive UI overlays, and HUD styling. Gameplay mechanics (touch lifecycle, physics, barrier collision, loop closure) are verified separately by automated unit and integration suites.
-
-| 1. High-Definition 3D Main Menu | 2. Character Showcase Pedestal |
-| :---: | :---: |
-| ![Main Menu](docs/screenshots/release/01_main_menu.png) | ![Character Showcase](docs/screenshots/release/02_character_showcase.png) |
-| **3. Kart Customization Showcase** | **4. Scalable Graphics Settings** |
-| ![Kart Showcase](docs/screenshots/release/03_kart_showcase.png) | ![Graphics Settings](docs/screenshots/release/04_graphics_settings.png) |
-| **5. Racing Gameplay & Drift Action** | **6. Third-Person Chase Camera** |
-| ![Gameplay Action](docs/screenshots/release/05_gameplay_action.png) | ![Camera Chase](docs/screenshots/release/06_camera_chase.png) |
-| **7. Touch HUD Overlay** | **8. Race Completion Standings** |
-| ![HUD and Controls](docs/screenshots/release/07_hud_and_controls.png) | ![Race Results](docs/screenshots/release/08_race_finish_results.png) |
+> Screenshots are headless visual regression captures rendered at `1280 × 720` via Chromium SwiftShader (`scripts/capture-release-screenshots.js`) validating shaders, PBR materials, responsive UI overlays, and HUD styling. Gameplay mechanics are verified separately by automated unit and integration suites.
 
 ---
 
-## 📥 Download & Installation
+## Runtime & Race Loop Flow
 
-### Official Releases
-Signed APK releases are automatically built, verified, and published on [GitHub Releases](https://github.com/builtbyhand/mario-kart/releases) via `.github/workflows/release.yml` whenever a `v*` tag is pushed.
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Player
+    participant Host as Android Host (Kotlin + WebView)
+    participant Assets as WebViewAssetLoader (Offline APK)
+    participant Engine as Three.js Race & Physics Engine
+    participant Audio as SampledKartAudio (104 OGG Cues)
 
-### Installing a Local Release Build via ADB
-You can build and install the release APK directly to a connected Android device or emulator:
-```bash
-./gradlew assembleRelease
-adb install -r app/build/outputs/apk/release/app-release.apk
+    Note over Player,Assets: Offline Boot & Asset Loading
+    Player->>Host: Launch Mario Kart (Phone / Tablet / TV)
+    Host->>Assets: Serve index.html, GLBs, OGGs & fonts locally
+    Assets-->>Engine: Load stadium-source.glb & stadium-route.json
+
+    Note over Player,Audio: Real-Time 60fps Race Loop
+    Player->>Host: Touch Pedals / Tilt / Gamepad / TV D-Pad
+    Host->>Engine: Dispatch steering, gas, brake & drift input
+    Engine->>Engine: Step kart physics, anti-gravity, items & 8-racer AI
+    Engine->>Audio: Update engine RPM pitch & frontrunning music stems
+    alt Boost / Drift Release / Collision
+        Engine->>Host: Trigger native Android haptic vibration
+    end
+    Engine-->>Player: Render AgX WebGL frame + HUD standings
 ```
 
 ---
 
-## 🔐 Release Signing Configuration
+## 🚀 Quick Start
 
-The project implements a dedicated release signing configuration in `app/build.gradle.kts` and does **not** depend on the Android debug certificate for release builds:
+### Official GitHub Releases
+Signed APK releases are automatically built, verified, and published on [GitHub Releases](https://github.com/builtbyhand/mario-kart/releases) via `.github/workflows/release.yml` whenever a `v*` tag is pushed.
 
-1. **Production Signing:**
-   Configured via environment variables or Gradle properties:
-   - `RELEASE_STORE_FILE` (path to production `.jks` / `.keystore`)
-   - `RELEASE_STORE_PASSWORD`
-   - `RELEASE_KEY_ALIAS`
-   - `RELEASE_KEY_PASSWORD`
-   In GitHub Actions (`.github/workflows/release.yml`), when `RELEASE_KEYSTORE_BASE64`, `RELEASE_STORE_PASSWORD`, `RELEASE_KEY_ALIAS`, and `RELEASE_KEY_PASSWORD` secrets are configured, the workflow signs with the production keystore; otherwise it signs with the repository test-release keystore, verifies APK Signature Scheme v2 with `apksigner`, generates `checksums-sha256.txt`, and publishes the release artifacts.
+### Building & Installing Locally
 
-2. **Local Test-Release Signing:**
-   When production signing credentials are not present locally, Gradle automatically creates and uses an uncommitted local test-release keystore (`CN=Mario Kart Local Test Release, OU=QA Test, O=Mario Kart Project, C=US`, alias `mariokart-test-release`) stored in `app/build/signing/`. This produces an installable release-typed APK without relying on the debug key.
+**Prerequisites:** JDK 17+, Android SDK (`compileSdk = 36`, `targetSdk = 35`, `minSdk = 26`, Build-Tools `36.0.0`), and Node.js 18+ (for JS test suites).
 
-3. **Signature Verification (`apksigner`):**
-   ```bash
-   apksigner verify --verbose --print-certs app/build/outputs/apk/release/app-release.apk
-   ```
-   - Scheme: Verified using APK Signature Scheme v2.
-   - Debug Certificate Status: Confirmed **not** signed with the Android debug certificate (`CN=Android Debug`).
+```bash
+# Clone the repository
+git clone https://github.com/builtbyhand/mario-kart.git
+cd mario-kart
 
----
+# Build signed Release APK
+./gradlew assembleRelease
 
-## 🎮 Game Features
+# Or build Debug APK
+./gradlew assembleDebug
 
-- **Selectable Courses (`TRACK` Toggle in Main Menu):**
-  - **MK Stadium (Default):** Full 3D stadium course (`models/stadium-source.glb`, texture-optimized to 9.28 MB for mobile GPU VRAM) driven by a measured 3D `roadMesh` (`stadium-route.json`), featuring an anti-gravity banked hairpin, glider ramp jump, boost pads, jumbotrons, and animated spectator crowds.
-  - **Circuit:** Lightweight procedural stadium circuit (`world.js` + `track.js`) with 28 instanced environment props, dynamic spotlights, and underpass geometry.
-- **Racers & Vehicles:**
-  - **8 Playable Racers:** Mario, Luigi, Peach, Yoshi, Toad, Bowser, Donkey Kong, and Koopa Troopa.
-  - **9 Kart Options:** Select **Classic Kart** (character-matched `*-source.glb` models with procedural driver/head sway and anti-gravity wheel rim shaders) or choose from 8 customizable karts (*Red Speedster*, *Green Aero*, *Pink Sport*, *Lime Turbo*, *Blue Comet*, *Cyber Beast*, *Classic GT*, *Yellow Sprint*).
-- **Real-Time 3D Engine & Physics:**
-  - Hardware-rasterized Three.js WebGL rendering with AgX tone mapping, soft shadows, bloom post-processing, and FXAA.
-  - **3-Tier Drift System:** Mini-Turbo (Blue), Super Mini-Turbo (Orange), and Ultra Mini-Turbo (Purple).
-  - **Item Arsenal & Competitive AI:** Green Shell, Red Shell, Spiny Blue Shell, Banana Peel, Dash Mushroom, Super Star, and 8-racer AI field with racing line tracking and rubber-banding.
-- **Sampled Audio Engine & UI Typography:**
-  - **104-Cue Sampled OGG Audio Pack (`audio/sampled/`):** Dynamic frontrunning music stems (`race`/`raceLead`, `final`/`finalLead`), multi-layer engine RPM/boost loops, terrain & drift loops, UI feedback cues, results tally audio, and character-specific voice clips — with automatic synthesized Web Audio fallback.
-  - **Custom Racing Typography:** Bundled `counter.woff` and `message.woff` display fonts for HUD readouts, lap/position counters, banners, and menus.
-- **Native Android Hardware Integration:**
-  - Native haptic vibration (`Vibrator` / `VibratorManager`), sticky immersive fullscreen, Android TV Leanback & D-pad/gamepad support, hardened multi-touch pointer capture lifecycle, and full Android back-button navigation across menus and pause/results states.
+# Install Release APK via ADB
+adb install -r app/build/outputs/apk/release/app-release.apk
+```
 
 ---
 
@@ -143,57 +236,35 @@ The game detects connected gamepads and TV remotes, hiding on-screen touch pedal
 
 ---
 
-## 🧪 Testing Matrix & Verification
+## 🔐 Release Signing Configuration
 
-### Automated Test Suites
-1. **JavaScript Unit Tests (`npm test`):**
-   - **101 passing tests** verifying track mathematics, 3D barrier seams, `stadium-route.json` road mesh loop & anti-gravity/glide validation, `stadium-source.glb` and `*-source.glb` model integrity, sampled OGG audio loading, kart acceleration & drift dynamics, touch pointer capture recovery, and GPU capability presets.
-2. **JavaScript Syntax Check (`npm run check`):**
-   - Full AST syntax validation of all runtime game scripts.
-3. **Kotlin Unit Tests (`./gradlew test`):**
-   - Android native bridge, WebAppInterface, activity lifecycle, and input dispatching tests.
-4. **Visual Regression Verification (`npm run verify`, `scripts/capture-release-screenshots.js`):**
-   - Headless Chromium captures across karts, environment, menus, and HUD.
-5. **Android Back Navigation Suite (`scripts/verify-back-navigation-avd.js`):**
-   - Automated testing of physical/gesture back button handling across UI navigation states.
+The project implements a dedicated release signing configuration in `app/build.gradle.kts` and does **not** depend on the Android debug certificate for release builds:
+
+1. **Production Signing:** Configured via `RELEASE_STORE_FILE`, `RELEASE_STORE_PASSWORD`, `RELEASE_KEY_ALIAS`, and `RELEASE_KEY_PASSWORD` (or `RELEASE_KEYSTORE_BASE64` in `.github/workflows/release.yml`), verified with `apksigner` and published with `checksums-sha256.txt`.
+2. **Local Test-Release Signing:** When production credentials are absent locally, Gradle automatically generates an uncommitted local test-release keystore in `app/build/signing/` (`alias = mariokart-test-release`).
+3. **Signature Verification:**
+   ```bash
+   apksigner verify --verbose --print-certs app/build/outputs/apk/release/app-release.apk
+   ```
 
 ---
 
-## 🛠️ Building & Testing from Source
+## 🧪 Testing Matrix & Verification
 
-### Prerequisites
-- JDK 17 or higher
-- Android SDK with Build-Tools `36.0.0`, `compileSdk = 36`, and `targetSdk = 35`
-- Node.js 18+ (for running JS unit test suites)
-
-### Build Commands
 ```bash
-# Clone the repository
-git clone https://github.com/builtbyhand/mario-kart.git
-cd mario-kart
-
-# Build signed Release APK
-./gradlew assembleRelease
-
-# Build Debug APK
-./gradlew assembleDebug
-
-# Output APKs:
-# app/build/outputs/apk/release/app-release.apk (Release)
-# app/build/outputs/apk/debug/app-debug.apk (Debug)
-```
-
-### Verification & Test Suite
-```bash
-# Run JS unit tests
+# Run JS unit tests (101 passing tests)
 npm test
 
-# Run JS syntax check
+# Run JS AST syntax check
 npm run check
 
 # Run Kotlin unit tests
 ./gradlew test
 ```
+
+- **JavaScript Unit Tests (`npm test`):** 101 passing tests verifying track mathematics, 3D barrier seams, `stadium-route.json` road mesh loop & anti-gravity/glide validation, `stadium-source.glb` and `*-source.glb` model integrity, sampled OGG audio loading, kart acceleration & drift dynamics, touch pointer capture recovery, and GPU presets.
+- **Visual Regression (`npm run verify`, `scripts/capture-release-screenshots.js`):** Headless Chromium captures across karts, environment, menus, and HUD.
+- **Android Back Navigation Suite (`scripts/verify-back-navigation-avd.js`):** Automated back-button handling across UI navigation states.
 
 ---
 
