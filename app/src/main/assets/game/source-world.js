@@ -7,10 +7,11 @@ import {orientSourceScreen,loadSourceTvBrand} from './source-screens.js';
 import {sourceCrowd} from './source-crowd.js';
 import {sourceHelperMaterial} from './source-visible.js';
 import {finishSourceFiltering,finishSourceAsphalt,finishSourceLights} from './source-materials.js';
-export async function loadSourceWorld(scene, descriptor = {model:'stadium-source.glb',route:'stadium-route.json'}) {
+export async function loadSourceWorld(scene, descriptor = {model:'models/stadium-source.glb',route:'stadium-route.json'}) {
+  const baseUrl = new URL('./', import.meta.url);
   const local = file => {
-    const url = new URL(file, location.origin+'/assets/mario-kart/');
-    if(url.origin!==location.origin||!url.pathname.startsWith('/assets/mario-kart/'))throw new Error('Course files must belong to the local asset pack');
+    const url = new URL(file, baseUrl);
+    if(url.origin!==baseUrl.origin)throw new Error('Course files must belong to the local asset pack');
     return url.href;
   };
   const [asset,response]=await Promise.all([

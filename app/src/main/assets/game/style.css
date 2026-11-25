@@ -407,7 +407,8 @@ body.in-menu #pause-btn {
   gap: 8px;
 }
 
-#lap-options {
+#lap-options,
+#course-options {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -423,7 +424,8 @@ body.in-menu #pause-btn {
   -webkit-backdrop-filter: blur(12px);
 }
 
-#lap-options button {
+#lap-options button,
+#course-options button {
   padding: 5px 12px;
   border-radius: 12px;
   background: rgba(25, 40, 65, 0.75);
@@ -438,7 +440,8 @@ body.in-menu #pause-btn {
   transition: all 0.12s ease;
 }
 
-#lap-options button[aria-pressed="true"] {
+#lap-options button[aria-pressed="true"],
+#course-options button[aria-pressed="true"] {
   background: linear-gradient(135deg, #0284c7, #0369a1);
   border-color: #38bdf8;
   box-shadow: 0 2px 10px rgba(56, 189, 248, 0.6);

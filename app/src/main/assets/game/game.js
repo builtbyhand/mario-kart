@@ -242,18 +242,25 @@ const trackLights = (activeQuality.name === "low" ? [-1, 1] : [-2, -1, 0, 1, 2])
 export const postPipeline = new PostProcessingPipeline(renderer, scene, camera, capabilities);
 postPipeline.reconfigure(activeQuality, initialWidth, initialHeight);
 const coursePreference = new URLSearchParams(location.search).get('sourceCourse');
-let courseDescriptor = null;
-if (coursePreference === '1') {
-  try {
-    const response = await fetch('/assets/mario-kart/manifest.json');
-    if (response.ok) courseDescriptor = (await response.json()).course || null;
-  } catch { /* An optional local pack is not required to play. */ }
-}
-if (!courseDescriptor && coursePreference === '1') courseDescriptor = {model:'stadium-source.glb',route:'stadium-route.json'};
+let selectedCourse =
+  coursePreference === '1'
+    ? 'stadium'
+    : coursePreference === '0'
+      ? 'circuit'
+      : (() => {
+          try { return localStorage.getItem('mariokart.course') || 'stadium'; } catch { return 'stadium'; }
+        })();
+let courseDescriptor =
+  selectedCourse === 'stadium'
+    ? { model: 'models/stadium-source.glb', route: 'stadium-route.json' }
+    : null;
 let world;
 if (courseDescriptor) {
   try { world = await loadSourceWorld(scene, courseDescriptor); }
-  catch (error) { console.warn('Local course pack unavailable; using built-in course:', error.message); }
+  catch (error) {
+    console.warn('Local course pack unavailable; using built-in course:', error.message);
+    selectedCourse = 'circuit';
+  }
 }
 if (!world) world = await buildWorld(scene, capabilities);
 document.getElementById("boot")?.remove();
@@ -371,6 +378,10 @@ const shadowTexture = canvasTexture(64, 64, (ctx, w, h) => {
 
 export const menuCamera = new MenuCamera(camera, canvas);
 export const menuScene = new MenuScene({ scene, renderer, camera, keyLight: key, postPipeline });
+if (world.source) {
+  menuScene.origin.y = 0.14;
+  menuScene.root.position.copy(menuScene.origin);
+}
 menuScene.onModelFit = (width) => { menuCamera.fitScale = Math.min(1.35, Math.max(0.85, width / 3.4)); };
 menuCamera.setTurntableCenter(menuScene.origin.x, menuScene.origin.y, menuScene.origin.z);
 menuScene.setShowcaseRacer(selected, selectedKart);
@@ -743,6 +754,27 @@ for (const button of document.querySelectorAll('[data-laps]')) {
   addTapListener(button, () => selectLaps(Number(button.dataset.laps)));
 }
 syncLapOptions();
+function syncCourseOptions() {
+  document.querySelectorAll('[data-course]').forEach(button => {
+    button.setAttribute('aria-pressed', String(button.dataset.course === selectedCourse));
+  });
+  const tag = document.querySelector('.menu-stadium-tag');
+  if (tag) {
+    tag.innerHTML = (selectedCourse === 'stadium' ? 'MARIO KART STADIUM' : 'STADIUM CIRCUIT') + ' <span>★</span>';
+  }
+}
+function selectCourse(course) {
+  if (race.state !== 'ready' || course === selectedCourse) return;
+  selectedCourse = course === 'circuit' ? 'circuit' : 'stadium';
+  try { localStorage.setItem('mariokart.course', selectedCourse); } catch {}
+  syncCourseOptions();
+  try { audio.ui('confirm'); } catch (e) {}
+  setTimeout(() => location.reload(), 120);
+}
+for (const button of document.querySelectorAll('[data-course]')) {
+  addTapListener(button, () => selectCourse(button.dataset.course));
+}
+syncCourseOptions();
 function navigateDriver(direction) {
   if (driverConfirmed) {
     if (direction === 'left' || direction === 'right') selectLaps(selectedLaps === 1 ? 3 : 1);
