@@ -330,7 +330,7 @@ export async function runMenuVerification() {
         await evalCode(`
           window.__menuCamera.setMode('hub');
           document.getElementById('drawer-drivers').hidden = true;
-          document.getElementById('drawer-karts').hidden = true;
+          /* kart drawer removed */
           document.getElementById('modal-settings').hidden = true;
           document.getElementById('intro').classList.remove('menu-hidden');
         `);
@@ -346,7 +346,7 @@ export async function runMenuVerification() {
         await evalCode(`
           window.__menuCamera.setMode('driver');
           document.getElementById('drawer-drivers').hidden = false;
-          document.getElementById('drawer-karts').hidden = true;
+          /* kart drawer removed */
           document.getElementById('modal-settings').hidden = true;
         `);
       },
@@ -359,10 +359,9 @@ export async function runMenuVerification() {
       description: "Kart selection drawer with live 3D kart swap (Cyber Beast sports racer) and kart stats",
       setup: async () => {
         await evalCode(`
-          window.__chooseKart('cyber-beast');
           window.__menuCamera.setMode('kart');
           document.getElementById('drawer-drivers').hidden = true;
-          document.getElementById('drawer-karts').hidden = false;
+          /* kart drawer removed */
           document.getElementById('modal-settings').hidden = true;
         `);
       },
@@ -376,7 +375,7 @@ export async function runMenuVerification() {
       setup: async () => {
         await evalCode(`
           document.getElementById('drawer-drivers').hidden = true;
-          document.getElementById('drawer-karts').hidden = true;
+          /* kart drawer removed */
           document.getElementById('modal-settings').hidden = false;
           document.getElementById('tab-btn-graphics').classList.add('active');
           document.getElementById('tab-btn-audio').classList.remove('active');
@@ -425,7 +424,6 @@ export async function runMenuVerification() {
       description: "Cinematic camera swoop mid-transition from 3D menu turntable to race starting grid",
       setup: async () => {
         await evalCode(`
-          window.__chooseKart('kart-oobi');
           window.__chooseDriver('mario');
           const p = window.__race.player;
           const eye = new THREE.Vector3(p.x - 12, p.y + 6, p.z + 8);
@@ -448,7 +446,7 @@ export async function runMenuVerification() {
           window.__menuCamera.setMode('hub');
           document.getElementById('intro').classList.remove('menu-hidden');
           document.getElementById('drawer-drivers').hidden = true;
-          document.getElementById('drawer-karts').hidden = true;
+          /* kart drawer removed */
           document.getElementById('modal-settings').hidden = true;
         `);
       },

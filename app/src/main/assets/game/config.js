@@ -424,13 +424,7 @@ export const AUDIO_CONFIG = {
 // Architectural foundation for external GLB/glTF model packs in Phases 2-4
 export const ASSET_REGISTRY = {
   models: {},
-  textures: {
-    turf: {
-      path: "art/turf-v1.png",
-      source: "procedural/in-repo",
-      license: "MIT",
-    },
-  },
+  textures: {},
   audio: {},
   registerModel(id, meta) {
     this.models[id] = {

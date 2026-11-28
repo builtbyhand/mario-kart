@@ -116,16 +116,6 @@ async function main() {
   console.log(`  - Drivers drawer closed & camera at hub: ${t1Closed} => ${t1Pass ? "PASS" : "FAIL"}`);
   results.push({ test: "1. Back from Drivers Drawer", pass: t1Pass, details: `drawer hidden, camera: hub (${t1Closed})` });
 
-  console.log("\n[TEST 2] Back from Karts Drawer");
-  await evaluate("document.getElementById('nav-btn-karts')?.click();");
-  const t2Before = await waitFor(() => evaluate("!document.getElementById('drawer-karts')?.hidden"));
-  console.log(`  - Karts drawer opened: ${t2Before}`);
-  await triggerBack(evaluate);
-  const t2Closed = await waitFor(() => evaluate("document.getElementById('drawer-karts')?.hidden === true && window.__menuCamera?.mode === 'hub'"));
-  const t2Pass = t2Before && t2Closed;
-  console.log(`  - Karts drawer closed & camera at hub: ${t2Closed} => ${t2Pass ? "PASS" : "FAIL"}`);
-  results.push({ test: "2. Back from Karts Drawer", pass: t2Pass, details: `drawer hidden, camera: hub (${t2Closed})` });
-
   console.log("\n[TEST 3] Back from Settings Modal");
   await evaluate("document.getElementById('nav-btn-settings')?.click();");
   const t3Before = await waitFor(() => evaluate("!document.getElementById('modal-settings')?.hidden"));

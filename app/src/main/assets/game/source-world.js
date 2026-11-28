@@ -7,6 +7,9 @@ import {orientSourceScreen,loadSourceTvBrand} from './source-screens.js';
 import {sourceCrowd} from './source-crowd.js';
 import {sourceHelperMaterial} from './source-visible.js';
 import {finishSourceFiltering,finishSourceAsphalt,finishSourceLights} from './source-materials.js';
+import {activeQuality} from './config.js';
+// The stadium's own shadows cost ~190k extra triangles per frame; only high/ultra pay for them.
+const STADIUM_CASTS_SHADOWS=activeQuality?.name==='high'||activeQuality?.name==='ultra';
 export async function loadSourceWorld(scene, descriptor = {model:'models/stadium-source.glb',route:'stadium-route.json'}) {
   const baseUrl = new URL('./', import.meta.url);
   const local = file => {
@@ -29,7 +32,7 @@ export async function loadSourceWorld(scene, descriptor = {model:'models/stadium
     orientSourceScreen(o);
     finishSourceAsphalt(o.material);
     finishSourceLights(o.material);
-    o.castShadow=o.receiveShadow=true;
+    o.receiveShadow=true;o.castShadow=STADIUM_CASTS_SHADOWS;
     if(o.material.name==='fc_TV_capture'){
       o.material=new THREE.MeshBasicMaterial({map:o.material.map,side:THREE.DoubleSide});screenMaterials.push(o.material);
     }

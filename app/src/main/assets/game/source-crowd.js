@@ -1,6 +1,7 @@
 /** Seat-aligned, original spectator drawings on the optional course's benches. */
 import * as THREE from 'three';
 import {spectatorAtlas} from './stadium-crowd.js';
+import {activeQuality} from './config.js';
 
 export function sourceCrowd(root) {
   const texture = spectatorAtlas((w,h,draw) => {
@@ -13,6 +14,8 @@ export function sourceCrowd(root) {
   const p=[new THREE.Vector3(),new THREE.Vector3(),new THREE.Vector3()];
   const uv=[new THREE.Vector2(),new THREE.Vector2(),new THREE.Vector2()];
   const normal=new THREE.Vector3(),edge=new THREE.Vector3(),side=new THREE.Vector3();
+  // Fewer spectators on phones: the crowd was ~135k triangles, almost half of the stadium.
+  const density=activeQuality?.name==='high'?1:activeQuality?.name==='low'?.3:.5;
   let seed=72841;
   const random=()=>((seed=(Math.imul(seed,1664525)+1013904223)>>>0)/4294967296);
   const up=new THREE.Vector3(0,1,0);
@@ -42,6 +45,7 @@ export function sourceCrowd(root) {
           const b0=((uv[1].y-uv[2].y)*(u-uv[2].x)+(uv[2].x-uv[1].x)*(v-uv[2].y))/d;
           const b1=((uv[2].y-uv[0].y)*(u-uv[2].x)+(uv[0].x-uv[2].x)*(v-uv[2].y))/d,b2=1-b0-b1;
           if(Math.min(b0,b1,b2)<1e-5)continue;
+          if(random()>density)continue;
           const foot=p[0].clone().multiplyScalar(b0).addScaledVector(p[1],b1).addScaledVector(p[2],b2);
           const cell=foot.toArray().map(x=>Math.floor(x/.7));
           let close=false;
@@ -62,11 +66,6 @@ export function sourceCrowd(root) {
         }
     }
   });
-  const geometry=new THREE.BufferGeometry();
-  geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
-  geometry.setAttribute('uv',new THREE.Float32BufferAttribute(texcoords,2));
-  geometry.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));
-  geometry.setAttribute('spectatorWave',new THREE.Float32BufferAttribute(waves,2));
   const time={value:0},material=new THREE.MeshBasicMaterial({map:texture,vertexColors:true,side:THREE.DoubleSide,alphaTest:.4});
   material.onBeforeCompile=shader=>{
     shader.uniforms.crowdTime=time;
@@ -75,7 +74,20 @@ export function sourceCrowd(root) {
       '#include <begin_vertex>\n transformed.x += .035 * spectatorWave.x * sin(crowdTime * 2.8 + spectatorWave.y);');
   };
   material.customProgramCacheKey=()=> 'seat-crowd-v1';
-  const mesh=new THREE.Mesh(geometry,material);mesh.name='source-stadium-spectators';
+  // Split the crowd into spatial chunks so the renderer can skip the ones off-screen.
+  const CHUNK=80,buckets=new Map();
+  feet.forEach((f,i)=>{const key=Math.floor(f[0]/CHUNK)+','+Math.floor(f[2]/CHUNK);let list=buckets.get(key);if(!list){list=[];buckets.set(key,list);}list.push(i);});
+  const sources={position:[Float32Array.from(positions),3],uv:[Float32Array.from(texcoords),2],color:[Float32Array.from(colors),3],spectatorWave:[Float32Array.from(waves),2]};
+  const mesh=new THREE.Group();mesh.name='source-stadium-spectators';
+  for(const ids of buckets.values()){
+    const geometry=new THREE.BufferGeometry();
+    for(const [name,[src,size]] of Object.entries(sources)){
+      const per=size*6,out=new Float32Array(ids.length*per);
+      ids.forEach((id,n)=>out.set(src.subarray(id*per,(id+1)*per),n*per));
+      geometry.setAttribute(name,new THREE.BufferAttribute(out,size));
+    }
+    const part=new THREE.Mesh(geometry,material);part.name='source-stadium-spectators-chunk';mesh.add(part);
+  }
   mesh.userData.seatFeet=feet;mesh.userData.spectatorCount=feet.length;
   mesh.applyMatrix4(root.matrixWorld.clone().invert());root.add(mesh);
   return {mesh,update(t){time.value=t;}};

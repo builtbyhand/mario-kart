@@ -63,7 +63,7 @@ import {
 } from "./models.js";
 import { loadGLB, KART_SPECS } from "./models.js";
 
-import { buildWorld, canvasTexture } from "./world.js";
+import { canvasTexture } from "./canvas-texture.js";
 import { setMaterialCapabilities } from "./materials.js";
 import { ITEM_ICONS, portrait, loadSourcePortraits } from "./icons.js";
 import {
@@ -241,28 +241,8 @@ const trackLights = (activeQuality.name === "low" ? [-1, 1] : [-2, -1, 0, 1, 2])
 
 export const postPipeline = new PostProcessingPipeline(renderer, scene, camera, capabilities);
 postPipeline.reconfigure(activeQuality, initialWidth, initialHeight);
-const coursePreference = new URLSearchParams(location.search).get('sourceCourse');
-let selectedCourse =
-  coursePreference === '1'
-    ? 'stadium'
-    : coursePreference === '0'
-      ? 'circuit'
-      : (() => {
-          try { return localStorage.getItem('mariokart.course') || 'stadium'; } catch { return 'stadium'; }
-        })();
-let courseDescriptor =
-  selectedCourse === 'stadium'
-    ? { model: 'models/stadium-source.glb', route: 'stadium-route.json' }
-    : null;
-let world;
-if (courseDescriptor) {
-  try { world = await loadSourceWorld(scene, courseDescriptor); }
-  catch (error) {
-    console.warn('Local course pack unavailable; using built-in course:', error.message);
-    selectedCourse = 'circuit';
-  }
-}
-if (!world) world = await buildWorld(scene, capabilities);
+const courseDescriptor = { model: 'models/stadium-source.glb', route: 'stadium-route.json' };
+const world = await loadSourceWorld(scene, courseDescriptor);
 document.getElementById("boot")?.remove();
 if (world.source) {
   useSourceTrack(world.route);
@@ -337,7 +317,7 @@ for (const { mat, geos, cast } of staticGroups.values()) {
   geos.forEach((x) => x.dispose());
 }
 let selected = "mario",
-  selectedKart = localStorage.getItem("mariokart.kart") || "kart-oobi",
+  selectedKart = "classic-source",
   selectedLaps = localStorage.getItem("mariokart.laps") === "1" ? 1 : 3,
   paused = false,
   race,
@@ -406,7 +386,6 @@ function constructRace() {
     k.shadow.material.dispose();
   }
   karts.length = 0;
-  const customKartConfig = KART_TYPES.find(k => k.id === selectedKart) || KART_TYPES[0];
   for (const [i, r] of race.racers.entries()) {
     const root = new THREE.Group(),
       model = proceduralKart(r.character.id),
@@ -426,10 +405,7 @@ function constructRace() {
     scene.add(shadow);
     karts.push({
       id: r.character.id,
-      useSourcePack: i === 0 && Boolean(customKartConfig.isSourcePack),
-      customKartGlb: i === 0 ? customKartConfig.glb : null,
-      customKartScale: i === 0 ? customKartConfig.scale : null,
-      customKartTint: i === 0 ? customKartConfig.tint : null,
+      useSourcePack: true,
       root,
       model,
       glider,
@@ -680,30 +656,6 @@ function chooseDriver(index) {
   try { audio.ui('cursor'); } catch (e) {}
 }
 
-function chooseKart(kartId) {
-  if (race.state !== 'ready') return;
-  const k = KART_TYPES.find(x => x.id === kartId) || KART_TYPES[0];
-  selectedKart = k.id;
-  localStorage.setItem('mariokart.kart', selectedKart);
-
-  document.querySelectorAll('.kart-card').forEach((el) => {
-    const isSel = el.dataset.kartId === k.id;
-    el.classList.toggle('selected', isSel);
-    el.setAttribute('aria-pressed', String(isSel));
-  });
-
-  if ($('kart-name-badge')) $('kart-name-badge').textContent = k.name;
-  if ($('kart-class-badge')) $('kart-class-badge').textContent = k.category;
-  if ($('kart-detail-name')) $('kart-detail-name').textContent = k.name;
-  if ($('kart-detail-class')) $('kart-detail-class').textContent = k.category;
-  if ($('kart-detail-desc')) $('kart-detail-desc').textContent = k.desc;
-
-  updateStatBars(selected, selectedKart);
-  if (menuScene) menuScene.setShowcaseRacer(selected, selectedKart);
-  scheduleConstructRace();
-  try { audio.ui('cursor'); } catch (e) {}
-}
-
 function startRaceWithTransition() {
   if (race.state !== 'ready') return;
   flushConstructRace();
@@ -711,7 +663,6 @@ function startRaceWithTransition() {
   wheel.reset();
 
   if ($('drawer-drivers')) $('drawer-drivers').hidden = true;
-  if ($('drawer-karts')) $('drawer-karts').hidden = true;
   if ($('modal-settings')) $('modal-settings').hidden = true;
   $('intro').classList.add('menu-hidden');
 
@@ -754,27 +705,6 @@ for (const button of document.querySelectorAll('[data-laps]')) {
   addTapListener(button, () => selectLaps(Number(button.dataset.laps)));
 }
 syncLapOptions();
-function syncCourseOptions() {
-  document.querySelectorAll('[data-course]').forEach(button => {
-    button.setAttribute('aria-pressed', String(button.dataset.course === selectedCourse));
-  });
-  const tag = document.querySelector('.menu-stadium-tag');
-  if (tag) {
-    tag.innerHTML = (selectedCourse === 'stadium' ? 'MARIO KART STADIUM' : 'STADIUM CIRCUIT') + ' <span>★</span>';
-  }
-}
-function selectCourse(course) {
-  if (race.state !== 'ready' || course === selectedCourse) return;
-  selectedCourse = course === 'circuit' ? 'circuit' : 'stadium';
-  try { localStorage.setItem('mariokart.course', selectedCourse); } catch {}
-  syncCourseOptions();
-  try { audio.ui('confirm'); } catch (e) {}
-  setTimeout(() => location.reload(), 120);
-}
-for (const button of document.querySelectorAll('[data-course]')) {
-  addTapListener(button, () => selectCourse(button.dataset.course));
-}
-syncCourseOptions();
 function navigateDriver(direction) {
   if (driverConfirmed) {
     if (direction === 'left' || direction === 'right') selectLaps(selectedLaps === 1 ? 3 : 1);
@@ -840,49 +770,15 @@ for (const c of CHARACTERS) {
   $("characters").append(b);
 }
 
-// Populate Karts Carousel
-const kartsCarousel = $("karts-carousel");
-if (kartsCarousel) {
-  kartsCarousel.innerHTML = "";
-  for (const k of KART_TYPES) {
-    const card = document.createElement("button");
-    card.type = "button";
-    card.className = "kart-card" + (k.id === selectedKart ? " selected" : "");
-    card.setAttribute("aria-label", k.name);
-    card.dataset.kartId = k.id;
-    card.innerHTML = `
-      <div class="kart-icon-box">🏎️</div>
-      <div class="kart-title">${k.name}</div>
-      <div class="kart-cat">${k.category}</div>
-    `;
-    addTapListener(card, () => chooseKart(k.id));
-    kartsCarousel.append(card);
-  }
-}
-
 // Navigation & Drawers Listeners
 addTapListener($("nav-btn-drivers"), () => {
   if ($("drawer-drivers")) $("drawer-drivers").hidden = false;
-  if ($("drawer-karts")) $("drawer-karts").hidden = true;
   if (menuCamera) menuCamera.setMode("driver");
   try { audio.ui("cursor"); } catch (e) {}
 });
 
 addTapListener($("btn-close-drivers"), () => {
   if ($("drawer-drivers")) $("drawer-drivers").hidden = true;
-  if (menuCamera) menuCamera.setMode("hub");
-  try { audio.ui("cancel"); } catch (e) {}
-});
-
-addTapListener($("nav-btn-karts"), () => {
-  if ($("drawer-karts")) $("drawer-karts").hidden = false;
-  if ($("drawer-drivers")) $("drawer-drivers").hidden = true;
-  if (menuCamera) menuCamera.setMode("kart");
-  try { audio.ui("cursor"); } catch (e) {}
-});
-
-addTapListener($("btn-close-karts"), () => {
-  if ($("drawer-karts")) $("drawer-karts").hidden = true;
   if (menuCamera) menuCamera.setMode("hub");
   try { audio.ui("cancel"); } catch (e) {}
 });
@@ -1398,6 +1294,7 @@ function draw(dt, now) {
     }
     k.root.visible = true;
     k.shadow.visible = true;
+    const path = { normal: { x: 0, y: 1, z: 0 }, y: r.y, glide: false };
     const cast = i === 0 || Math.hypot(r.x - p.x, r.z - p.z) < 18;
     if (k.cast !== cast) {
       k.model.traverse((o) => {
@@ -2057,8 +1954,7 @@ constructRace();
 (async () => {
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   await wait(2500);
-  for (const k of KART_TYPES) { try { await loadGLB(k.glb); } catch (e) {} await wait(150); }
-  for (const spec of Object.values(KART_SPECS)) { try { await loadGLB(spec.character); } catch (e) {} await wait(150); }
+  for (const spec of Object.values(KART_SPECS)) { try { await loadGLB(spec.sourceKart); } catch (e) {} await wait(150); }
 })();
 syncPickupPools();
 audio.prepare();
@@ -2126,15 +2022,6 @@ window.__handleBackNavigation = function () {
     return true;
   }
 
-  // 3. Karts drawer open -> close karts, return to hub
-  const drawerKarts = $("drawer-karts");
-  if (drawerKarts && !drawerKarts.hidden) {
-    drawerKarts.hidden = true;
-    if (menuCamera) menuCamera.setMode("hub");
-    try { audio.ui("cancel"); } catch (e) {}
-    return true;
-  }
-
   // 4. Currently paused in race -> unpause/resume race
   if (paused) {
     resume();
@@ -2170,10 +2057,8 @@ window.__audio = audio;
 window.__menuScene = menuScene;
 window.__menuCamera = menuCamera;
 window.__chooseDriver = chooseDriver;
-window.__chooseKart = chooseKart;
 window.__startRaceWithTransition = startRaceWithTransition;
 window.__renderer = renderer;
-window.__setQualityPreset = (key) => setQualityPreset(key, { renderer, camera, canvas, keyLight: key, postPipeline, effects });
 window.__resetPerfMetrics = function () {
   frameTimes.length = 0;
 };

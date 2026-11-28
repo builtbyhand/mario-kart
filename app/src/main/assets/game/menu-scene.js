@@ -16,86 +16,6 @@ export const KART_TYPES = [
     category: "Classic",
     desc: "Original Mario Kart character & standard kart model with signature styling.",
   },
-  {
-    id: "kart-oobi",
-    name: "Red Speedster",
-    glb: "models/kart-oobi.glb",
-    tint: "#ff5d5d",
-    scale: 2.2,
-    stats: { speed: 85, accel: 80, weight: 70, drift: 75 },
-    category: "Standard",
-    desc: "Balanced aerodynamic classic with high straight-line stability.",
-  },
-  {
-    id: "kart-oodi",
-    name: "Green Aero",
-    glb: "models/kart-oodi.glb",
-    tint: "#6ee06e",
-    scale: 2.2,
-    stats: { speed: 80, accel: 85, weight: 65, drift: 85 },
-    category: "Aero",
-    desc: "High-downforce chassis built for responsive, nimble cornering.",
-  },
-  {
-    id: "kart-ooli",
-    name: "Pink Sport",
-    glb: "models/kart-ooli.glb",
-    tint: "#ff8fcf",
-    scale: 2.2,
-    stats: { speed: 75, accel: 90, weight: 60, drift: 90 },
-    category: "Sport",
-    desc: "Ultra-agile compact frame with rapid mini-turbo buildup.",
-  },
-  {
-    id: "kart-oopi",
-    name: "Lime Turbo",
-    glb: "models/kart-oopi.glb",
-    tint: "#c6f23a",
-    scale: 2.2,
-    stats: { speed: 88, accel: 78, weight: 75, drift: 72 },
-    category: "Turbo",
-    desc: "Twin-intake high-output motor engineered for high top speed.",
-  },
-  {
-    id: "kart-oozi",
-    name: "Blue Comet",
-    glb: "models/kart-oozi.glb",
-    tint: "#5aa9ff",
-    scale: 2.2,
-    stats: { speed: 82, accel: 85, weight: 70, drift: 80 },
-    category: "Comet",
-    desc: "Streamlined aerodynamic profile with all-around track grip.",
-  },
-  {
-    id: "race-future",
-    name: "Cyber Beast",
-    glb: "models/race-future.glb",
-    tint: "#b57cff",
-    scale: 1.25,
-    stats: { speed: 94, accel: 70, weight: 90, drift: 68 },
-    category: "Hyper",
-    desc: "Futuristic ground-effect hyperkart with massive top-end power.",
-  },
-  {
-    id: "race",
-    name: "Classic GT",
-    glb: "models/race.glb",
-    tint: "#ffb347",
-    scale: 1.25,
-    stats: { speed: 90, accel: 75, weight: 85, drift: 72 },
-    category: "Formula",
-    desc: "Vintage grand-prix formula racer with pure mechanical response.",
-  },
-  {
-    id: "sedan-sports",
-    name: "Yellow Sprint",
-    glb: "models/sedan-sports.glb",
-    tint: "#ffe14d",
-    scale: 1.25,
-    stats: { speed: 84, accel: 82, weight: 75, drift: 82 },
-    category: "Touring",
-    desc: "Tuned touring chassis with superb drift control and stability.",
-  },
 ];
 
 /**
@@ -106,7 +26,7 @@ export const DRIVER_PROFILES = {
     name: "Mario",
     class: "All-Rounder",
     color: "#ed303b",
-    defaultKart: "kart-oobi",
+    defaultKart: "classic-source",
     stats: { speed: 85, accel: 85, handling: 85, weight: 80 },
     desc: "The iconic champion with flawless balance across all track zones.",
   },
@@ -114,7 +34,7 @@ export const DRIVER_PROFILES = {
     name: "Luigi",
     class: "Aero Specialist",
     color: "#31bf5a",
-    defaultKart: "kart-oodi",
+    defaultKart: "classic-source",
     stats: { speed: 82, accel: 88, handling: 88, weight: 78 },
     desc: "Nimble driving style with sharp cornering and quick turbo recovery.",
   },
@@ -122,7 +42,7 @@ export const DRIVER_PROFILES = {
     name: "Peach",
     class: "Drift Master",
     color: "#ff8abe",
-    defaultKart: "kart-ooli",
+    defaultKart: "classic-source",
     stats: { speed: 78, accel: 92, handling: 92, weight: 70 },
     desc: "Lightweight and agile, generating super mini-turbos effortlessly.",
   },
@@ -130,7 +50,7 @@ export const DRIVER_PROFILES = {
     name: "Yoshi",
     class: "High Traction",
     color: "#83dc38",
-    defaultKart: "kart-oopi",
+    defaultKart: "classic-source",
     stats: { speed: 84, accel: 86, handling: 90, weight: 75 },
     desc: "Exceptional grip and rapid acceleration on both asphalt and kerbs.",
   },
@@ -138,7 +58,7 @@ export const DRIVER_PROFILES = {
     name: "Toad",
     class: "Turbo Sprinter",
     color: "#428cfa",
-    defaultKart: "kart-oozi",
+    defaultKart: "classic-source",
     stats: { speed: 80, accel: 95, handling: 90, weight: 65 },
     desc: "Pocket-rocket acceleration with lightning off-the-line launch.",
   },
@@ -146,7 +66,7 @@ export const DRIVER_PROFILES = {
     name: "Bowser",
     class: "Heavy Powerhouse",
     color: "#ffae26",
-    defaultKart: "race-future",
+    defaultKart: "classic-source",
     stats: { speed: 96, accel: 70, handling: 72, weight: 98 },
     desc: "Immense top speed and physical weight that knocks rivals aside.",
   },
@@ -154,7 +74,7 @@ export const DRIVER_PROFILES = {
     name: "Donkey Kong",
     class: "Heavy Brawler",
     color: "#a86335",
-    defaultKart: "race",
+    defaultKart: "classic-source",
     stats: { speed: 92, accel: 74, handling: 75, weight: 95 },
     desc: "Colossal momentum and rugged track dominance on open straights.",
   },
@@ -162,7 +82,7 @@ export const DRIVER_PROFILES = {
     name: "Koopa",
     class: "Agile Technician",
     color: "#f0d449",
-    defaultKart: "sedan-sports",
+    defaultKart: "classic-source",
     stats: { speed: 82, accel: 90, handling: 94, weight: 68 },
     desc: "Razor-sharp trajectory control that glides through tight hairpins.",
   },
@@ -202,7 +122,7 @@ export class MenuScene {
     this.showcaseMixer = null;
     this.showcaseWheels = [];
     this.characterId = "mario";
-    this.kartId = "kart-oobi";
+    this.kartId = "classic-source";
 
     // Build subcomponents
     this.buildShowcaseTurntable();
@@ -473,20 +393,15 @@ export class MenuScene {
 
     // Resolve target kart ID
     if (!kartId) {
-      kartId = DRIVER_PROFILES[characterId]?.defaultKart || "kart-oobi";
+      kartId = DRIVER_PROFILES[characterId]?.defaultKart || "classic-source";
     }
     this.kartId = kartId;
 
     const kartConfig = KART_TYPES.find((k) => k.id === kartId) || KART_TYPES[0];
 
     try {
-      const isSourcePack = Boolean(kartConfig.isSourcePack && charSpec.sourceKart);
-      const kartPath = isSourcePack ? charSpec.sourceKart : kartConfig.glb;
-      // Load GLTF model(s) from memory cache (or disk if first run)
-      const [kartGltf, charGltf] = await Promise.all([
-        loadGLB(kartPath),
-        isSourcePack ? Promise.resolve(null) : loadGLB(charSpec.character),
-      ]);
+      // Load the character-matched Classic Kart (cached after first load)
+      const kartGltf = await loadGLB(charSpec.sourceKart);
 
       // Guard: If another racer selection was made while awaiting assets, discard outdated load
       if (currentRequestId !== this.showcaseRequestId) {
@@ -494,13 +409,7 @@ export class MenuScene {
       }
 
       // Build articulated GLB kart with driver sitting in cockpit
-      const built = buildGLBKart(
-        characterId,
-        kartGltf,
-        charGltf,
-        isSourcePack ? 1.0 : kartConfig.scale,
-        isSourcePack ? null : kartConfig.tint,
-      );
+      const built = buildGLBKart(characterId, kartGltf, null, 1.0, null);
 
       // Guard: Ensure still latest before attaching to scene graph
       if (currentRequestId !== this.showcaseRequestId) {
@@ -530,17 +439,6 @@ export class MenuScene {
 
       // Initial orientation: angled slightly towards camera
       this.showcaseModel.rotation.y = 0.25;
-
-      // Start looping idle animation on driver skeleton
-      if (charGltf.animations && this.showcaseMixer) {
-        const idleClip = charGltf.animations.find((a) => a.name === "idle");
-        if (idleClip) {
-          const idleAction = this.showcaseMixer.clipAction(idleClip);
-          idleAction.reset();
-          idleAction.setLoop(THREE.LoopRepeat);
-          idleAction.play();
-        }
-      }
 
       this.root.add(this.showcaseModel);
       return this.showcaseModel;

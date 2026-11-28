@@ -206,73 +206,49 @@ export function disposeModel(root) {
 }
 export const KART_SPECS = {
   mario: {
-    kart: "models/kart-oobi.glb",
-    character: "models/character-male-a.glb",
     sourceKart: "models/mario-source.glb",
-    name: "Red Speedster",
     scale: 2.2,
     driverOffset: [0, 0.56, 0.14],
     driverScale: 1.80,
   },
   luigi: {
-    kart: "models/kart-oodi.glb",
-    character: "models/character-male-b.glb",
     sourceKart: "models/luigi-source.glb",
-    name: "Green Aero",
     scale: 2.2,
     driverOffset: [0, 0.56, 0.14],
     driverScale: 1.80,
   },
   peach: {
-    kart: "models/kart-ooli.glb",
-    character: "models/character-female-a.glb",
     sourceKart: "models/peach-source.glb",
-    name: "Pink Sport",
     scale: 2.2,
     driverOffset: [0, 0.54, 0.08],
     driverScale: 1.55,
   },
   yoshi: {
-    kart: "models/kart-oopi.glb",
-    character: "models/character-female-b.glb",
     sourceKart: "models/yoshi-source.glb",
-    name: "Lime Turbo",
     scale: 2.2,
     driverOffset: [0, 0.56, 0.14],
     driverScale: 1.75,
   },
   toad: {
-    kart: "models/kart-oozi.glb",
-    character: "models/character-male-c.glb",
     sourceKart: "models/toad-source.glb",
-    name: "Blue Comet",
     scale: 2.2,
     driverOffset: [0, 0.56, 0.14],
     driverScale: 1.70,
   },
   bowser: {
-    kart: "models/race-future.glb",
-    character: "models/character-male-d.glb",
     sourceKart: "models/bowser-source.glb",
-    name: "Cyber Beast",
     scale: 1.25,
     driverOffset: [0, 0.52, -0.18],
     driverScale: 1.65,
   },
   "donkey-kong": {
-    kart: "models/race.glb",
-    character: "models/character-male-d.glb",
     sourceKart: "models/donkey-kong-source.glb",
-    name: "Classic GT",
     scale: 1.25,
     driverOffset: [0, 0.46, -0.38],
     driverScale: 1.65,
   },
   koopa: {
-    kart: "models/sedan-sports.glb",
-    character: "models/character-female-c.glb",
     sourceKart: "models/koopa-source.glb",
-    name: "Yellow Sprint",
     scale: 1.25,
     driverOffset: [0, 0.45, -0.15],
     driverScale: 1.55,
@@ -797,19 +773,8 @@ export async function loadKartPack(karts, onProgress = () => {}) {
     const spec = KART_SPECS[id] || KART_SPECS.mario;
 
     try {
-      const useSourcePack = Boolean(kartObj.useSourcePack && spec.sourceKart);
-      const kartPath = useSourcePack ? spec.sourceKart : (kartObj.customKartGlb || spec.kart);
-      const kartScale = useSourcePack ? 1.0 : (kartObj.customKartScale || spec.scale);
-      const kartGltf = await loadGLB(kartPath);
-      const charGltf = useSourcePack ? null : await loadGLB(spec.character);
-
-      const glbResult = buildGLBKart(
-        id,
-        kartGltf,
-        charGltf,
-        kartScale,
-        useSourcePack ? null : kartObj.customKartTint,
-      );
+      const kartGltf = await loadGLB(spec.sourceKart);
+      const glbResult = buildGLBKart(id, kartGltf, null, 1.0, null);
 
       // Replace procedural model in kartObj.root
       if (kartObj.model && kartObj.root) {

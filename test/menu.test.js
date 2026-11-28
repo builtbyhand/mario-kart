@@ -169,8 +169,8 @@ test("MenuCamera executes smooth cinematic transition to gameplay grid", () => {
   assert.ok(camera.position.distanceTo(gridEye) < 0.05);
 });
 
-test("KART_TYPES and DRIVER_PROFILES define all 9 vehicles and 8 characters with complete metadata", () => {
-  assert.equal(KART_TYPES.length, 9);
+test("KART_TYPES and DRIVER_PROFILES define the Classic Kart and 8 characters with complete metadata", () => {
+  assert.equal(KART_TYPES.length, 1);
   for (const kart of KART_TYPES) {
     assert.ok(kart.id, "Kart must have id");
     assert.ok(kart.name, "Kart must have name");
@@ -235,11 +235,11 @@ test("MenuScene loads and swaps showcase racer with idle animations", async () =
 
   const menuScene = new MenuScene({ scene, renderer, camera });
 
-  // 1. Load Mario in Red Speedster
-  await menuScene.setShowcaseRacer("mario", "kart-oobi");
+  // 1. Load Mario in his Classic Kart
+  await menuScene.setShowcaseRacer("mario", "classic-source");
   assert.ok(menuScene.showcaseModel, "Showcase model must be loaded");
   assert.equal(menuScene.characterId, "mario");
-  assert.equal(menuScene.kartId, "kart-oobi");
+  assert.equal(menuScene.kartId, "classic-source");
   assert.equal(menuScene.showcaseWheels.filter(Boolean).length, 4, "Must articulate 4 wheels");
 
   // 2. Perform frame update with idle suspension breathing and head look
@@ -251,10 +251,10 @@ test("MenuScene loads and swaps showcase racer with idle animations", async () =
   assert.ok(Number.isFinite(menuScene.showcaseModel.rotation.z));
   assert.ok(Number.isFinite(menuScene.showcaseModel.rotation.x));
 
-  // 3. Swap to Peach in Cyber Beast (different kart and character GLB)
-  await menuScene.setShowcaseRacer("peach", "race-future");
+  // 3. Swap to Peach (different character-matched kart GLB)
+  await menuScene.setShowcaseRacer("peach", "classic-source");
   assert.equal(menuScene.characterId, "peach");
-  assert.equal(menuScene.kartId, "race-future");
+  assert.equal(menuScene.kartId, "classic-source");
   assert.ok(menuScene.showcaseModel, "Showcase model must swap cleanly");
   assert.equal(menuScene.showcaseWheels.filter(Boolean).length, 4);
 
@@ -328,8 +328,8 @@ test("MenuScene prevents outdated asynchronous showcase loads from replacing lat
 
   // Simulate an async race condition: Bowser is requested first, Peach is requested second.
   // The system must ensure Bowser does not overwrite Peach when it completes.
-  const p1 = menuScene.setShowcaseRacer("bowser", "kart-oobi");
-  const p2 = menuScene.setShowcaseRacer("peach", "race-future");
+  const p1 = menuScene.setShowcaseRacer("bowser", "classic-source");
+  const p2 = menuScene.setShowcaseRacer("peach", "classic-source");
 
   const [res1, res2] = await Promise.all([p1, p2]);
 
@@ -337,14 +337,14 @@ test("MenuScene prevents outdated asynchronous showcase loads from replacing lat
   assert.equal(res1, null, "Superseded load must resolve to null");
   assert.ok(res2, "Latest selection must resolve with showcase model");
 
-  // The active showcase racer must strictly be Peach in race-future
+  // The active showcase racer must strictly be Peach
   assert.equal(menuScene.characterId, "peach");
-  assert.equal(menuScene.kartId, "race-future");
+  assert.equal(menuScene.kartId, "classic-source");
   assert.equal(menuScene.showcaseModel, res2);
 
   // Switch to Toad, then rapidly switch to Mario
-  const pToad = menuScene.setShowcaseRacer("toad", "kart-oobi");
-  const pMario = menuScene.setShowcaseRacer("mario", "kart-oobi");
+  const pToad = menuScene.setShowcaseRacer("toad", "classic-source");
+  const pMario = menuScene.setShowcaseRacer("mario", "classic-source");
 
   const [resToad, resMario] = await Promise.all([pToad, pMario]);
   assert.equal(resToad, null, "Toad must be discarded as superseded");

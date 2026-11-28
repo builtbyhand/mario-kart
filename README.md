@@ -36,12 +36,12 @@
 
 **Mario Kart (Android)** is a hardware-accelerated 3D arcade kart racer built with a native **Kotlin** Android host and a custom **Three.js WebGL** game engine. Designed for responsive sensor-landscape play across phones, tablets, Chromebooks, and Android TV Leanback, it pairs AgX tone-mapped PBR rendering and bloom post-processing with native haptic feedback, multi-touch pointer capture, and full D-pad/gamepad support.
 
-Unlike stripped-down mobile clones, every race runs locally with zero external asset streaming: players can toggle between **MK Stadium** (`stadium-source.glb`, texture-optimized to 9.28 MB for mobile GPU VRAM) and the procedural **Circuit** track, pick from 8 racers and 9 karts (including character-matched **Classic Kart** models with procedural driver sway), and race competitive 8-racer AI fields.
+Unlike stripped-down mobile clones, every race runs locally with zero external asset streaming: players race **MK Stadium** (`stadium-source.glb`, texture-optimized to 9.28 MB for mobile GPU VRAM), pick from 8 racers (each with a character-matched **Classic Kart** model with procedural driver sway), and race competitive 8-racer AI fields.
 
 **Key Capabilities:**
 
-- **Selectable Courses (`TRACK` Toggle)** — Race **MK Stadium** (default, driven by a measured 3D `roadMesh` in `stadium-route.json` with an anti-gravity banked hairpin, glider ramp jump, boost pads, jumbotrons, and animated crowds) or switch to the lightweight **Circuit** course (`world.js` + `track.js`).
-- **8 Playable Racers & 9 Kart Options** — Mario, Luigi, Peach, Yoshi, Toad, Bowser, Donkey Kong, and Koopa Troopa; choose **Classic Kart** (character-matched `*-source.glb` models with procedural driver/head sway and anti-gravity wheel rim shaders) or 8 customizable karts (*Red Speedster*, *Green Aero*, *Pink Sport*, *Lime Turbo*, *Blue Comet*, *Cyber Beast*, *Classic GT*, *Yellow Sprint*).
+- **MK Stadium Course** — Driven by a measured 3D `roadMesh` in `stadium-route.json` with an anti-gravity banked hairpin, glider ramp jump, boost pads, jumbotrons, and a spatially-chunked, quality-scaled animated crowd.
+- **8 Playable Racers** — Mario, Luigi, Peach, Yoshi, Toad, Bowser, Donkey Kong, and Koopa Troopa, each racing in their character-matched **Classic Kart** (`*-source.glb` models with procedural driver/head sway and anti-gravity wheel rim shaders; kart textures capped at 512 px).
 - **Real-Time 3D Engine & Physics** — Hardware-rasterized Three.js WebGL with AgX tone mapping, soft shadows, bloom post-processing, FXAA, and a 3-tier drift turbo system (Mini-Turbo Blue, Super Mini-Turbo Orange, Ultra Mini-Turbo Purple).
 - **Item Arsenal & Competitive AI** — Green Shell, Red Shell, Spiny Blue Shell, Banana Peel, Dash Mushroom, and Super Star across an 8-racer AI field with racing-line tracking and rubber-banding.
 - **104-Cue Sampled OGG Audio & Custom Fonts** — Dynamic frontrunning music stems (`race`/`raceLead`, `final`/`finalLead`), multi-layer engine RPM/boost loops, terrain & drift loops, character voice clips (`audio/sampled/`) with automatic Web Audio synth fallback, plus bundled `counter.woff` and `message.woff` display fonts.
@@ -56,7 +56,7 @@ Unlike stripped-down mobile clones, every race runs locally with zero external a
 │      Kotlin Native Host ➔ WebViewAssetLoader ➔ Three.js WebGL ➔ Physics/AI      │
 ├───────────────────────────────┬─────────────────────────────────────────────────┤
 │  📱 Android Native Shell      │  🏎️ 3D Race & Physics Engine                    │
-│   • Sensor-landscape & TV UI  │    [MK Stadium / Circuit]                       │
+│   • Sensor-landscape & TV UI  │    [MK Stadium]                                 │
 │   • Haptics & Gamepad/D-Pad   │       ├── 3-Tier Drift & Anti-Gravity Zones     │
 │   • 100% Offline Asset Bundle │       ├── 8-Racer AI & Item Combat System       │
 ├───────────────────────────────┼─────────────────────────────────────────────────┤

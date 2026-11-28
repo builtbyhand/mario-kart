@@ -109,8 +109,8 @@
         </div>
         <div class="showcase-kart-row">
           <span class="showcase-label">KART:</span>
-          <span id="kart-name-badge" class="showcase-kart-name">Red Speedster</span>
-          <span id="kart-class-badge" class="showcase-category-tag">Standard</span>
+          <span id="kart-name-badge" class="showcase-kart-name">Classic Kart</span>
+          <span id="kart-class-badge" class="showcase-category-tag">Classic</span>
         </div>
         <div id="showcase-stats-bars" class="mini-stats-grid">
           <div class="stat-row"><span>SPEED</span><div class="stat-bar"><div id="stat-bar-speed" class="stat-fill" style="width: 85%;"></div></div></div>
@@ -122,11 +122,6 @@
 
       <!-- Bottom-Right Primary Action & Navigation Cluster -->
       <div id="menu-action-cluster">
-        <div id="course-options" role="group" aria-label="Track selection">
-          <span>TRACK:</span>
-          <button type="button" data-course="stadium" aria-pressed="true">MK STADIUM</button>
-          <button type="button" data-course="circuit" aria-pressed="false">CIRCUIT</button>
-        </div>
         <div id="lap-options" role="group" aria-label="Race length">
           <span>LAPS:</span>
           <button type="button" data-laps="1" aria-pressed="false">1 LAP</button>
@@ -135,10 +130,9 @@
         <button id="start" type="button">START RACE <span>🏁 GO!</span></button>
         <div id="menu-nav-bar" role="navigation" aria-label="Menu Sections">
           <button id="nav-btn-drivers" class="nav-tab-btn" type="button">🏎️ DRIVERS</button>
-          <button id="nav-btn-karts" class="nav-tab-btn" type="button">🏁 KARTS</button>
           <button id="nav-btn-settings" class="nav-tab-btn" type="button">⚙️ SETTINGS</button>
         </div>
-        <p id="menu-hint">Select your Driver &amp; Kart · Tap START RACE</p>
+        <p id="menu-hint">Select your Driver · Tap START RACE</p>
       </div>
 
       <!-- Drawer: Driver Selection -->
@@ -156,23 +150,6 @@
           <p id="driver-detail-desc" class="profile-desc">The iconic champion with flawless balance across all track zones.</p>
         </div>
         <div id="characters" class="carousel-track" role="group" aria-label="Choose character"></div>
-      </div>
-
-      <!-- Drawer: Kart Selection -->
-      <div id="drawer-karts" class="menu-drawer" hidden>
-        <div class="drawer-header">
-          <button id="btn-close-karts" class="drawer-back-btn" type="button">← BACK TO MENU</button>
-          <h2>CHOOSE YOUR KART</h2>
-          <span class="drawer-counter">9 KARTS</span>
-        </div>
-        <div id="kart-details-panel" class="drawer-profile-card">
-          <div class="profile-header">
-            <h3 id="kart-detail-name">Red Speedster</h3>
-            <span id="kart-detail-class" class="profile-badge">Standard</span>
-          </div>
-          <p id="kart-detail-desc" class="profile-desc">Balanced aerodynamic classic with high straight-line stability.</p>
-        </div>
-        <div id="karts-carousel" class="carousel-track" role="group" aria-label="Choose kart"></div>
       </div>
 
       <!-- Modal: Settings Dialog -->
